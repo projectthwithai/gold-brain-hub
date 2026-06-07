@@ -358,12 +358,12 @@ function ModalHeader({ title, onClose, TH }: any) {
 }
 
 // Input / label helpers
-const mkIS = TH => ({
+const mkIS = (TH: any) => ({
   width:"100%",background:TH.inputBg,border:`1px solid ${TH.border}`,color:TH.text,
   fontFamily:"'Cormorant Garamond','Noto Serif JP',serif",fontSize:15,
   padding:"10px 13px",borderRadius:2,outline:"none",
 });
-const mkLS = TH => ({
+const mkLS = (TH: any) => ({
   fontSize:11,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:6,
 });
 
