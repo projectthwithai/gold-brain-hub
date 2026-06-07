@@ -346,7 +346,7 @@ function ModalBackdrop({ onClose, children, TH, maxWidth = 480 }: ModalBackdropP
 }
 
 // Shared modal header
-function ModalHeader({ title, onClose, TH }) {
+function ModalHeader({ title, onClose, TH }: any) {
   return (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
       <h3 style={{fontSize:13,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{title}</h3>
@@ -367,7 +367,7 @@ const mkLS = TH => ({
   fontSize:11,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:6,
 });
 
-function GBtn({ children, onClick, variant="primary", TH }) {
+function GBtn({ children, onClick, variant="primary", TH }: any) {
   const V = {
     primary:{bg:`${TH.gold}1a`,bd:TH.goldDark,cl:TH.gold},
     danger: {bg:"#FF333318",bd:"#FF333355",cl:"#FF7777"},
@@ -382,7 +382,7 @@ function GBtn({ children, onClick, variant="primary", TH }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children }: any) {
   return (
     <div style={{marginBottom:14}}>
       <label style={{fontSize:11,letterSpacing:3,color:"#888",textTransform:"uppercase",display:"block",marginBottom:6}}>
