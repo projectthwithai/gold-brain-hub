@@ -613,7 +613,7 @@ function DonutChart({ done, total, size=130, TH }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EVENT CALENDAR
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCellColor, vy, vm, setVY, setVM }) {
+function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCellColor, vy, vm, setVY, setVM, tasks, sched }: any) {
   const today = new Date();
   const [pick, setPick] = useState(null);
 
@@ -2192,7 +2192,8 @@ export default function Dashboard() {
           <EventCalendar events={events} onEditEvent={ev=>setModal({type:"event",item:ev,initDate:ev.date})}
             onAddEvent={ds=>setModal({type:"event",item:null,initDate:ds})}
             TH={TH} t={t} calColors={calColors} onCellColor={setCellColor}
-            vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth}/>
+            vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth}
+            tasks={tasks} sched={sched}/>
         </div>
         <div style={{borderTop:`1px solid ${TH.border}`,maxHeight:180,overflowY:"auto"}}>
           {sorted.length===0&&<p style={{padding:"14px",fontSize:12,color:TH.textMuted,textAlign:"center",letterSpacing:2}}>{t.add_event}</p>}
