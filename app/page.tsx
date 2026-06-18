@@ -668,6 +668,15 @@ function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCe
                   {ev.title}
                 </div>
               ))}
+              {/* カレンダー同期表示 */}
+<div style={{ pointerEvents: 'none' }}>
+  {tasks.filter(tk => tk.deadline === dstr).map(tk => (
+    <div key={tk.id} style={{ fontSize: 7, color: TH.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.7 }}>□ {tk.text}</div>
+  ))}
+  {sched.filter(rc => isActiveToday(rc, new Date(vy, vm, d).getDay())).map(rc => (
+    <div key={rc.id} style={{ fontSize: 7, color: TH.goldDark, whiteSpace: 'nowrap', overflow: 'hidden' }}>• {rc.task}</div>
+  ))}
+</div>
               {pk&&(
                 <div onClick={e=>e.stopPropagation()}
                   style={{position:"absolute",top:"100%",left:0,zIndex:500,
@@ -1486,7 +1495,14 @@ export default function Dashboard() {
   })();
 
   const todayDow    = new Date().getDay();
-  const activeSched = sched.filter(r => isActiveToday(r, todayDow));
+  const getRotationItem = (routine: any) => {
+    if (!routine.freq || routine.freq !== "rotation") return true;
+    const daysSinceEpoch = Math.floor(Date.now() / 86400000);
+    const rotationGroup = sched.filter(r => r.freq === "rotation");
+    if (rotationGroup.length === 0) return true;
+    return rotationGroup[daysSinceEpoch % rotationGroup.length].id === routine.id;
+  };
+  const activeSched = sched.filter(r => isActiveToday(r, todayDow) && getRotationItem(r));
   const schedDone   = activeSched.filter(r => r.done).length;
   const routinePct  = activeSched.length > 0
     ? Math.round((schedDone / activeSched.length) * 100)
@@ -2025,18 +2041,34 @@ export default function Dashboard() {
       </div>
       {activeTab==="today"&&(
         <div>
-          {tasks.map(t2=>(
-            <div key={t2.id} className="row" onClick={()=>toggleTask(t2.id)} style={{cursor:"pointer"}}>
-              <div style={{width:20,height:20,border:`1px solid ${t2.done?TH.gold:TH.border}`,
-                background:t2.done?`${TH.gold}1a`:"transparent",borderRadius:2,flexShrink:0,
-                display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
-                {t2.done&&<span style={{fontSize:12,color:TH.gold}}>✓</span>}
-              </div>
-              <span style={{flex:1,fontSize:13,color:t2.done?TH.textMuted:TH.text,textDecoration:t2.done?"line-through":"none"}}>{t2.text}</span>
-              <span className="badge" style={{color:TH.goldDark,fontSize:9}}>{t2.category}</span>
-              <button className="edit-btn" onClick={e=>{e.stopPropagation();setModal({type:"task",item:t2});}}>✏️</button>
-            </div>
-          ))}
+          {Array.from(new Set(tasks.map(t => t.category || "Focus"))).map(cat => {
+  const catTasks = tasks.filter(tk => (tk.category || "Focus") === cat);
+  const sorted = [...catTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+  return (
+    <div key={cat} style={{ marginBottom: 15 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
+        <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
+        <button onClick={() => setTasks(ts => ts.filter(tk => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: 1 }}>DELETE ALL</button>
+      </div>
+      {sorted.map(t2 => (
+        <div key={t2.id} className="row" onClick={() => setModal({ type: "task", item: t2 })} style={{cursor: "pointer"}}>
+          <div 
+            onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} 
+            style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, 
+              background: t2.done ? `${TH.gold}1a` : "transparent",
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+          >
+            {t2.done && <span style={{ color: TH.gold, fontSize: 14 }}>✓</span>}
+          </div>
+          <span style={{ flex: 1, fontSize: 13, color: t2.done ? TH.textMuted : TH.text, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.6 : 1 }}>
+            {t2.text}
+          </span>
+          <button className="edit-btn" onClick={e => { e.stopPropagation(); setModal({ type: "task", item: t2 }); }}>✏️</button>
+        </div>
+      ))}
+    </div>
+  );
+})}
           <AddRow onClick={()=>setModal({type:"task",item:null})} label={t.add_task} TH={TH}/>
           {tasks.length > 0 && (
             <button
