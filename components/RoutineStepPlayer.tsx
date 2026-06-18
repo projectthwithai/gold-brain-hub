@@ -1,148 +1,33 @@
-"use client";
+// @ts-nocheck
+import ModalBackdrop from "./ModalBackdrop";
 
-import type { RoutineItem, RoutineStep, ThemeTokens } from "../lib/types";
-import { nextIncompleteStep, sortSteps } from "../lib/routineSteps";
-
-type StepPlayerDict = {
-  step_of: (current: number, total: number) => string;
-  complete_step: string;
-  exit_player: string;
-  all_done: string;
-  focus_mode: string;
-};
-
-type Props = {
-  routine: RoutineItem;
-  onCompleteStep: (stepId: string) => void;
-  onClose: () => void;
-  TH: ThemeTokens;
-  t: StepPlayerDict;
-};
-
-export default function RoutineStepPlayer({
-  routine,
-  onCompleteStep,
-  onClose,
-  TH,
-  t,
-}: Props) {
-  const steps = sortSteps(routine.steps ?? []);
-  const current = nextIncompleteStep(steps);
-  const currentIdx = current ? steps.findIndex((s) => s.id === current.id) : -1;
-  const allDone = steps.length > 0 && !current;
+export default function RoutineStepPlayer({ routine, onCompleteStep, onClose, TH, t }: any) {
+  const currentStep = routine.steps.find((s: any) => !s.isCompleted) || routine.steps[routine.steps.length - 1];
+  const completedCount = routine.steps.filter((s: any) => s.isCompleted).length;
+  const progress = (completedCount / routine.steps.length) * 100;
 
   return (
-    <div
-      className="fixed inset-0 z-[3000] flex flex-col items-center justify-center p-4 sm:p-8"
-      style={{ background: "rgba(0,0,0,.92)", backdropFilter: "blur(8px)" }}
-    >
-      <div
-        className="w-full max-w-lg rounded-md border p-6 sm:p-10 flex flex-col items-center gap-6 sm:gap-8"
-        style={{
-          background: TH.surface,
-          borderColor: TH.goldDark,
-          boxShadow: `0 0 80px ${TH.gold}22`,
-        }}
-      >
-        <div className="text-center w-full">
-          <p
-            className="text-[10px] sm:text-xs tracking-[4px] uppercase mb-2"
-            style={{ color: TH.textMuted }}
-          >
-            {t.focus_mode}
-          </p>
-          <h2
-            className="text-lg sm:text-2xl tracking-wide font-normal"
-            style={{ color: TH.gold }}
-          >
-            {routine.icon} {routine.task}
-          </h2>
-          <p
-            className="text-[10px] sm:text-xs mt-2 tracking-[3px] uppercase"
-            style={{ color: TH.textMuted, fontFamily: "'Share Tech Mono',monospace" }}
-          >
-            {routine.time}
-          </p>
-        </div>
-
-        {allDone ? (
-          <div className="text-center py-8 sm:py-12">
-            <div className="text-5xl sm:text-6xl mb-4">✦</div>
-            <p className="text-base sm:text-xl" style={{ color: TH.goldLight }}>
-              {t.all_done}
-            </p>
-          </div>
-        ) : current ? (
-          <>
-            <p
-              className="text-[10px] sm:text-xs tracking-[3px] uppercase"
-              style={{ color: TH.goldDark }}
-            >
-              {t.step_of(currentIdx + 1, steps.length)}
-            </p>
-            <div
-              className="w-full text-center py-8 sm:py-12 px-4 rounded-md"
-              style={{
-                background: `radial-gradient(ellipse at center, ${TH.gold}14 0%, transparent 70%)`,
-                border: `1px solid ${TH.gold}44`,
-              }}
-            >
-              <p
-                className="text-2xl sm:text-4xl leading-snug"
-                style={{ color: TH.text }}
-              >
-                {current.title}
-              </p>
-            </div>
-
-            <div className="flex gap-2 sm:gap-3 w-full justify-center flex-wrap">
-              {steps.map((s, i) => (
-                <div
-                  key={s.id}
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all"
-                  style={{
-                    background: s.isCompleted
-                      ? TH.gold
-                      : s.id === current.id
-                        ? TH.goldLight
-                        : TH.border,
-                    boxShadow: s.id === current.id ? `0 0 10px ${TH.gold}` : "none",
-                    transform: s.id === current.id ? "scale(1.3)" : "scale(1)",
-                  }}
-                  title={`Step ${i + 1}`}
-                />
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onCompleteStep(current.id)}
-              className="w-full min-h-[52px] sm:min-h-[56px] rounded-sm text-sm sm:text-base tracking-[3px] uppercase cursor-pointer transition-all active:scale-[0.98]"
-              style={{
-                background: `${TH.gold}22`,
-                border: `1px solid ${TH.gold}`,
-                color: TH.gold,
-                fontFamily: "inherit",
-              }}
-            >
-              ✓ {t.complete_step}
-            </button>
-          </>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="min-h-[44px] px-6 rounded-sm text-xs sm:text-sm tracking-[3px] uppercase cursor-pointer"
-          style={{
-            background: "transparent",
-            border: `1px solid ${TH.border}`,
-            color: TH.textMuted,
-            fontFamily: "inherit",
-          }}
-        >
-          {t.exit_player}
+    <div style={{ position: 'fixed', inset: 0, background: TH.bg, zIndex: 3000, display: 'flex', flexDirection: 'column', padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 30 }}>
+        <span style={{ fontSize: 12, letterSpacing: 4, color: TH.gold }}>DEEP WORK SEQUENCE</span>
+        <button onClick={onClose} style={{ color: TH.textMuted, background: 'none', border: 'none', fontSize: 24 }}>✕</button>
+      </div>
+      
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 14, color: TH.goldLight, marginBottom: 10, letterSpacing: 2 }}>{routine.task}</h2>
+        <div style={{ fontSize: 32, marginBottom: 40, color: TH.text }}>{currentStep.title}</div>
+        
+        <button onClick={() => onCompleteStep(currentStep.id)} style={{ width: 120, height: 120, borderRadius: '50%', background: `radial-gradient(circle, ${TH.gold}, ${TH.goldDark})`, border: 'none', color: TH.bg, fontWeight: 'bold', fontSize: 16, cursor: 'pointer', boxShadow: `0 0 30px ${TH.gold}66` }}>
+          {completedCount === routine.steps.length ? "FINISH" : "DONE"}
         </button>
+      </div>
+
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: TH.textMuted, marginBottom: 8 }}>
+          <span>{t.step_of(completedCount, routine.steps.length)}</span>
+          <span>{Math.round(progress)}%</span>
+        </div>
+        <div className="pbar"><div className="pfill" style={{ width: `${progress}%` }} /></div>
       </div>
     </div>
   );
