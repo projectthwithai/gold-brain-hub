@@ -12,7 +12,7 @@ export const isSupabaseConfigured = () => {
   return !!supabaseUrl && !!supabaseAnonKey;
 };
 
-// ★今回の主役：Googleログイン関数
+// Googleログイン（ここを1回だけ定義する）
 export const signInWithGoogle = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -46,14 +46,4 @@ export const upsertData = async (userId: string, key: string, value: any) => {
     value,
     updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,key' });
-};
-// ここから下を貼り付け
-export const signInWithGoogle = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
-    },
-  });
-  if (error) console.error("Login Error:", error.message);
 };
