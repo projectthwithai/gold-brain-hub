@@ -30,7 +30,6 @@ import {
   logPartnerActivity,
   subscribePartnerActivities,
   upsertPartnerSnapshot,
-  signInWithGoogle
 } from "../lib/partnerships";
 import type { GoalItem, PartnerActivity, PartnerSnapshot, Partnership, RoutineItem, RoutineStep } from "../lib/types";
 
@@ -43,6 +42,7 @@ import {
   onAuthStateChange,
   fetchAllData,
   upsertData,
+  signInWithGoogle,
 } from "../lib/supabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
