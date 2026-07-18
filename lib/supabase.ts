@@ -5,13 +5,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 export const getSupabase = () => supabase;
 
-// ★ これが足りなかったためにエラーが出ていた ★
-export const isSupabaseConfigured = () => {
-  return !!supabaseUrl && !!supabaseAnonKey;
-};
+// Vercelエラー対策の書き出し
+export const isSupabaseConfigured = () => !!supabaseUrl && !!supabaseAnonKey;
 
 export const onAuthStateChange = (callback: (session: any) => void) => {
   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
