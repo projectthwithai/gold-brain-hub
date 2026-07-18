@@ -30,6 +30,7 @@ import {
   logPartnerActivity,
   subscribePartnerActivities,
   upsertPartnerSnapshot,
+  signInWithGoogle
 } from "../lib/partnerships";
 import type { GoalItem, PartnerActivity, PartnerSnapshot, Partnership, RoutineItem, RoutineStep } from "../lib/types";
 
@@ -705,27 +706,27 @@ function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCe
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CRUD MODALS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function TaskModal({task,onSave,onDelete,onClose,t,TH}){
-  const[text,setText]=useState(task?.text||"");
-  const[cat,setCat]=useState(task?.category||"Focus");
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={task?t.modal_edit_task:t.modal_add_task} onClose={onClose} TH={TH}/>
-      <Field label={t.task_name}><input style={IS} value={text} onChange={e=>setText(e.target.value)}
-        onKeyDown={e=>e.key==="Enter"&&text.trim()&&(onSave({text:text.trim(),category:cat}),onClose())}
-        placeholder={t.task_ph} autoFocus/></Field>
-      <Field label={t.category}><input style={IS} value={cat} onChange={e=>setCat(e.target.value)} placeholder={t.cat_ph}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
-        {task&&<GBtn variant="danger" onClick={()=>{onDelete(task.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{if(!text.trim())return;onSave({text:text.trim(),category:cat});onClose();}} TH={TH}>
-          {task?t.save_btn:t.modal_add_task}
-        </GBtn>
+{/* 新・タスク表示システム */}
+{Array.from(new Set(tasks.map(t => t.category || "Focus"))).map(cat => {
+  const catTasks = tasks.filter(tk => (tk.category || "Focus") === cat);
+  const sorted = [...catTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+  return (
+    <div key={cat} style={{ marginBottom: 15 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
+        <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
+        <button onClick={() => setTasks(ts => ts.filter(tk => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none', cursor: 'pointer' }}>DELETE ALL</button>
       </div>
-    </ModalBackdrop>
+      {sorted.map(t2 => (
+        <div key={t2.id} className="row" onClick={() => setModal({ type: "task", item: t2 })} style={{cursor: "pointer"}}>
+          <div onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, background: t2.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            {t2.done && <span style={{ color: TH.gold }}>✓</span>}
+          </div>
+          <span style={{ flex: 1, fontSize: 13, color: t2.done ? TH.textMuted : TH.text, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.5 : 1 }}>{t2.text}</span>
+        </div>
+      ))}
+    </div>
   );
-}
+})}
 
 function ScheduleModal({item,onSave,onDelete,onClose,t,TH}){
   const[time,setTime]=useState(item?.time||"08:00");
@@ -739,7 +740,14 @@ function ScheduleModal({item,onSave,onDelete,onClose,t,TH}){
   const[stepDraft,setStepDraft]=useState("");
   const IS=mkIS(TH);
   const toggleDay=d=>setDays(ds=>ds.includes(d)?ds.filter(x=>x!==d):[...ds,d].sort());
-  const freqOpts=[{v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},{v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom}];
+  const getRotationItem = (routine: any) => {
+    if (!routine.freq || routine.freq !== "rotation") return true;
+    const daysSinceEpoch = Math.floor(Date.now() / 86400000);
+    const rotationGroup = sched.filter(r => r.freq === "rotation");
+    if (rotationGroup.length === 0) return true;
+    return rotationGroup[daysSinceEpoch % rotationGroup.length].id === routine.id;
+  };
+  const activeSched = sched.filter(r => isActiveToday(r, todayDow) && getRotationItem(r));
   const addStep=()=>{
     const title=stepDraft.trim();
     if(!title)return;
@@ -1017,234 +1025,119 @@ function CountdownModal({cd,onSave,onDelete,onClose,t,TH,onSetActive}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETTINGS PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function SettingsPanel({open,onClose,lang,setLang,themeName,setTheme,userName,setUserName,streakPct,setStreakPct,t,TH,user}){
-  const supabase = getSupabase();
-  const[name,setName]=useState(userName);
-  const[sp,setSp]=useState(streakPct);
-  const[email,setEmail]=useState("");
-  const[emailStatus,setEmailStatus]=useState("idle"); // "idle"|"sending"|"sent"|"error"
-  useEffect(()=>{setName(userName);},[userName]);
-  useEffect(()=>{setSp(streakPct);},[streakPct]);
-  useEffect(()=>{
-    if(!open)return;
-    const fn=e=>{ if(e.key==="Escape")onClose(); };
-    document.addEventListener("keydown",fn,true);
-    return()=>document.removeEventListener("keydown",fn,true);
-  },[open,onClose]);
-  const save=()=>{
-    setUserName(name); if(!user) LS.set("apx7_uname",name);
-    setStreakPct(Number(sp)); if(!user) LS.set("apx7_spct",Number(sp));
+function SettingsPanel({open,onClose,lang,setLang,themeName,setTheme,userName,setUserName,streakPct,setStreakPct,t,TH,user}: any){
+  const [name, setName] = useState(userName);
+  const [sp, setSp] = useState(streakPct);
+
+  useEffect(() => { setName(userName); }, [userName]);
+  useEffect(() => { setSp(streakPct); }, [streakPct]);
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: any) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", fn, true);
+    return () => document.removeEventListener("keydown", fn, true);
+  }, [open, onClose]);
+
+  const save = () => {
+    setUserName(name); 
+    if (!user) {
+      localStorage.setItem("apx7_uname", name);
+      localStorage.setItem("apx7_spct", String(sp));
+    }
     onClose();
   };
-  const sendMagicLink = async () => {
-    try {
-      setEmailStatus("sending");
-      // Magic Link (OTP) — send login email and redirect back to this app.
-      await supabase.auth.signInWithOtp({
-        email: String(email || "").trim(),
-        options: { emailRedirectTo: window.location.origin, shouldCreateUser: true },
-      });
-      setEmailStatus("sent");
-    } catch (e) {
-      console.error(e);
-      setEmailStatus("error");
-    }
-  };
-  return(
-    <>
-      {open&&<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",
-        backdropFilter:"blur(4px)",zIndex:1500}}/>}
-      <div style={{
-        position:"fixed",top:0,right:0,bottom:0,width:"min(400px,95vw)",
-        background:TH.surface,borderLeft:`1px solid ${TH.goldDark}55`,
-        zIndex:1600,transform:open?"translateX(0)":"translateX(100%)",
-        transition:"transform .38s cubic-bezier(.4,0,.2,1)",
-        display:"flex",flexDirection:"column",
-        boxShadow:open?`-16px 0 50px #00000066`:"none",overflowY:"auto",
-      }}>
-        <div style={{height:2,background:`linear-gradient(90deg,transparent,${TH.gold},${TH.goldLight},${TH.gold},transparent)`,flexShrink:0}}/>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-          padding:"20px 24px 16px",borderBottom:`1px solid ${TH.border}`,flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:18}}>⚙️</span>
-            <h2 style={{fontSize:13,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{t.settings}</h2>
-          </div>
-          <button onClick={onClose} style={{background:"none",border:`1px solid ${TH.border}`,
-            color:TH.textMuted,cursor:"pointer",fontSize:16,width:28,height:28,
-            display:"flex",alignItems:"center",justifyContent:"center",borderRadius:2}}>×</button>
-        </div>
-        <div style={{padding:"22px",display:"flex",flexDirection:"column",gap:22,flex:1}}>
 
-          {/* ── Auth (Magic Link) ─────────────────────────── */}
+  return (
+    <>
+      {open && <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)", zIndex: 1500 }} />}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "min(400px,95vw)",
+        background: TH.surface, borderLeft: `1px solid ${TH.goldDark}55`,
+        zIndex: 1600, transform: open ? "translateX(0)" : "translateX(100%)",
+        transition: "transform .38s cubic-bezier(.4,0,.2,1)",
+        display: "flex", flexDirection: "column",
+        boxShadow: open ? `-16px 0 50px #00000066` : "none", overflowY: "auto",
+      }}>
+        <div style={{ height: 2, background: `linear-gradient(90deg,transparent,${TH.gold},${TH.goldLight},${TH.gold},transparent)`, flexShrink: 0 }} />
+        
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: `1px solid ${TH.border}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>⚙️</span>
+            <h2 style={{ fontSize: 12, letterSpacing: 4, color: TH.gold, textTransform: "uppercase", fontWeight: 400 }}>{t.settings}</h2>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", fontSize: 16, width: 28, height: 28, borderRadius: 2 }}>×</button>
+        </div>
+        
+        <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 22, flex: 1 }}>
+          
+          {/* 1. Account (Google Login) */}
           <div>
-            <label style={{fontSize:11,letterSpacing:4,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:14}}>
-              Account
-            </label>
+            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>Account</label>
             {user ? (
-              <div style={{display:"flex",alignItems:"center",gap:12,
-                padding:"12px 14px",background:`${TH.gold}0a`,
-                border:`1px solid ${TH.goldDark}55`,borderRadius:3}}>
-                {user.user_metadata?.avatar_url && (
-                  <img src={user.user_metadata.avatar_url} alt=""
-                    style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${TH.gold}44`}}/>
-                )}
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{fontSize:13,color:TH.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                    {user.user_metadata?.full_name || user.email}
-                  </p>
-                  <p style={{fontSize:10,color:TH.textMuted,marginTop:2,letterSpacing:1}}>☁️ Cloud sync active</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: `${TH.gold}0a`, border: `1px solid ${TH.goldDark}55`, borderRadius: 3 }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, color: TH.text }}>{user.email}</p>
+                  <p style={{ fontSize: 10, color: TH.textMuted, marginTop: 2 }}>☁️ Cloud sync active</p>
                 </div>
-                <button onClick={()=>supabase.auth.signOut().catch(console.error)} style={{
-                  background:"transparent",border:`1px solid ${TH.border}`,color:TH.textMuted,
-                  cursor:"pointer",fontFamily:"inherit",fontSize:10,letterSpacing:2,
-                  padding:"5px 12px",borderRadius:2,textTransform:"uppercase",whiteSpace:"nowrap",
-                }}>Sign Out</button>
+                <button onClick={() => getSupabase().auth.signOut()} style={{ background: "transparent", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", fontSize: 10, padding: "5px 12px", borderRadius: 2 }}>Sign Out</button>
               </div>
             ) : (
-              <div>
-                <p style={{fontSize:11,color:TH.textMuted,marginBottom:12,lineHeight:1.7}}>
-                  {lang==="ja"
-                    ? "メールアドレスを入力すると、ログイン用のリンク（Magic Link）を送信します。リンクを開くとこの端末でログインされ、データがクラウド同期されます。"
-                    : "Enter your email to receive a Magic Link. Open it to sign in on this device and enable cloud sync."}
-                </p>
-                <input
-                  value={email}
-                  onChange={(e)=>setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  style={{
-                    width:"100%",padding:"11px 12px",borderRadius:3,
-                    background:TH.inputBg,border:`1px solid ${TH.border}`,color:TH.text,
-                    fontFamily:"inherit",fontSize:13,letterSpacing:.2,outline:"none",
-                    marginBottom:10,
-                  }}
-                  autoComplete="email"
-                  inputMode="email"
-                />
-                <button
-                  onClick={sendMagicLink}
-                  style={{
-                    display:"flex",alignItems:"center",justifyContent:"center",gap:10,
-                    width:"100%",padding:"13px",borderRadius:3,cursor:"pointer",
-                    background:`${TH.gold}1a`,border:`1px solid ${TH.goldDark}66`,
-                    fontFamily:"inherit",fontSize:12,letterSpacing:2,color:TH.gold,
-                    transition:"box-shadow .2s",
-                  }}
-                  onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 12px #0003"}
-                  onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
-                  disabled={!supabase}
-                >
-                  {supabase
-                    ? (emailStatus==="sending"
-                      ? (lang==="ja"?"送信中...":"Sending...")
-                      : (lang==="ja"?"Magic Link を送信":"Send Magic Link"))
-                    : "Supabase not configured"}
-                </button>
-                {emailStatus==="sent" && (
-                  <div style={{
-                    marginTop:10,padding:"10px 12px",borderRadius:3,
-                    background:`${TH.gold}12`,border:`1px solid ${TH.goldDark}55`,
-                    fontSize:11,color:TH.textDim,lineHeight:1.6,
-                  }}>
-                    {lang==="ja"
-                      ? "送信しました。メールのリンクを開いてログインを完了してください。"
-                      : "Sent. Check your email and open the link to finish signing in."}
-                  </div>
-                )}
-                {emailStatus==="error" && (
-                  <p style={{fontSize:11,color:"#FF7777",marginTop:10,lineHeight:1.6}}>
-                    {lang==="ja"
-                      ? "送信に失敗しました。メールアドレスを確認してもう一度お試しください。"
-                      : "Failed to send. Check the email address and try again."}
-                  </p>
-                )}
-                {!supabase && (
-                  <p style={{fontSize:10,color:"#FF9E4A",marginTop:8,letterSpacing:1,textAlign:"center"}}>
-                    .env に SUPABASE_URL と SUPABASE_ANON_KEY を設定してください
-                  </p>
-                )}
-              </div>
+              <button onClick={signInWithGoogle} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, width: "100%", padding: "14px", borderRadius: 4, cursor: "pointer", background: "#ffffff", border: `1px solid ${TH.border}`, color: "#3c4043", fontFamily: "sans-serif", fontSize: 14, fontWeight: 500, boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }}>
+                <img src="https://www.google.com/favicon.ico" style={{ width: 16 }} alt="" />
+                Continue with Google
+              </button>
             )}
           </div>
 
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)`}}/>
+          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
+
+          {/* 2. Language */}
           <div>
-            <label style={{fontSize:11,letterSpacing:4,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:14}}>{t.lang_label}</label>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <span style={{fontSize:13,color:lang==="en"?TH.goldLight:TH.textMuted,fontWeight:lang==="en"?600:400}}>EN</span>
-              <div onClick={()=>setLang(l=>l==="en"?"ja":"en")} style={{
-                width:52,height:26,borderRadius:13,cursor:"pointer",position:"relative",
-                background:lang==="ja"?`linear-gradient(90deg,${TH.goldDark},${TH.gold})`:"#2a2a2a",
-                border:`1px solid ${lang==="ja"?TH.gold:TH.border}`,transition:"all .3s",
-              }}>
-                <div style={{position:"absolute",top:3,left:lang==="ja"?27:3,width:18,height:18,
-                  borderRadius:"50%",background:lang==="ja"?TH.goldLight:"#666",transition:"left .3s"}}/>
+            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>{t.lang_label}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <span style={{ fontSize: 13 }}>EN</span>
+              <div onClick={() => setLang((l: string) => l === "en" ? "ja" : "en")} style={{ width: 52, height: 26, borderRadius: 13, background: lang === "ja" ? TH.gold : "#2a2a2a", position: "relative", cursor: "pointer" }}>
+                <div style={{ position: "absolute", top: 3, left: lang === "ja" ? 27 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "all 0.3s" }} />
               </div>
-              <span style={{fontSize:13,color:lang==="ja"?TH.goldLight:TH.textMuted,fontWeight:lang==="ja"?600:400}}>日本語</span>
+              <span style={{ fontSize: 13 }}>日本語</span>
             </div>
           </div>
 
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)`}}/>
+          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
 
-          {/* Theme */}
+          {/* 3. Theme */}
           <div>
-            <label style={{fontSize:11,letterSpacing:4,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:14}}>{t.theme_label}</label>
-            <div style={{display:"flex",gap:10}}>
-              {Object.keys(THEMES).map(k=>(
-                <button key={k} onClick={()=>setTheme(k)} style={{
-                  flex:1,padding:"12px 8px",borderRadius:3,cursor:"pointer",
-                  background:THEMES[k].bg2,border:`2px solid ${themeName===k?TH.gold:TH.border}`,
-                  transition:"all .2s",boxShadow:themeName===k?`0 0 10px ${TH.gold}44`:"none",
-                }}>
-                  <div style={{display:"flex",gap:5,justifyContent:"center",marginBottom:5}}>
-                    <div style={{width:13,height:13,borderRadius:"50%",background:THEMES[k].bg}}/>
-                    <div style={{width:13,height:13,borderRadius:"50%",background:THEMES[k].gold}}/>
+            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>{t.theme_label}</label>
+            <div style={{ display: "flex", gap: 10 }}>
+              {Object.keys(THEMES).map((k: string) => (
+                <button key={k} onClick={() => setTheme(k)} style={{ flex: 1, padding: "12px 8px", borderRadius: 3, cursor: "pointer", background: (THEMES as any)[k].bg2, border: `2px solid ${themeName === k ? TH.gold : TH.border}`, transition: "all 0.2s" }}>
+                  <div style={{ display: "flex", gap: 5, justifyContent: "center", marginBottom: 5 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: (THEMES as any)[k].bg }} />
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: (THEMES as any)[k].gold }} />
                   </div>
-                  <p style={{fontSize:9,letterSpacing:2,color:themeName===k?TH.gold:TH.textMuted,textTransform:"uppercase"}}>{THEMES[k].name}</p>
+                  <p style={{ fontSize: 8, letterSpacing: 1, color: themeName === k ? TH.gold : TH.textMuted, textTransform: "uppercase" }}>{(THEMES as any)[k].name}</p>
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)`}}/>
+          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
 
-          {/* Name */}
+          {/* 4. Name */}
           <div>
-            <label style={{fontSize:11,letterSpacing:4,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:10}}>{t.username_label}</label>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder={t.username_placeholder}
-              style={{width:"100%",background:TH.inputBg,border:`1px solid ${TH.border}`,color:TH.text,
-                fontFamily:"inherit",fontSize:15,padding:"10px 13px",borderRadius:2,outline:"none"}}/>
+            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>{t.username_label}</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: "10px", borderRadius: 2 }} placeholder={t.username_placeholder} />
           </div>
 
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)`}}/>
-
-          {/* Streak threshold */}
-          <div>
-            <label style={{fontSize:11,letterSpacing:4,color:TH.textMuted,textTransform:"uppercase",display:"block",marginBottom:6}}>
-              {t.streak_threshold}
-            </label>
-            <p style={{fontSize:10,color:TH.textMuted,marginBottom:12,lineHeight:1.6}}>{t.streak_threshold_sub}</p>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <input type="range" min="10" max="100" step="5" value={sp}
-                onChange={e=>setSp(Number(e.target.value))}
-                style={{flex:1,accentColor:TH.gold}}/>
-              <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:20,color:TH.gold,
-                minWidth:44,textAlign:"right"}}>{sp}%</span>
-            </div>
-          </div>
-
-          <button onClick={save} style={{
-            background:`linear-gradient(135deg,${TH.goldDark}44,${TH.gold}33)`,
-            border:`1px solid ${TH.gold}`,color:TH.goldLight,
-            cursor:"pointer",fontFamily:"inherit",fontSize:13,letterSpacing:4,
-            padding:"13px",borderRadius:2,textTransform:"uppercase",width:"100%",
-            boxShadow:`0 0 16px ${TH.gold}22`,
-          }}>{t.save_settings}</button>
+          <button onClick={save} style={{ marginTop: "auto", background: TH.goldDark, border: `1px solid ${TH.gold}`, color: TH.goldLight, padding: "13px", borderRadius: 2, cursor: "pointer", textTransform: "uppercase", fontWeight: "bold" }}>
+            {t.save_settings}
+          </button>
         </div>
       </div>
     </>
   );
 }
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STREAK SETTINGS MODAL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
