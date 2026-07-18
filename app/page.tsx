@@ -1,3 +1,4 @@
+// 17歳の本気
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -119,7 +120,9 @@ const DICT = {
     event_color_lbl:"Color", event_desc_lbl:"Note",
     days_lbl:"Active Days", freq_lbl:"Frequency",
     freq_daily:"Every day", freq_every2:"Every 2 days", freq_every3:"Every 3 days",
-    freq_weekly:"Weekly", freq_custom:"Custom days",
+    freq_weekly:"Weekly", freq_custom:"Custom days", freq_rotation:"Daily rotation",
+    task_memo:"Memo", task_memo_ph:"Notes, links, context...", task_deadline:"Due date",
+    delete_cat:"Delete category",
     days_short:["Su","Mo","Tu","We","Th","Fr","Sa"],
     inactive_today:"Not scheduled today",
     by_category:"By Category",
@@ -280,14 +283,44 @@ const nid = () => String(++_n);
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SCHEDULING
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-type SchedItem = { freq?: string; days?: number[] };
+type SchedItem = { id?: string; freq?: string; days?: number[] };
+
+function daysSinceEpoch(date?: Date): number {
+  const d = date ?? new Date();
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+function isRotationActive(
+  routine: SchedItem,
+  allRoutines: SchedItem[],
+  date?: Date,
+): boolean {
+  if (routine.freq !== "rotation") return true;
+  const group = allRoutines
+    .filter((r) => r.freq === "rotation")
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (group.length === 0) return true;
+  const dayIndex = daysSinceEpoch(date);
+  return group[dayIndex % group.length].id === routine.id;
+}
+
 function isActiveToday(item: SchedItem, dow: number) {
   if (!item.freq || item.freq === "daily") return true;
+  if (item.freq === "rotation") return true;
   if (item.freq === "every2") return Math.floor(Date.now()/86400000) % 2 === 0;
   if (item.freq === "every3") return Math.floor(Date.now()/86400000) % 3 === 0;
   if (item.freq === "weekly") return dow === (item.days?.[0] ?? 1);
   if (item.freq === "custom") return (item.days||[]).includes(dow);
   return true;
+}
+
+function isRoutineVisibleOnDate(
+  routine: SchedItem,
+  allRoutines: SchedItem[],
+  date: Date,
+): boolean {
+  if (!isActiveToday(routine, date.getDay())) return false;
+  return isRotationActive(routine, allRoutines, date);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -614,146 +647,99 @@ function DonutChart({ done, total, size=130, TH }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EVENT CALENDAR
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// --- ここから EventCalendar 関数の定義 ---
+// @ts-nocheck
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. EVENT CALENDAR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCellColor, vy, vm, setVY, setVM, tasks, sched }: any) {
   const today = new Date();
   const [pick, setPick] = useState(null);
-
-  const dim = new Date(vy,vm+1,0).getDate();
-  const fd  = new Date(vy,vm,1).getDay();
-  const prev = () => { if(vm===0){setVY(y=>y-1);setVM(11);}else setVM(m=>m-1); };
-  const next = () => { if(vm===11){setVY(y=>y+1);setVM(0);}else setVM(m=>m+1); };
-  const ds = d => `${vy}-${String(vm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-  const isToday = d => vy===today.getFullYear()&&vm===today.getMonth()&&d===today.getDate();
-  const evOn = d => events.filter(e=>e.date===ds(d));
-  const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const MNja = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  const ml = t.days_short[0]==="Su"?`${MN[vm]} ${vy}`:`${vy}年${MNja[vm]}`;
-  const CP = ["","#C9A84C22","#4A9EFF22","#FF6B4A22","#4AFF9E22","#8B8BFF22","#FF9E4A22","#FF4A9E22","#FF777722"];
-
-  const cells=[]; for(let i=0;i<fd;i++)cells.push(null); for(let d=1;d<=dim;d++)cells.push(d);
+  const dim = new Date(vy, vm + 1, 0).getDate();
+  const fd = new Date(vy, vm, 1).getDay();
+  const ds = (d: any) => `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const isToday = (d: any) => vy === today.getFullYear() && vm === today.getMonth() && d === today.getDate();
+  const evOn = (d: any) => (events || []).filter((e: any) => e.date === ds(d));
+  const prev = () => { if (vm === 0) { setVY((y: any) => y - 1); setVM(11); } else setVM((m: any) => m - 1); };
+  const next = () => { if (vm === 11) { setVY((y: any) => y + 1); setVM(0); } else setVM((m: any) => m + 1); };
+  const ml = t.days_short[0] === "Su" ? `Month: ${vm + 1} / ${vy}` : `${vy}年 ${vm + 1}月`;
+  const CP = ["", "#C9A84C22", "#4A9EFF22", "#FF6B4A22", "#4AFF9E22", "#8B8BFF22", "#FF9E4A22", "#FF4A9E22", "#FF777722"];
+  const cells = []; for (let i = 0; i < fd; i++) cells.push(null); for (let d = 1; d <= dim; d++) cells.push(d);
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <button onClick={prev} style={{background:"none",border:`1px solid ${TH.border}`,color:TH.textDim,
-          cursor:"pointer",padding:"3px 10px",borderRadius:2,fontSize:14}}>‹</button>
-        <span style={{fontSize:12,letterSpacing:3,color:TH.gold,textTransform:"uppercase"}}>{ml}</span>
-        <button onClick={next} style={{background:"none",border:`1px solid ${TH.border}`,color:TH.textDim,
-          cursor:"pointer",padding:"3px 10px",borderRadius:2,fontSize:14}}>›</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <button onClick={prev} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor: "pointer", padding: "3px 10px", borderRadius: 2 }}>‹</button>
+        <span style={{ fontSize: 12, letterSpacing: 3, color: TH.gold, textTransform: "uppercase" }}>{ml}</span>
+        <button onClick={next} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor: "pointer", padding: "3px 10px", borderRadius: 2 }}>›</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:3}}>
-        {t.days_short.map(d=>(
-          <div key={d} style={{textAlign:"center",fontSize:9,color:TH.textMuted,padding:"3px 0",letterSpacing:1}}>{d}</div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-        {cells.map((d,i)=>{
-          if(!d) return <div key={`e${i}`}/>;
-          const dstr=ds(d), evs=evOn(d), bg=calColors[dstr]||"transparent", tod=isToday(d), pk=pick===dstr;
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />;
+          const dstr = ds(d), evs = evOn(d), bg = calColors[dstr] || "transparent", tod = isToday(d), pk = pick === dstr;
           return (
-            <div key={dstr} style={{
-              position:"relative",minHeight:50,borderRadius:3,
-              background:bg,border:`1px solid ${tod?TH.gold:TH.border}`,
-              padding:"3px 4px",cursor:"pointer",
-              boxShadow:tod?`0 0 7px ${TH.gold}44`:"none",
-            }}
-              onClick={()=>{ if(pk){setPick(null);}else onAddEvent(dstr); }}
-              onContextMenu={e=>{e.preventDefault();setPick(pk?null:dstr);}}>
-              <div style={{fontSize:10,fontWeight:tod?700:400,color:tod?TH.gold:TH.textDim,
-                fontFamily:"'Share Tech Mono',monospace",lineHeight:1}}>{d}</div>
-              {evs.map(ev=>(
-                <div key={ev.id} onClick={e=>{e.stopPropagation();onEditEvent(ev);}}
-                  style={{fontSize:9,marginTop:2,padding:"1px 3px",borderRadius:2,
-                    background:ev.color||TH.gold+"33",color:TH.text,
-                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>
-                  {ev.title}
-                </div>
+            <div key={dstr} style={{ position: "relative", minHeight: 50, borderRadius: 3, background: bg, border: `1px solid ${tod ? TH.gold : TH.border}`, padding: "3px 4px", cursor: "pointer" }}
+              onClick={() => { if (pk) setPick(null); else onAddEvent(dstr); }}
+              onContextMenu={(e) => { e.preventDefault(); setPick(pk ? null : dstr); }}>
+              <div style={{ fontSize: 10, color: tod ? TH.gold : TH.textDim }}>{d}</div>
+              {evs.map((ev: any) => (
+                <div key={ev.id} onClick={(e) => { e.stopPropagation(); onEditEvent(ev); }} style={{ fontSize: 8, marginTop: 2, padding: "1px 2px", background: ev.color || TH.gold + "33", borderRadius: 2, overflow: "hidden" }}>{ev.title}</div>
               ))}
-              {/* カレンダー同期表示 */}
-<div style={{ pointerEvents: 'none' }}>
-  {tasks.filter(tk => tk.deadline === dstr).map(tk => (
-    <div key={tk.id} style={{ fontSize: 7, color: TH.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.7 }}>□ {tk.text}</div>
-  ))}
-  {sched.filter(rc => isActiveToday(rc, new Date(vy, vm, d).getDay())).map(rc => (
-    <div key={rc.id} style={{ fontSize: 7, color: TH.goldDark, whiteSpace: 'nowrap', overflow: 'hidden' }}>• {rc.task}</div>
-  ))}
-</div>
-              {pk&&(
-                <div onClick={e=>e.stopPropagation()}
-                  style={{position:"absolute",top:"100%",left:0,zIndex:500,
-                    background:TH.surface,border:`1px solid ${TH.gold}`,
-                    borderRadius:4,padding:6,display:"flex",gap:4,flexWrap:"wrap",width:110,
-                    boxShadow:"0 4px 20px #00000055"}}>
-                  {CP.map(c=>(
-                    <div key={c||"clr"} onClick={()=>{onCellColor(dstr,c);setPick(null);}}
-                      style={{width:20,height:20,borderRadius:3,background:c||"transparent",
-                        border:`1px solid ${c?c:"#555"}`,cursor:"pointer",
-                        boxShadow:calColors[dstr]===c?`0 0 5px ${TH.gold}`:"none"}}/>
-                  ))}
-                </div>
-              )}
+              <div style={{ pointerEvents: 'none', marginTop: 2 }}>
+                {tasks?.filter((tk: any) => tk.deadline === dstr).map((tk: any) => (
+                  <div key={tk.id} style={{ fontSize: 7, color: TH.textMuted, overflow: 'hidden' }}>□ {tk.text}</div>
+                ))}
+                {sched?.filter((rc: any) => isActiveToday(rc, new Date(vy, vm, d).getDay()) && rc.showOnCalendar !== false).map((rc: any) => (
+                  <div key={rc.id} style={{ fontSize: 7, color: TH.goldDark, overflow: 'hidden' }}>• {rc.task}</div>
+                ))}
+              </div>
             </div>
           );
         })}
       </div>
-      <p style={{fontSize:9,color:TH.textMuted,marginTop:5,letterSpacing:1}}>
-        {t.days_short[0]==="Su"?"Click=add · Right-click=color":"クリック=追加 · 右クリック=色"}
-      </p>
     </div>
   );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CRUD MODALS
+// 2. MODALS (Task, Sched, etc.)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{/* 新・タスク表示システム */}
-{Array.from(new Set(tasks.map(t => t.category || "Focus"))).map(cat => {
-  const catTasks = tasks.filter(tk => (tk.category || "Focus") === cat);
-  const sorted = [...catTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
-  return (
-    <div key={cat} style={{ marginBottom: 15 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
-        <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
-        <button onClick={() => setTasks(ts => ts.filter(tk => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none', cursor: 'pointer' }}>DELETE ALL</button>
+function TaskModal({task,onSave,onDelete,onClose,t,TH}: any){
+  const[text,setText]=useState(task?.text||"");
+  const[cat,setCat]=useState(task?.category||"Focus");
+  const[memo,setMemo]=useState(task?.memo||"");
+  const IS=mkIS(TH);
+  return(
+    <ModalBackdrop onClose={onClose} TH={TH}>
+      <ModalHeader title={task?t.modal_edit_task:t.modal_add_task} onClose={onClose} TH={TH}/>
+      <Field label={t.task_name}><input style={IS} value={text} onChange={e=>setText(e.target.value)} placeholder={t.task_ph} autoFocus/></Field>
+      <Field label={t.category}><input style={IS} value={cat} onChange={e=>setCat(e.target.value)} placeholder={t.cat_ph}/></Field>
+      <Field label="MEMO (メモ)"><textarea style={{...IS, minHeight: 80, resize: 'vertical'}} value={memo} onChange={e=>setMemo(e.target.value)} placeholder="詳細を記入..."/></Field>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
+        {task&&<GBtn variant="danger" onClick={()=>{onDelete(task.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
+        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
+        <GBtn onClick={()=>{if(!text.trim())return;onSave({text:text.trim(),category:cat,memo:memo});onClose();}} TH={TH}>{task?t.save_btn:t.modal_add_task}</GBtn>
       </div>
-      {sorted.map(t2 => (
-        <div key={t2.id} className="row" onClick={() => setModal({ type: "task", item: t2 })} style={{cursor: "pointer"}}>
-          <div onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, background: t2.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-            {t2.done && <span style={{ color: TH.gold }}>✓</span>}
-          </div>
-          <span style={{ flex: 1, fontSize: 13, color: t2.done ? TH.textMuted : TH.text, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.5 : 1 }}>{t2.text}</span>
-        </div>
-      ))}
-    </div>
+    </ModalBackdrop>
   );
-})}
+}
 
-function ScheduleModal({item,onSave,onDelete,onClose,t,TH}){
+function ScheduleModal({item,onSave,onDelete,onClose,t,TH}: any){
   const[time,setTime]=useState(item?.time||"08:00");
   const[task,setTask]=useState(item?.task||"");
   const[icon,setIcon]=useState(item?.icon||"📌");
   const[iconImg,setIconImg]=useState(item?.iconImg||null);
   const[freq,setFreq]=useState(item?.freq||"daily");
   const[days,setDays]=useState(item?.days||[0,1,2,3,4,5,6]);
-  const[steps,setSteps]=useState<RoutineStep[]>(item?.steps||[]);
+  const[steps,setSteps]=useState(item?.steps||[]);
   const[isShared,setIsShared]=useState(item?.isShared||false);
+  const[showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
   const[stepDraft,setStepDraft]=useState("");
   const IS=mkIS(TH);
   const toggleDay=d=>setDays(ds=>ds.includes(d)?ds.filter(x=>x!==d):[...ds,d].sort());
-  const getRotationItem = (routine: any) => {
-    if (!routine.freq || routine.freq !== "rotation") return true;
-    const daysSinceEpoch = Math.floor(Date.now() / 86400000);
-    const rotationGroup = sched.filter(r => r.freq === "rotation");
-    if (rotationGroup.length === 0) return true;
-    return rotationGroup[daysSinceEpoch % rotationGroup.length].id === routine.id;
-  };
-  const activeSched = sched.filter(r => isActiveToday(r, todayDow) && getRotationItem(r));
-  const addStep=()=>{
-    const title=stepDraft.trim();
-    if(!title)return;
-    setSteps(ss=>[...ss,{id:crypto.randomUUID?.()||String(Date.now()),title,order:ss.length,isCompleted:false}]);
-    setStepDraft("");
-  };
+  const freqOpts=[{v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},{v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom},{v:"rotation",l:"ローテーション"}];
+  const addStep=()=>{ if(!stepDraft.trim())return; setSteps(ss=>[...ss,{id:String(Date.now()),title:stepDraft.trim(),order:ss.length,isCompleted:false}]); setStepDraft(""); };
   const removeStep=id=>setSteps(ss=>ss.filter(s=>s.id!==id).map((s,i)=>({...s,order:i})));
   return(
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
@@ -762,80 +748,20 @@ function ScheduleModal({item,onSave,onDelete,onClose,t,TH}){
       <Field label={t.task_name}><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder={t.sched_ph} autoFocus/></Field>
       <Field label={t.freq_lbl}>
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {freqOpts.map(o=>(
-            <button key={o.v} onClick={()=>setFreq(o.v)} style={{
-              fontSize:11,padding:"6px 12px",borderRadius:2,cursor:"pointer",
-              background:freq===o.v?`${TH.gold}22`:"transparent",
-              border:`1px solid ${freq===o.v?TH.gold:TH.border}`,
-              color:freq===o.v?TH.gold:TH.textDim}}>
-              {o.l}
-            </button>
-          ))}
+          {freqOpts.map(o=>(<button key={o.v} onClick={()=>setFreq(o.v)} style={{fontSize:11,padding:"6px 12px",borderRadius:2,cursor:"pointer",background:freq===o.v?`${TH.gold}22`:"transparent",border:`1px solid ${freq===o.v?TH.gold:TH.border}`,color:freq===o.v?TH.gold:TH.textDim}}>{o.l}</button>))}
         </div>
       </Field>
-      {(freq==="custom"||freq==="weekly")&&(
-        <Field label={t.days_lbl}>
-          <div style={{display:"flex",gap:5}}>
-            {t.days_short.map((d,i)=>(
-              <button key={i} onClick={()=>toggleDay(i)} style={{
-                width:32,height:32,borderRadius:"50%",cursor:"pointer",fontSize:11,
-                background:days.includes(i)?`${TH.gold}22`:"transparent",
-                border:`1px solid ${days.includes(i)?TH.gold:TH.border}`,
-                color:days.includes(i)?TH.gold:TH.textDim}}>
-                {d}
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
-      <Field label={t.icon_lbl}>
-        <IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/>
-      </Field>
-      <Field label={t.steps_label}>
-        <div style={{display:"flex",gap:8,marginBottom:8}}>
-          <input style={{...IS,flex:1}} value={stepDraft} onChange={e=>setStepDraft(e.target.value)}
-            placeholder={t.step_title_ph} onKeyDown={e=>e.key==="Enter"&&addStep()}/>
-          <button type="button" onClick={addStep} style={{
-            minHeight:44,padding:"0 14px",background:`${TH.gold}18`,border:`1px solid ${TH.goldDark}`,
-            color:TH.gold,cursor:"pointer",fontFamily:"inherit",fontSize:11,letterSpacing:2,borderRadius:2}}>
-            {t.add_step}
-          </button>
-        </div>
-        {steps.map((s,i)=>(
-          <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <span style={{fontSize:12,color:TH.textMuted,width:20}}>{i+1}.</span>
-            <span style={{flex:1,fontSize:14,color:TH.text}}>{s.title}</span>
-            <button type="button" onClick={()=>removeStep(s.id)} style={{
-              background:"transparent",border:`1px solid ${TH.border}`,color:TH.textMuted,
-              cursor:"pointer",fontSize:11,minWidth:44,minHeight:44,borderRadius:2}}>✕</button>
-          </div>
-        ))}
-      </Field>
-      <label style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,cursor:"pointer",minHeight:44}}>
-        <input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)}
-          style={{width:18,height:18,accentColor:TH.gold}}/>
-        <span style={{fontSize:13,color:TH.textDim,letterSpacing:1}}>{t.share_routine}</span>
-      </label>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4,flexWrap:"wrap"}}>
-        {item&&<GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{
-          if(!task.trim()||!time)return;
-          onSave({time,task:task.trim(),icon,iconImg,freq,days,steps,isShared});
-          onClose();
-        }} TH={TH}>
-          {item?t.save_btn:t.modal_add_sched}
-        </GBtn>
-      </div>
+      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
+      <label style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18,height:18,accentColor:TH.gold}}/><span style={{fontSize:13,color:TH.textDim}}>カレンダーに表示する</span></label>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!task.trim()||!time)return;onSave({time,task:task.trim(),icon,iconImg,freq,days,steps,isShared,showOnCalendar});onClose();}} TH={TH}>{item?t.save_btn:t.modal_add_sched}</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-function LinkModal({link,onSave,onDelete,onClose,t,TH}){
+function LinkModal({link,onSave,onDelete,onClose,t,TH}: any){
   const[name,setName]=useState(link?.name||"");
   const[url,setUrl]=useState(link?.url||"https://");
   const[icon,setIcon]=useState(link?.icon||"🔗");
-  const[iconImg,setIconImg]=useState(link?.iconImg||null);
   const[color,setColor]=useState(link?.color||TH.gold);
   const[cat,setCat]=useState(link?.cat||"Learn");
   const IS=mkIS(TH);
@@ -844,418 +770,138 @@ function LinkModal({link,onSave,onDelete,onClose,t,TH}){
       <ModalHeader title={link?t.modal_edit_link:t.modal_add_link} onClose={onClose} TH={TH}/>
       <Field label={t.site_name}><input style={IS} value={name} onChange={e=>setName(e.target.value)} placeholder={t.site_ph} autoFocus/></Field>
       <Field label={t.url_lbl}><input style={IS} value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://..."/></Field>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.category}</label>
-          <input style={IS} value={cat} onChange={e=>setCat(e.target.value)} placeholder={t.cat_ph}/>
-        </div>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.accent_color}</label>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap",paddingTop:2}}>
-            {LINK_COLORS.map(c=><div key={c} onClick={()=>setColor(c)} style={{
-              width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",
-              border:`2px solid ${color===c?"#fff":"transparent"}`,boxShadow:color===c?`0 0 5px ${c}`:"none"}}/>)}
-          </div>
-        </div>
-      </div>
-      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={LINK_ICONS} TH={TH}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4,flexWrap:"wrap"}}>
-        {link&&<GBtn variant="danger" onClick={()=>{onDelete(link.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{if(!name.trim()||!url.trim())return;onSave({name:name.trim(),url:url.trim(),icon,iconImg,color,cat});onClose();}} TH={TH}>
-          {link?t.save_btn:t.modal_add_link}
-        </GBtn>
-      </div>
+      <Field label={t.category}><input style={IS} value={cat} onChange={e=>setCat(e.target.value)}/></Field>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{link&&<GBtn variant="danger" onClick={()=>{onDelete(link.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!name.trim()||!url.trim())return;onSave({name:name.trim(),url:url.trim(),icon,color,cat});onClose();}} TH={TH}>{link?t.save_btn:t.modal_add_link}</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-function GoalModal({goal,onSave,onDelete,onClose,t,TH}){
+function GoalModal({goal,onSave,onDelete,onClose,t,TH}: any){
   const[text,setText]=useState(goal?.goal||"");
   const[deadline,setDeadline]=useState(goal?.deadline||"");
   const[icon,setIcon]=useState(goal?.icon||"🎯");
-  const[iconImg,setIconImg]=useState(goal?.iconImg||null);
   const[prog,setProg]=useState(goal?.progress??0);
   const IS=mkIS(TH);
   return(
     <ModalBackdrop onClose={onClose} TH={TH}>
       <ModalHeader title={goal?t.modal_edit_goal:t.modal_add_goal} onClose={onClose} TH={TH}/>
-      <Field label={t.goal_lbl}><input style={IS} value={text} onChange={e=>setText(e.target.value)} placeholder={t.goal_ph} autoFocus/></Field>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.timeline}</label>
-          <input style={IS} value={deadline} onChange={e=>setDeadline(e.target.value)} placeholder={t.timeline_ph}/>
-        </div>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.prog_lbl} — {prog}%</label>
-          <input type="range" min="0" max="100" value={prog} onChange={e=>setProg(Number(e.target.value))}
-            style={{width:"100%",accentColor:TH.gold,marginTop:12}}/>
-        </div>
-      </div>
-      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={GOAL_ICONS} TH={TH}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4,flexWrap:"wrap"}}>
-        {goal&&<GBtn variant="danger" onClick={()=>{onDelete(goal.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{if(!text.trim())return;onSave({goal:text.trim(),deadline,icon,iconImg,progress:prog});onClose();}} TH={TH}>
-          {goal?t.save_btn:t.modal_add_goal}
-        </GBtn>
-      </div>
+      <Field label={t.goal_lbl}><input style={IS} value={text} onChange={e=>setText(e.target.value)} autoFocus/></Field>
+      <Field label={t.timeline}><input style={IS} value={deadline} onChange={e=>setDeadline(e.target.value)}/></Field>
+      <Field label={`${t.prog_lbl} — ${prog}%`}><input type="range" min="0" max="100" value={prog} onChange={e=>setProg(Number(e.target.value))} style={{width:"100%",accentColor:TH.gold}}/></Field>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{goal&&<GBtn variant="danger" onClick={()=>{onDelete(goal.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!text.trim())return;onSave({goal:text.trim(),deadline,icon,progress:prog});onClose();}} TH={TH}>{goal?t.save_btn:t.modal_add_goal}</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-function EventModal({ev,initDate,onSave,onDelete,onClose,t,TH}){
+function EventModal({ev,initDate,onSave,onDelete,onClose,t,TH}: any){
   const[title,setTitle]=useState(ev?.title||"");
   const[date,setDate]=useState(ev?.date||initDate||"");
   const[time,setTime]=useState(ev?.time||"");
   const[color,setColor]=useState(ev?.color||TH.gold+"44");
-  const[desc,setDesc]=useState(ev?.desc||"");
   const IS=mkIS(TH);
   return(
     <ModalBackdrop onClose={onClose} TH={TH}>
       <ModalHeader title={ev?t.modal_edit_event:t.modal_add_event} onClose={onClose} TH={TH}/>
-      <Field label={t.event_title_lbl}><input style={IS} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Study session" autoFocus/></Field>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.event_date_lbl}</label>
-          <input type="date" style={{...IS,colorScheme:"dark"}} value={date} onChange={e=>setDate(e.target.value)}/>
-        </div>
-        <div style={{flex:1,marginBottom:14}}>
-          <label style={mkLS(TH)}>{t.event_time_lbl}</label>
-          <input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/>
-        </div>
-      </div>
-      <Field label={t.event_color_lbl}>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {EVENT_COLORS.map(c=><div key={c} onClick={()=>setColor(c+"44")} style={{
-            width:24,height:24,borderRadius:4,background:c,cursor:"pointer",
-            border:`2px solid ${color===c+"44"?"#fff":"transparent"}`,boxShadow:color===c+"44"?`0 0 5px ${c}`:"none"}}/>)}
-        </div>
-      </Field>
-      <Field label={t.event_desc_lbl}>
-        <textarea style={{...IS,minHeight:56,resize:"vertical"}} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Optional note..."/>
-      </Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4,flexWrap:"wrap"}}>
-        {ev&&<GBtn variant="danger" onClick={()=>{onDelete(ev.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{if(!title.trim()||!date)return;onSave({title:title.trim(),date,time,color,desc});onClose();}} TH={TH}>
-          {ev?t.save_btn:t.modal_add_event}
-        </GBtn>
-      </div>
+      <Field label={t.event_title_lbl}><input style={IS} value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
+      <Field label={t.event_date_lbl}><input type="date" style={IS} value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{ev&&<GBtn variant="danger" onClick={()=>{onDelete(ev.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!title.trim()||!date)return;onSave({title:title.trim(),date,time,color});onClose();}} TH={TH}>{ev?t.save_btn:t.modal_add_event}</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-// Add/Edit Timer Modal — Liquid Pomodoro
-function TimerModal({timer,onSave,onClose,t,TH}){
+function TimerModal({timer,onSave,onClose,t,TH}: any){
   const[name,setName]=useState(timer?.name||"");
-  const[maxW,setMaxW]=useState(String(timer?.maxWorkMin ?? timer?.focusMin ?? DEFAULT_MAX_WORK_MIN));
-  const[ratio,setRatio]=useState(String(timer?.workRestRatio ?? DEFAULT_WORK_REST_RATIO));
-  const[longBr,setLongBr]=useState(String(timer?.longBreakMin ?? DEFAULT_LONG_BREAK_MIN));
+  const[maxW,setMaxW]=useState(String(timer?.maxWorkMin ?? 50));
+  const[ratio,setRatio]=useState(String(timer?.workRestRatio ?? 5));
+  const[longBr,setLongBr]=useState(String(timer?.longBreakMin ?? 15));
   const IS=mkIS(TH);
-  const save=()=>{
-    const m=parseInt(maxW,10),r=parseInt(ratio,10),lb=parseInt(longBr,10);
-    if(!name.trim()||isNaN(m)||m<5||m>180||isNaN(r)||r<1||r>20||isNaN(lb)||lb<1||lb>120)return;
-    onSave({name:name.trim(),maxWorkMin:m,workRestRatio:r,longBreakMin:lb});
-    onClose();
-  };
-  const raw = 3.4;
-  const ceil = Math.ceil(raw);
   return(
-    <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
-      <ModalHeader title={timer?t.save_btn:t.add_timer} onClose={onClose} TH={TH}/>
-      <Field label={t.timer_name}><input style={IS} value={name} onChange={e=>setName(e.target.value)}
-        onKeyDown={e=>e.key==="Enter"&&save()} placeholder={t.timer_name_ph} autoFocus/></Field>
-      <div style={{display:"flex",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{flex:"1 1 120px"}}>
-          <label style={mkLS(TH)}>{t.max_work} (min)</label>
-          <input type="number" min="5" max="180" style={IS} value={maxW} onChange={e=>setMaxW(e.target.value)}/>
-        </div>
-        <div style={{flex:"1 1 100px"}}>
-          <label style={mkLS(TH)}>{t.work_rest_ratio}</label>
-          <input type="number" min="1" max="20" style={IS} value={ratio} onChange={e=>setRatio(e.target.value)}
-            title="e.g. 5 = 5 min work → 1 min rest"/>
-        </div>
-        <div style={{flex:"1 1 100px"}}>
-          <label style={mkLS(TH)}>{t.long_break_min}</label>
-          <input type="number" min="1" max="120" style={IS} value={longBr} onChange={e=>setLongBr(e.target.value)}/>
-        </div>
-      </div>
-      <p style={{fontSize:11,color:TH.textMuted,marginBottom:14,lineHeight:1.6,letterSpacing:1}}>
-        {ratio}:1 — {t.break_lbl} = {t.focus_lbl} ÷ {ratio || DEFAULT_WORK_REST_RATIO} ({t.ceiling_note(String(raw),String(ceil))})
-      </p>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={save} TH={TH}>{timer?t.save_btn:t.add_timer}</GBtn>
-      </div>
+    <ModalBackdrop onClose={onClose} TH={TH}>
+      <ModalHeader title={t.add_timer} onClose={onClose} TH={TH}/>
+      <Field label={t.timer_name}><input style={IS} value={name} onChange={e=>setName(e.target.value)} autoFocus/></Field>
+      <div style={{display:"flex",gap:10}}><Field label="Max Work"><input type="number" style={IS} value={maxW} onChange={e=>setMaxW(e.target.value)}/></Field><Field label="Ratio"><input type="number" style={IS} value={ratio} onChange={e=>setRatio(e.target.value)}/></Field></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>onSave({name,maxWorkMin:Number(maxW),workRestRatio:Number(ratio),longBreakMin:Number(longBr)})} TH={TH}>Save</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-// Add/Edit Countdown Modal
-function CountdownModal({cd,onSave,onDelete,onClose,t,TH,onSetActive}){
+function CountdownModal({cd,onSave,onDelete,onClose,t,TH,onSetActive}: any){
   const[name,setName]=useState(cd?.name||"");
   const[date,setDate]=useState(cd?.date||"");
   const IS=mkIS(TH);
-  const save=()=>{
-    if(!name.trim()||!date)return;
-    const totalDays=Math.max(1,Math.ceil((new Date(date)-new Date())/86400000));
-    onSave({name:name.trim(),date,totalDays});
-    onClose();
-  };
   return(
     <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={cd?"Edit Countdown":t.add_countdown} onClose={onClose} TH={TH}/>
-      <Field label={t.countdown_name}>
-        <input style={IS} value={name} onChange={e=>setName(e.target.value)} placeholder={t.countdown_name_ph} autoFocus/>
-      </Field>
-      <Field label={t.countdown_date}>
-        <input type="date" style={{...IS,colorScheme:"dark"}} value={date} onChange={e=>setDate(e.target.value)}/>
-      </Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4,flexWrap:"wrap"}}>
-        {cd&&<GBtn variant="danger" onClick={()=>{onDelete(cd.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        {cd&&onSetActive&&<GBtn variant="ghost" onClick={()=>{onSetActive(cd.id);onClose();}} TH={TH}>{t.countdown_active}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={save} TH={TH}>{cd?t.save_btn:t.add_countdown}</GBtn>
-      </div>
+      <ModalHeader title="Countdown" onClose={onClose} TH={TH}/>
+      <Field label="Name"><input style={IS} value={name} onChange={e=>setName(e.target.value)}/></Field>
+      <Field label="Date"><input type="date" style={IS} value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{cd&&<GBtn variant="danger" onClick={()=>{onDelete(cd.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>onSave({name,date})} TH={TH}>Save</GBtn></div>
     </ModalBackdrop>
   );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETTINGS PANEL
+// 3. SETTINGS & OTHER SUB-COMPONENTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function SettingsPanel({open,onClose,lang,setLang,themeName,setTheme,userName,setUserName,streakPct,setStreakPct,t,TH,user}: any){
   const [name, setName] = useState(userName);
   const [sp, setSp] = useState(streakPct);
-
   useEffect(() => { setName(userName); }, [userName]);
   useEffect(() => { setSp(streakPct); }, [streakPct]);
-  useEffect(() => {
-    if (!open) return;
-    const fn = (e: any) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", fn, true);
-    return () => document.removeEventListener("keydown", fn, true);
-  }, [open, onClose]);
-
-  const save = () => {
-    setUserName(name); 
-    if (!user) {
-      localStorage.setItem("apx7_uname", name);
-      localStorage.setItem("apx7_spct", String(sp));
-    }
-    onClose();
-  };
+  const save = () => { setUserName(name); localStorage.setItem("apx7_uname", name); setStreakPct(Number(sp)); localStorage.setItem("apx7_spct", String(sp)); onClose(); };
 
   return (
     <>
       {open && <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)", zIndex: 1500 }} />}
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: "min(400px,95vw)",
-        background: TH.surface, borderLeft: `1px solid ${TH.goldDark}55`,
-        zIndex: 1600, transform: open ? "translateX(0)" : "translateX(100%)",
-        transition: "transform .38s cubic-bezier(.4,0,.2,1)",
-        display: "flex", flexDirection: "column",
-        boxShadow: open ? `-16px 0 50px #00000066` : "none", overflowY: "auto",
-      }}>
-        <div style={{ height: 2, background: `linear-gradient(90deg,transparent,${TH.gold},${TH.goldLight},${TH.gold},transparent)`, flexShrink: 0 }} />
-        
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: `1px solid ${TH.border}`, flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 18 }}>⚙️</span>
-            <h2 style={{ fontSize: 12, letterSpacing: 4, color: TH.gold, textTransform: "uppercase", fontWeight: 400 }}>{t.settings}</h2>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", fontSize: 16, width: 28, height: 28, borderRadius: 2 }}>×</button>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(400px,95vw)", background: TH.surface, borderLeft: `1px solid ${TH.goldDark}55`, zIndex: 1600, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform .38s", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${TH.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 12, color: TH.gold, textTransform: "uppercase" }}>{t.settings}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: TH.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
         </div>
-        
-        <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 22, flex: 1 }}>
-          
-          {/* 1. Account (Google Login) */}
+        <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 22 }}>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>Account</label>
+            <label style={{ fontSize: 11, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>Account</label>
             {user ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: `${TH.gold}0a`, border: `1px solid ${TH.goldDark}55`, borderRadius: 3 }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, color: TH.text }}>{user.email}</p>
-                  <p style={{ fontSize: 10, color: TH.textMuted, marginTop: 2 }}>☁️ Cloud sync active</p>
-                </div>
-                <button onClick={() => getSupabase().auth.signOut()} style={{ background: "transparent", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", fontSize: 10, padding: "5px 12px", borderRadius: 2 }}>Sign Out</button>
+              <div style={{ padding: 12, background: `${TH.gold}0a`, border: `1px solid ${TH.goldDark}55`, borderRadius: 3 }}>
+                <p style={{ fontSize: 13, color: TH.text }}>{user.email}</p>
+                <button onClick={() => getSupabase().auth.signOut()} style={{ marginTop: 8, fontSize: 10, background: "transparent", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", padding: "4px 8px" }}>Sign Out</button>
               </div>
             ) : (
-              <button onClick={signInWithGoogle} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, width: "100%", padding: "14px", borderRadius: 4, cursor: "pointer", background: "#ffffff", border: `1px solid ${TH.border}`, color: "#3c4043", fontFamily: "sans-serif", fontSize: 14, fontWeight: 500, boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }}>
-                <img src="https://www.google.com/favicon.ico" style={{ width: 16 }} alt="" />
-                Continue with Google
+              <button onClick={signInWithGoogle} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", padding: 12, background: "#fff", border: `1px solid ${TH.border}`, color: "#333", borderRadius: 4, cursor: "pointer" }}>
+                <img src="https://www.google.com/favicon.ico" style={{ width: 16 }} /> Continue with Google
               </button>
             )}
           </div>
-
-          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
-
-          {/* 2. Language */}
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>{t.lang_label}</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ fontSize: 13 }}>EN</span>
-              <div onClick={() => setLang((l: string) => l === "en" ? "ja" : "en")} style={{ width: 52, height: 26, borderRadius: 13, background: lang === "ja" ? TH.gold : "#2a2a2a", position: "relative", cursor: "pointer" }}>
-                <div style={{ position: "absolute", top: 3, left: lang === "ja" ? 27 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "all 0.3s" }} />
-              </div>
-              <span style={{ fontSize: 13 }}>日本語</span>
-            </div>
+            <label style={{ fontSize: 11, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>Name</label>
+            <input value={name} onChange={e => setName(e.target.value)} style={{ width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: 10 }} />
           </div>
-
-          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
-
-          {/* 3. Theme */}
-          <div>
-            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 14 }}>{t.theme_label}</label>
-            <div style={{ display: "flex", gap: 10 }}>
-              {Object.keys(THEMES).map((k: string) => (
-                <button key={k} onClick={() => setTheme(k)} style={{ flex: 1, padding: "12px 8px", borderRadius: 3, cursor: "pointer", background: (THEMES as any)[k].bg2, border: `2px solid ${themeName === k ? TH.gold : TH.border}`, transition: "all 0.2s" }}>
-                  <div style={{ display: "flex", gap: 5, justifyContent: "center", marginBottom: 5 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: (THEMES as any)[k].bg }} />
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: (THEMES as any)[k].gold }} />
-                  </div>
-                  <p style={{ fontSize: 8, letterSpacing: 1, color: themeName === k ? TH.gold : TH.textMuted, textTransform: "uppercase" }}>{(THEMES as any)[k].name}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${TH.goldDark}44,transparent)` }} />
-
-          {/* 4. Name */}
-          <div>
-            <label style={{ fontSize: 11, letterSpacing: 4, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>{t.username_label}</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: "10px", borderRadius: 2 }} placeholder={t.username_placeholder} />
-          </div>
-
-          <button onClick={save} style={{ marginTop: "auto", background: TH.goldDark, border: `1px solid ${TH.gold}`, color: TH.goldLight, padding: "13px", borderRadius: 2, cursor: "pointer", textTransform: "uppercase", fontWeight: "bold" }}>
-            {t.save_settings}
-          </button>
+          <button onClick={save} style={{ background: TH.goldDark, color: TH.goldLight, padding: 13, border: "none", borderRadius: 2, cursor: "pointer" }}>SAVE</button>
         </div>
       </div>
     </>
   );
 }
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STREAK SETTINGS MODAL
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function StreakSettingsModal({ streakPct, onSave, onClose, TH, t }) {
+
+function StreakSettingsModal({ streakPct, onSave, onClose, TH, t }: any) {
   const [val, setVal] = useState(streakPct);
   return (
     <ModalBackdrop onClose={onClose} TH={TH}>
       <ModalHeader title={t.streak_threshold} onClose={onClose} TH={TH}/>
-      <p style={{fontSize:12,color:TH.textDim,marginBottom:20,lineHeight:1.7,letterSpacing:1}}>
-        {t.streak_threshold_sub}
-      </p>
-      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
-        <input type="range" min="10" max="100" step="5" value={val}
-          onChange={e=>setVal(Number(e.target.value))}
-          style={{flex:1,accentColor:TH.gold}}/>
-        <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:32,color:TH.gold,
-          minWidth:54,textAlign:"right",lineHeight:1}}>{val}%</span>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:TH.textMuted,marginBottom:24}}>
-        <span>10%</span><span style={{color:TH.gold,fontWeight:600}}>{val}%</span><span>100%</span>
-      </div>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{onSave(val);onClose();}} TH={TH}>{t.save_btn}</GBtn>
-      </div>
+      <input type="range" min="10" max="100" value={val} onChange={e=>setVal(Number(e.target.value))} style={{width:"100%", accentColor:TH.gold}}/>
+      <div style={{textAlign:"center", fontSize:24, color:TH.gold, margin:"20px 0"}}>{val}%</div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{onSave(val);onClose();}} TH={TH}>Save</GBtn></div>
     </ModalBackdrop>
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CLEAR ALL BUTTON — two-step inline confirm (no confirm() dialog)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function ClearAllButton({ onConfirm, lang, step, setStep }) {
-  if (step === 0) {
-    return (
-      <button onClick={()=>setStep(1)} style={{
-        display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-        width:"100%",padding:"10px",background:"transparent",
-        border:"1px solid #FF333328",color:"#FF7777",
-        cursor:"pointer",fontSize:11,letterSpacing:3,textTransform:"uppercase",
-        fontFamily:"inherit",
-      }}>
-        🗑 {lang==="ja"?"タスクを全て削除":"Clear All Tasks"}
-      </button>
-    );
-  }
-
-  return (
-    <div style={{
-      display:"flex",alignItems:"center",justifyContent:"space-between",
-      padding:"12px 16px",background:"#FF333311",
-      borderTop:"1px solid #FF333344",gap:10,flexWrap:"wrap",
-    }}>
-      <span style={{fontSize:12,color:"#FF9999",letterSpacing:1}}>
-        {lang==="ja"?"本当に削除しますか？":"Delete all tasks?"}
-      </span>
-      <div style={{display:"flex",gap:10}}>
-        <button onClick={()=>setStep(0)} style={{
-          background:"transparent",border:"1px solid #555",color:"#aaa",
-          cursor:"pointer",fontFamily:"inherit",fontSize:11,letterSpacing:2,
-          padding:"8px 18px",borderRadius:2,textTransform:"uppercase",
-        }}>
-          {lang==="ja"?"戻る":"Cancel"}
-        </button>
-        <button onClick={()=>{setStep(0);onConfirm();}} style={{
-          background:"#FF333322",border:"1px solid #FF555566",color:"#FF9999",
-          cursor:"pointer",fontFamily:"inherit",fontSize:11,letterSpacing:2,
-          padding:"8px 18px",borderRadius:2,textTransform:"uppercase",fontWeight:600,
-        }}>
-          {lang==="ja"?"削除する":"Delete"}
-        </button>
-      </div>
-    </div>
-  );
+function ClearAllButton({ onConfirm, lang }: any) {
+  const [confirm, setConfirm] = useState(false);
+  if (!confirm) return <button onClick={()=>setConfirm(true)} style={{width:"100%", padding:10, background:"transparent", border:"1px solid #FF333328", color:"#FF7777", cursor:"pointer", fontSize:11}}>CLEAR ALL TASKS</button>;
+  return <div style={{padding:12, background:"#FF333311", border:"1px solid #FF333344", display:"flex", justifyContent:"space-between"}}><span style={{fontSize:11, color:"#FF9999"}}>Are you sure?</span><div style={{display:"flex",gap:10}}><button onClick={()=>setConfirm(false)} style={{background:"none", border:"1px solid #555", color:"#aaa", cursor:"pointer", fontSize:10, padding:"4px 8px"}}>Cancel</button><button onClick={onConfirm} style={{background:"#FF333322", border:"1px solid #FF555566", color:"#FF9999", cursor:"pointer", fontSize:10, padding:"4px 8px"}}>Delete</button></div></div>;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// PANEL SHELL
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function Panel({children,TH,style:{}}){
-  return(
-    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,
-      overflow:"hidden",position:"relative",boxShadow:`0 2px 18px ${TH.gold}06`,...{}}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-        background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-      {children}
-    </div>
-  );
-}
-function PanelHeader({title,sub,right,TH}){
-  return(
-    <div style={{padding:"12px 15px 10px",borderBottom:`1px solid ${TH.border}`,
-      display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div>
-        <h2 style={{fontSize:12,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{title}</h2>
-        {sub&&<p style={{fontSize:10,color:TH.textMuted,marginTop:2,letterSpacing:1}}>{sub}</p>}
-      </div>
-      {right}
-    </div>
-  );
-}
-function AddRow({onClick,label,TH}){
-  const[h,setH]=useState(false);
-  return(
-    <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-        width:"100%",padding:"10px",background:"transparent",
-        border:`1px dashed ${h?TH.goldDark:TH.border}`,color:h?TH.gold:TH.textMuted,
-        cursor:"pointer",fontSize:11,letterSpacing:4,textTransform:"uppercase",
-        transition:"all .2s",fontFamily:"inherit"}}>
-      {label}
-    </button>
-  );
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAIN
+// END OF SUB-COMPONENTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function Dashboard() {
   // ── Auth & Sync state ─────────────────────────────────────────
