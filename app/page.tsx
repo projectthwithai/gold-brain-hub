@@ -1,4 +1,4 @@
-// 17歳の本気
+// FORCE UPDATE: 2026-07-18-22:15
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -903,6 +903,46 @@ function ClearAllButton({ onConfirm, lang }: any) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // END OF SUB-COMPONENTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4. UI SHELL COMPONENTS (Panel, PanelHeader, AddRow)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function Panel({children,TH,style={}}: any){
+  return(
+    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,
+      overflow:"hidden",position:"relative",boxShadow:`0 2px 18px ${TH.gold}06`,...style}}>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:1,
+        background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
+      {children}
+    </div>
+  );
+}
+
+function PanelHeader({title,sub,right,TH}: any){
+  return(
+    <div style={{padding:"12px 15px 10px",borderBottom:`1px solid ${TH.border}`,
+      display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div>
+        <h2 style={{fontSize:12,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{title}</h2>
+        {sub&&<p style={{fontSize:10,color:TH.textMuted,marginTop:2,letterSpacing:1}}>{sub}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function AddRow({onClick,label,TH}: any){
+  const[h,setH]=useState(false);
+  return(
+    <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+        width:"100%",padding:"10px",background:"transparent",
+        border:`1px dashed ${h?TH.goldDark:TH.border}`,color:h?TH.gold:TH.textMuted,
+        cursor:"pointer",fontSize:11,letterSpacing:4,textTransform:"uppercase",
+        transition:"all .2s",fontFamily:"inherit"}}>
+      {label}
+    </button>
+  );
+}
 export default function Dashboard() {
   // ── Auth & Sync state ─────────────────────────────────────────
   const [session,     setSession]    = useState<Session | null>(null);   // Supabase session
