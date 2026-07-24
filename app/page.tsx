@@ -237,7 +237,7 @@ const DEF_LINKS=[
   {
     id: "lab-math",
     name: "Math Lab",
-    url: "https://math-lab-xxx.vercel.app", // ★ここに数学のURL
+    url: "https://math-lab-ruby.vercel.app", // ★ここに数学のURL
     icon: "📐",
     color: "#C9A84C",
     cat: "Science"
@@ -245,7 +245,7 @@ const DEF_LINKS=[
   {
     id: "lab-english",
     name: "English Lab",
-    url: "https://english-lab-xxx.vercel.app", // ★ここに英語のURL
+    url: "https://english-k8iakfzc6-closecanoe-1771s-projects.vercel.app", // ★ここに英語のURL
     icon: "🇬🇧",
     color: "#4A9EFF",
     cat: "Language"
@@ -253,7 +253,7 @@ const DEF_LINKS=[
   {
     id: "lab-japanese",
     name: "Japanese Lab",
-    url: "https://japanese-lab-xxx.vercel.app", // ★ここに国語のURL
+    url: "https://japanese-lab-omega.vercel.app", // ★ここに国語のURL
     icon: "🇯🇵",
     color: "#FF6B4A",
     cat: "Language"
