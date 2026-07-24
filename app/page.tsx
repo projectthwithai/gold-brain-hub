@@ -234,6 +234,30 @@ const DEF_SCHEDULE=[
   {id:"s9",time:"21:30",task:"Digital Detox — Screens Off",icon:"🌙",iconImg:null,done:false,freq:"daily",days:[0,1,2,3,4,5,6]},
 ];
 const DEF_LINKS=[
+  {
+    id: "lab-math",
+    name: "Math Lab",
+    url: "https://math-lab-xxx.vercel.app", // ★ここに数学のURL
+    icon: "📐",
+    color: "#C9A84C",
+    cat: "Science"
+  },
+  {
+    id: "lab-english",
+    name: "English Lab",
+    url: "https://english-lab-xxx.vercel.app", // ★ここに英語のURL
+    icon: "🇬🇧",
+    color: "#4A9EFF",
+    cat: "Language"
+  },
+  {
+    id: "lab-japanese",
+    name: "Japanese Lab",
+    url: "https://japanese-lab-xxx.vercel.app", // ★ここに国語のURL
+    icon: "🇯🇵",
+    color: "#FF6B4A",
+    cat: "Language"
+  },
   {id:"l1",name:"Brilliant",url:"https://brilliant.org",icon:"💡",iconImg:null,color:"#F0D878",cat:"Learn"},
   {id:"l2",name:"Arxiv AI",url:"https://arxiv.org/list/cs.AI/recent",icon:"📄",iconImg:null,color:"#FF6B4A",cat:"Research"},
   {id:"l3",name:"GitHub",url:"https://github.com",icon:"🐙",iconImg:null,color:"#8B8BFF",cat:"Build"},
