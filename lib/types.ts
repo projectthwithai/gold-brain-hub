@@ -9,6 +9,7 @@ export interface RoutineStep {
 export interface RoutineItem {
   id: string;
   time: string;
+  endTime?: string | null; // ★追加：終了時間
   task: string;
   icon: string;
   iconImg?: string | null;
@@ -16,7 +17,10 @@ export interface RoutineItem {
   freq: string;
   days: number[];
   steps?: RoutineStep[];
+  options?: string[]; // ★追加：選択肢（例：["数学", "英語"]）
+  selectedOption?: string | null; // ★追加：選ばれた選択肢
   isShared?: boolean;
+  showOnCalendar?: boolean;
 }
 
 export interface PartnerActivity {

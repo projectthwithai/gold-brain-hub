@@ -765,6 +765,7 @@ function ScheduleModal({item,onSave,onDelete,onClose,t,TH}: any){
   const freqOpts=[{v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},{v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom},{v:"rotation",l:"ローテーション"}];
   const addStep=()=>{ if(!stepDraft.trim())return; setSteps(ss=>[...ss,{id:String(Date.now()),title:stepDraft.trim(),order:ss.length,isCompleted:false}]); setStepDraft(""); };
   const removeStep=id=>setSteps(ss=>ss.filter(s=>s.id!==id).map((s,i)=>({...s,order:i})));
+  
   return(
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
       <ModalHeader title={item?t.modal_edit_sched:t.modal_add_sched} onClose={onClose} TH={TH}/>
@@ -777,7 +778,7 @@ function ScheduleModal({item,onSave,onDelete,onClose,t,TH}: any){
       </Field>
       <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
       <label style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18,height:18,accentColor:TH.gold}}/><span style={{fontSize:13,color:TH.textDim}}>カレンダーに表示する</span></label>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!task.trim()||!time)return;onSave({time,task:task.trim(),icon,iconImg,freq,days,steps,isShared,showOnCalendar});onClose();}} TH={TH}>{item?t.save_btn:t.modal_add_sched}</GBtn></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!task.trim()||!time)return;onSave({time,task:task.trim(),icon,iconImg,freq,days,steps,isShared,showOnCalendar,options: optionsStr ? optionsStr.split(",").map(s => s.trim()).filter(s => s !== "") : [] });onClose();}} TH={TH}>{item?t.save_btn:t.modal_add_sched}</GBtn></div>
     </ModalBackdrop>
   );
 }
