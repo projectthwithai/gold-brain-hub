@@ -760,7 +760,7 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
   const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
   const [steps, setSteps] = useState<RoutineStep[]>(item?.steps || []); // 維持
   const [isShared, setIsShared] = useState(item?.isShared || false); // 維持
-  const [optionsStr, setOptionsStr] = useState(item?.options?.join(", ") || ""); // ★追加
+  const [options, setOptions] = useState<string[]>(item?.options || [""]);
   const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true); // 維持
   const [stepDraft, setStepDraft] = useState("");
   
@@ -779,7 +779,24 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
     setStepDraft("");
   };
   const removeStep = id => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
+// 選択肢の各項目を更新する
+const updateOption = (index: number, value: string) => {
+  const newOptions = [...options];
+  newOptions[index] = value;
+  setOptions(newOptions);
+};
 
+// 新しい入力欄を1つ追加する
+const addOptionField = () => setOptions([...options, ""]);
+
+// 指定した入力欄を削除する
+const removeOptionField = (index: number) => {
+  if (options.length > 1) {
+    setOptions(options.filter((_, i) => i !== index));
+  } else {
+    setOptions([""]); // 最低1つは残す
+  }
+};
   return(
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
       <ModalHeader title={item ? t.modal_edit_sched : t.modal_add_sched} onClose={onClose} TH={TH}/>
@@ -801,8 +818,34 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
       </Field>
 
       {/* 選択肢設定 */}
-      <Field label="選択肢 (カンマ区切りで入力: 数学, 英語)">
-        <input style={IS} value={optionsStr} onChange={e=>setOptionsStr(e.target.value)} placeholder="選択肢がある場合のみ入力"/>
+      <Field label="選択肢 (どれか一つ選んで完了にする)">
+        {options.map((opt, idx) => (
+          <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input 
+              style={{ ...IS, flex: 1 }} 
+              value={opt} 
+              onChange={e => updateOption(idx, e.target.value)} 
+              placeholder={`選択肢 ${idx + 1}`}
+            />
+            <button 
+              type="button" 
+              onClick={() => removeOptionField(idx)}
+              style={{ background: 'transparent', border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: 'pointer', padding: '0 10px', borderRadius: 2 }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button 
+          type="button" 
+          onClick={addOptionField}
+          style={{ 
+            width: '100%', padding: '8px', background: `${TH.gold}11`, border: `1px dashed ${TH.goldDark}`, 
+            color: TH.gold, fontSize: 11, cursor: 'pointer', borderRadius: 2 
+          }}
+        >
+          ＋ 選択肢を追加
+        </button>
       </Field>
 
       <Field label={t.freq_lbl}>
@@ -866,7 +909,7 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
             steps,
             isShared,
             showOnCalendar,
-            options: optionsStr ? optionsStr.split(",").map(s => s.trim()).filter(s => s !== "") : []
+            options: options.filter(s => s.trim() !== "") // 空文字を除去して配列として保存
           });
           onClose();
         }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
