@@ -749,36 +749,128 @@ function TaskModal({task,onSave,onDelete,onClose,t,TH}: any){
   );
 }
 
-function ScheduleModal({item,onSave,onDelete,onClose,t,TH}: any){
-  const[time,setTime]=useState(item?.time||"08:00");
-  const[task,setTask]=useState(item?.task||"");
-  const[icon,setIcon]=useState(item?.icon||"📌");
-  const[iconImg,setIconImg]=useState(item?.iconImg||null);
-  const[freq,setFreq]=useState(item?.freq||"daily");
-  const[days,setDays]=useState(item?.days||[0,1,2,3,4,5,6]);
-  const[steps,setSteps]=useState(item?.steps||[]);
-  const[isShared,setIsShared]=useState(item?.isShared||false);
-  const[showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
-  const[stepDraft,setStepDraft]=useState("");
-  const IS=mkIS(TH);
-  const toggleDay=d=>setDays(ds=>ds.includes(d)?ds.filter(x=>x!==d):[...ds,d].sort());
-  const freqOpts=[{v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},{v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom},{v:"rotation",l:"ローテーション"}];
-  const addStep=()=>{ if(!stepDraft.trim())return; setSteps(ss=>[...ss,{id:String(Date.now()),title:stepDraft.trim(),order:ss.length,isCompleted:false}]); setStepDraft(""); };
-  const removeStep=id=>setSteps(ss=>ss.filter(s=>s.id!==id).map((s,i)=>({...s,order:i})));
+function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
+  // --- 既存の状態を維持しつつ新設 ---
+  const [time, setTime] = useState(item?.time || "08:00");
+  const [endTime, setEndTime] = useState(item?.endTime || ""); // ★追加
+  const [task, setTask] = useState(item?.task || "");
+  const [icon, setIcon] = useState(item?.icon || "📌");
+  const [iconImg, setIconImg] = useState(item?.iconImg || null); // 維持
+  const [freq, setFreq] = useState(item?.freq || "daily");
+  const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
+  const [steps, setSteps] = useState<RoutineStep[]>(item?.steps || []); // 維持
+  const [isShared, setIsShared] = useState(item?.isShared || false); // 維持
+  const [optionsStr, setOptionsStr] = useState(item?.options?.join(", ") || ""); // ★追加
+  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true); // 維持
+  const [stepDraft, setStepDraft] = useState("");
   
+  const IS = mkIS(TH);
+  const toggleDay = d => setDays(ds => ds.includes(d) ? ds.filter(x => x !== d) : [...ds, d].sort());
+  const freqOpts = [
+    {v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},
+    {v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom},{v:"rotation",l:"ローテーション"}
+  ];
+
+  // ステップ追加ロジック (維持)
+  const addStep = () => {
+    const title = stepDraft.trim();
+    if(!title) return;
+    setSteps(ss => [...ss, {id: crypto.randomUUID?.() || String(Date.now()), title, order: ss.length, isCompleted: false}]);
+    setStepDraft("");
+  };
+  const removeStep = id => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
+
   return(
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
-      <ModalHeader title={item?t.modal_edit_sched:t.modal_add_sched} onClose={onClose} TH={TH}/>
-      <Field label={t.time_lbl}><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></Field>
-      <Field label={t.task_name}><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder={t.sched_ph} autoFocus/></Field>
+      <ModalHeader title={item ? t.modal_edit_sched : t.modal_add_sched} onClose={onClose} TH={TH}/>
+      
+      {/* 時間設定 (開始 & 終了) */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <label style={mkLS(TH)}>開始時刻</label>
+          <input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={mkLS(TH)}>終了時刻 (任意)</label>
+          <input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/>
+        </div>
+      </div>
+
+      <Field label={t.task_name}>
+        <input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder={t.sched_ph} autoFocus/>
+      </Field>
+
+      {/* 選択肢設定 */}
+      <Field label="選択肢 (カンマ区切りで入力: 数学, 英語)">
+        <input style={IS} value={optionsStr} onChange={e=>setOptionsStr(e.target.value)} placeholder="選択肢がある場合のみ入力"/>
+      </Field>
+
       <Field label={t.freq_lbl}>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {freqOpts.map(o=>(<button key={o.v} onClick={()=>setFreq(o.v)} style={{fontSize:11,padding:"6px 12px",borderRadius:2,cursor:"pointer",background:freq===o.v?`${TH.gold}22`:"transparent",border:`1px solid ${freq===o.v?TH.gold:TH.border}`,color:freq===o.v?TH.gold:TH.textDim}}>{o.l}</button>))}
+        <div style={{display:"flex", gap:5, flexWrap:"wrap"}}>
+          {freqOpts.map(o=>(
+            <button key={o.v} onClick={()=>setFreq(o.v)} style={{
+              fontSize:11, padding:"6px 12px", borderRadius:2, cursor:"pointer",
+              background:freq===o.v ? `${TH.gold}22` : "transparent",
+              border:`1px solid ${freq===o.v ? TH.gold : TH.border}`,
+              color:freq===o.v ? TH.gold : TH.textDim}}>{o.l}</button>
+          ))}
         </div>
       </Field>
-      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
-      <label style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18,height:18,accentColor:TH.gold}}/><span style={{fontSize:13,color:TH.textDim}}>カレンダーに表示する</span></label>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!task.trim()||!time)return;onSave({time,task:task.trim(),icon,iconImg,freq,days,steps,isShared,showOnCalendar,options: optionsStr ? optionsStr.split(",").map(s => s.trim()).filter(s => s !== "") : [] });onClose();}} TH={TH}>{item?t.save_btn:t.modal_add_sched}</GBtn></div>
+
+      {/* アイコンピッカー (維持) */}
+      <Field label={t.icon_lbl}>
+        <IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/>
+      </Field>
+
+      {/* ステップ管理UI (維持) */}
+      <Field label={t.steps_label}>
+        <div style={{display:"flex", gap:8, marginBottom:8}}>
+          <input style={{...IS, flex:1}} value={stepDraft} onChange={e=>setStepDraft(e.target.value)}
+            placeholder={t.step_title_ph} onKeyDown={e=>e.key==="Enter"&&addStep()}/>
+          <GBtn onClick={addStep} TH={TH}>{t.add_step}</GBtn>
+        </div>
+        {steps.map((s, i)=>(
+          <div key={s.id} style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
+            <span style={{fontSize:12, color:TH.textMuted, width:20}}>{i+1}.</span>
+            <span style={{flex:1, fontSize:14, color:TH.text}}>{s.title}</span>
+            <button type="button" onClick={()=>removeStep(s.id)} style={{background:"transparent", border:`1px solid ${TH.border}`, color:TH.textMuted, cursor:"pointer", padding:"4px 8px", borderRadius:2}}>✕</button>
+          </div>
+        ))}
+      </Field>
+
+      {/* 各種チェックボックス (維持) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
+          <input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/>
+          <span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span>
+        </label>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
+          <input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/>
+          <span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span>
+        </label>
+      </div>
+
+      <div style={{display:"flex", gap:8, justifyContent:"flex-end", paddingTop:4}}>
+        {item && <GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
+        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
+        <GBtn onClick={()=>{
+          if(!task.trim() || !time) return;
+          onSave({
+            time, 
+            endTime: endTime || null, 
+            task: task.trim(), 
+            icon, 
+            iconImg,
+            freq, 
+            days, 
+            steps,
+            isShared,
+            showOnCalendar,
+            options: optionsStr ? optionsStr.split(",").map(s => s.trim()).filter(s => s !== "") : []
+          });
+          onClose();
+        }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
+      </div>
     </ModalBackdrop>
   );
 }
@@ -1317,29 +1409,13 @@ export default function Dashboard() {
   };
 
   const saveSched = (item: RoutineItem | null, d: Partial<RoutineItem>) => {
-    const sort = (a: RoutineItem[]) =>
-      [...a].sort((x, y) => x.time.localeCompare(y.time));
+    const sort = (a: RoutineItem[]) => [...a].sort((x, y) => x.time.localeCompare(y.time));
     if (!item) {
-      setSched((s) =>
-        sort([...s, { id: nid(), done: false, steps: [], isShared: false, ...d } as RoutineItem]),
-      );
+      setSched(s => sort([...s, { id: nid(), done: false, ...d } as RoutineItem]));
     } else {
-      setSched((s) =>
-        sort(
-          s.map((r) =>
-            r.id === item.id
-              ? {
-                  ...r,
-                  ...d,
-                  done: (d.steps ?? r.steps)?.length
-                    ? deriveRoutineDone(d.steps ?? r.steps, false)
-                    : r.done,
-                }
-              : r,
-          ),
-        ),
-      );
+      setSched(s => sort(s.map(r => r.id === item.id ? { ...r, ...d } : r)));
     }
+    // クラウド保存は useEffect が自動で行う
   };
 
   const deleteSched = (id: string) => setSched((s) => s.filter((r) => r.id !== id));
