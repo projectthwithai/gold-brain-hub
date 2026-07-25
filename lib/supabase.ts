@@ -1,24 +1,64 @@
+// lib/supabase.ts
 // @ts-nocheck
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+let supabaseInstance: any = null;
 
-export function getSupabase() { return supabase; }
+// インスタンスの取得
+export function getSupabase() {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    });
+  }
+  return supabaseInstance;
+}
 
-export const signInWithGoogle = async () => {
-  await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: window.location.origin }
+// ★page.tsx:42行目のエラーを解決する関数
+export function isSupabaseConfigured(): boolean {
+  return !!supabaseUrl && !!supabaseAnonKey;
+}
+
+// ★page.tsx:43行目のエラーを解決する関数
+export function onAuthStateChange(callback: (session: Session | null) => void) {
+  const sb = getSupabase();
+  if (!sb) return () => {};
+
+  const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+    callback(session);
   });
-};
 
-// 【重要】クラウドから全データを一括取得する
-export async function fetchAllData(userId: string) {
+  return () => {
+    subscription.unsubscribe();
+  };
+}
+
+// Googleサインイン
+export async function signInWithGoogle() {
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
+    },
+  });
+}
+
+// クラウドデータの全取得
+export async function fetchAllData(userId: string): Promise<Record<string, any>> {
+  const sb = getSupabase();
+  if (!sb) return {};
+
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from("user_data")
       .select("payload")
       .eq("user_id", userId)
@@ -27,29 +67,34 @@ export async function fetchAllData(userId: string) {
     if (error && error.code !== "PGRST116") throw error;
     return data?.payload || {};
   } catch (err) {
-    console.error("Fetch error:", err);
+    console.error("Failed to fetch client data payload:", err);
     return {};
   }
 }
 
-// 【重要】データをクラウドへ保存する
+// データのクラウド保存（JSONB形式）
 export async function upsertData(userId: string, key: string, value: any) {
-  try {
-    // 現在の全データを取得
-    const current = await fetchAllData(userId);
-    // 新しいデータ（tasksなど）を上書き
-    const nextPayload = { ...current, [key]: value };
+  const sb = getSupabase();
+  if (!sb) return;
 
-    const { error } = await supabase
+  try {
+    const currentPayload = await fetchAllData(userId);
+    const nextPayload = {
+      ...currentPayload,
+      [key]: value,
+    };
+
+    const { error } = await sb
       .from("user_data")
       .upsert({
         user_id: userId,
         payload: nextPayload,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
 
     if (error) throw error;
   } catch (err) {
-    console.error("Save error:", err);
+    console.error(`Failed to upsert client data on key [${key}]:`, err);
+    throw err;
   }
 }
