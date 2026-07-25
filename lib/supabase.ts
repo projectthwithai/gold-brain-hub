@@ -5,46 +5,35 @@ import { createClient, type Session } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-let supabaseInstance: any = null;
-
-// インスタンスの取得
-export function getSupabase() {
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-  if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      }
-    });
+// 1. 直接の export (partnerships.ts などが使用)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
   }
-  return supabaseInstance;
+});
+
+// 2. 関数形式の export (page.tsx などが使用)
+export function getSupabase() {
+  return supabase;
 }
 
-// ★page.tsx:42行目のエラーを解決する関数
+// 3. 設定確認
 export function isSupabaseConfigured(): boolean {
   return !!supabaseUrl && !!supabaseAnonKey;
 }
 
-// ★page.tsx:43行目のエラーを解決する関数
+// 4. 認証リスナー
 export function onAuthStateChange(callback: (session: Session | null) => void) {
-  const sb = getSupabase();
-  if (!sb) return () => {};
-
-  const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session);
   });
-
-  return () => {
-    subscription.unsubscribe();
-  };
+  return () => subscription.unsubscribe();
 }
 
-// Googleサインイン
+// 5. Googleログイン
 export async function signInWithGoogle() {
-  const sb = getSupabase();
-  if (!sb) return;
-  await sb.auth.signInWithOAuth({
+  await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
@@ -52,13 +41,10 @@ export async function signInWithGoogle() {
   });
 }
 
-// クラウドデータの全取得
+// 6. クラウドデータの全取得
 export async function fetchAllData(userId: string): Promise<Record<string, any>> {
-  const sb = getSupabase();
-  if (!sb) return {};
-
   try {
-    const { data, error } = await sb
+    const { data, error } = await supabase
       .from("user_data")
       .select("payload")
       .eq("user_id", userId)
@@ -72,11 +58,8 @@ export async function fetchAllData(userId: string): Promise<Record<string, any>>
   }
 }
 
-// データのクラウド保存（JSONB形式）
+// 7. データのクラウド保存（JSONB一括保存）
 export async function upsertData(userId: string, key: string, value: any) {
-  const sb = getSupabase();
-  if (!sb) return;
-
   try {
     const currentPayload = await fetchAllData(userId);
     const nextPayload = {
@@ -84,7 +67,7 @@ export async function upsertData(userId: string, key: string, value: any) {
       [key]: value,
     };
 
-    const { error } = await sb
+    const { error } = await supabase
       .from("user_data")
       .upsert({
         user_id: userId,
