@@ -1,49 +1,55 @@
 // @ts-nocheck
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const getSupabase = () => supabase;
+export function getSupabase() { return supabase; }
 
-export const isSupabaseConfigured = () => {
-  return !!supabaseUrl && !!supabaseAnonKey;
-};
-
-// Googleログイン（ここを1回だけ定義する）
 export const signInWithGoogle = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
-    },
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin }
   });
-  if (error) console.error("Login Error:", error.message);
 };
 
-export const onAuthStateChange = (callback: (session: any) => void) => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session);
-  });
-  return () => subscription.unsubscribe();
-};
+// 【重要】クラウドから全データを一括取得する
+export async function fetchAllData(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("user_data")
+      .select("payload")
+      .eq("user_id", userId)
+      .single();
 
-export const fetchAllData = async (userId: string) => {
-  const { data, error } = await supabase.from('user_data').select('*').eq('user_id', userId);
-  if (error) return {};
-  return data.reduce((acc: any, item) => {
-    acc[item.key] = item.value;
-    return acc;
-  }, {});
-};
+    if (error && error.code !== "PGRST116") throw error;
+    return data?.payload || {};
+  } catch (err) {
+    console.error("Fetch error:", err);
+    return {};
+  }
+}
 
-export const upsertData = async (userId: string, key: string, value: any) => {
-  await supabase.from('user_data').upsert({
-    user_id: userId,
-    key,
-    value,
-    updated_at: new Date().toISOString()
-  }, { onConflict: 'user_id,key' });
-};
+// 【重要】データをクラウドへ保存する
+export async function upsertData(userId: string, key: string, value: any) {
+  try {
+    // 現在の全データを取得
+    const current = await fetchAllData(userId);
+    // 新しいデータ（tasksなど）を上書き
+    const nextPayload = { ...current, [key]: value };
+
+    const { error } = await supabase
+      .from("user_data")
+      .upsert({
+        user_id: userId,
+        payload: nextPayload,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error("Save error:", err);
+  }
+}

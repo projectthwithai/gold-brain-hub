@@ -1068,6 +1068,41 @@ export default function Dashboard() {
   const [activeCd, setActiveCd] = useState(()=>LS.get("apx7_acd",    null)); // id of active countdown
   const [calColors,setCalColors]= useState(()=>LS.get("apx7_calcol", {}));
 
+  // 【新設】ログイン時にクラウドからデータを強制ロードする
+  useEffect(() => {
+    if (!isOnline) return;
+    const loadCloudData = async () => {
+      try {
+        showSync("syncing");
+        const cloudData = await fetchAllData(user.id);
+        
+        // --- ここで全データを上書きする ---
+        if (cloudData.tasks)     setTasks(cloudData.tasks);
+        if (cloudData.sched)     setSched(cloudData.sched);
+        if (cloudData.links)     setLinks(cloudData.links);
+        if (cloudData.goals)     setGoals(cloudData.goals);
+        if (cloudData.events)    setEvents(cloudData.events);
+        if (cloudData.timers)    setTimers(cloudData.timers);
+        if (cloudData.cds)       setCDs(cloudData.cds);
+        if (cloudData.streakLog) setStreakLog(cloudData.streakLog);
+        if (cloudData.calColors) setCalColors(cloudData.calColors);
+        
+        if (cloudData.settings) {
+          const s = cloudData.settings;
+          if (s.lang)       setLangRaw(s.lang);
+          if (s.themeName)  setThemeRaw(s.themeName);
+          if (s.userName)   setUserName(s.userName);
+          if (s.streakPct != null) setStreakPct(s.streakPct);
+        }
+        showSync("saved");
+      } catch(e) {
+        console.error("Cloud load error:", e);
+        showSync("error");
+      }
+    };
+    loadCloudData();
+  }, [isOnline, user?.id, showSync]);
+
   // ── Streak state — stored separately ──────────────────────
   // streakLog: { "YYYY-MM-DD": true } — records days where threshold was met
   const [streakLog, setStreakLog] = useState(()=>LS.get("apx7_slog", {}));
