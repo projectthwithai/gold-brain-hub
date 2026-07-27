@@ -46,30 +46,29 @@ const AddRow = ({ onClick, label }: any) => (
 
 const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
   const handleToggle = () => { if (routine.done) routine.selectedOption = null; onToggleDone(); };
+  
+  // 現在のサイクルの内容（例：上半身）を取得
+  const taskName = routine.cycle?.length 
+    ? routine.cycle[routine.currentCycleIndex || 0] 
+    : routine.task;
+
   return (
-    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 15px', borderBottom: `1px solid ${TH.border}` }}>
+    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '14px 18px', borderBottom: `1px solid ${TH.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {(routine.done || !routine.options?.length) && (
-          <div onClick={handleToggle} style={{ width: 20, height: 20, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>{routine.done && "✓"}</div>
-        )}
+        <div onClick={handleToggle} style={{ width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          {routine.done && "✓"}
+        </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>{routine.icon || "📌"}</span>
             <span style={{ fontSize: 13, color: routine.done ? TH.textMuted : TH.text, textDecoration: routine.done ? 'line-through' : 'none', opacity: routine.done ? 0.6 : 1 }}>
-              {routine.task} {routine.selectedOption && <span style={{ color: TH.gold }}>( {routine.selectedOption} )</span>}
+              {taskName}
             </span>
           </div>
           <div style={{ fontSize: 10, color: TH.textMuted }}>{routine.time} {routine.endTime ? `〜 ${routine.endTime}` : ""}</div>
         </div>
-        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer", fontSize:12}}>✏️</button>
+        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer"}}>✏️</button>
       </div>
-      {!routine.done && routine.options?.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 32 }}>
-          {routine.options.map((opt: string) => (
-            <button key={opt} onClick={() => { routine.selectedOption = opt; onToggleDone(); }} style={{ background: 'transparent', border: `1px solid ${TH.goldDark}`, color: TH.gold, fontSize: 8, padding: '2px 8px', borderRadius: 10, cursor: 'pointer' }}>+ {opt}</button>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
@@ -158,14 +157,41 @@ export default function Dashboard() {
     } catch (e) {}
   };
 
+  // タイマー完了時の自動記録ロジック
+  const completeTimerSession = useCallback(async () => {
+    if (!selectedTask) return;
+    
+    // 【第12項目】記録が有効な設定（今は簡易的に常に記録）
+    if (isOnline && user) {
+      await upsertData(user.id, `log_${Date.now()}`, {
+        type: "work_log",
+        task: selectedTask,
+        duration: 50, // 50分として記録（設定に合わせて変更可）
+        at: new Date().toISOString()
+      });
+    }
+    setIsRunning(false);
+    toggleWakeLock(false);
+    setSelectedTask("");
+    setActiveTimerId(null);
+  }, [selectedTask, isOnline, user]);
+
   useEffect(() => {
     let int: any;
     if (isRunning && timeLeft > 0) {
       int = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-      if (timeLeft === 300) { /* 5分前アラート音を鳴らすロジック */ }
-    } else if (timeLeft === 0) { setIsRunning(false); toggleWakeLock(false); }
+      // 【第5項目】残り5分(300秒)でビープ音（簡易版）
+      if (timeLeft === 300) {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 1);
+      }
+    } else if (timeLeft === 0 && isRunning) {
+      completeTimerSession();
+    }
     return () => clearInterval(int);
-  }, [isRunning, timeLeft]);
+  }, [isRunning, timeLeft, completeTimerSession]);
 
   useEffect(() => {
     onAuthStateChange((sess) => setSession(sess));
@@ -195,6 +221,21 @@ export default function Dashboard() {
   const saveTask = (item: any, d: any) => { 
     if (!item) setTasks(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
     else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
+  };
+  // --- 【新設】ルーティンの完了とサイクル進行ロジック ---
+  const toggleSched = (id: string) => {
+    setSched(prev => prev.map(rc => {
+      if (rc.id !== id) return rc;
+      const nextDone = !rc.done;
+
+      // 【第3項目】チェックを入れた瞬間に中身を次に進める
+      let nextIdx = rc.currentCycleIndex || 0;
+      if (nextDone && rc.cycle && rc.cycle.length > 0) {
+        nextIdx = (nextIdx + 1) % rc.cycle.length;
+      }
+
+      return { ...rc, done: nextDone, currentCycleIndex: nextIdx };
+    }));
   };
   const saveSched = (item: any, d: any) => {
     if (!item) setSched(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);

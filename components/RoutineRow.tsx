@@ -1,53 +1,39 @@
+// components/RoutineRow.tsx
 // @ts-nocheck
-export default function RoutineRow({ routine, onToggleDone, onEdit, TH, t, inactive }: any) {
-  const handleToggle = () => {
-    if (routine.done) { routine.selectedOption = null; }
-    onToggleDone();
-  };
+export default function RoutineRow({ routine, onToggleDone, onEdit, TH }: any) {
+  const handleToggle = () => { if (routine.done) routine.selectedOption = null; onToggleDone(); };
+  
+  // 【重要】サイクル設定があれば現在のインデックスの内容を表示、なければ通常のタスク名を表示
+  const taskName = (routine.cycle && routine.cycle.length > 0)
+    ? routine.cycle[routine.currentCycleIndex || 0]
+    : routine.task;
 
   return (
-    <div className={`row ${inactive ? 'inactive-row' : ''}`} style={{ 
-      display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 15px', borderBottom: `1px solid ${TH.border}` 
-    }}>
+    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '14px 18px', borderBottom: `1px solid ${TH.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {(routine.done || !routine.options || routine.options.length === 0) && (
-          <div onClick={handleToggle} style={{ 
-            width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, 
-            background: routine.done ? `${TH.gold}1a` : "transparent",
-            borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-          }}>
-            {routine.done && "✓"}
-          </div>
-        )}
+        <div onClick={handleToggle} style={{ 
+          width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, 
+          background: routine.done ? `${TH.gold}1a` : "transparent",
+          borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' 
+        }}>
+          {routine.done && <span style={{ color: TH.gold }}>✓</span>}
+        </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>{routine.icon}</span>
+            <span>{routine.icon || "📌"}</span>
             <span style={{ 
-              fontSize: 13, color: routine.done ? TH.textMuted : TH.text,
-              textDecoration: routine.done ? 'line-through' : 'none',
-              opacity: routine.done ? 0.6 : 1
+              fontSize: 13, color: routine.done ? TH.textMuted : TH.text, 
+              textDecoration: routine.done ? 'line-through' : 'none', 
+              opacity: routine.done ? 0.6 : 1 
             }}>
-              {routine.task}
-              {routine.selectedOption && <span style={{ color: TH.gold, marginLeft: 8 }}>( {routine.selectedOption} )</span>}
+              {taskName}
+              {routine.cycle && <span style={{fontSize:9, color:TH.goldDark, marginLeft:8, border:`1px solid ${TH.goldDark}`, padding:'0 2px'}}>CYCLE</span>}
             </span>
           </div>
-          <div style={{ fontSize: 10, color: TH.textMuted, marginTop: 2 }}>
-            {routine.time} {routine.endTime ? `〜 ${routine.endTime}` : ""}
-          </div>
+          <div style={{ fontSize: 10, color: TH.textMuted }}>{routine.time}</div>
         </div>
-        <button className="edit-btn" onClick={onEdit}>✏️</button>
+        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer"}}>✏️</button>
       </div>
-
-      {!routine.done && routine.options?.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 34 }}>
-          {routine.options.map((opt: string) => (
-            <button key={opt} onClick={() => { routine.selectedOption = opt; onToggleDone(); }}
-              style={{ background: 'transparent', border: `1px solid ${TH.goldDark}`, color: TH.gold, fontSize: 9, padding: '3px 8px', borderRadius: 10, cursor: 'pointer' }}>
-              + {opt}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
