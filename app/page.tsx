@@ -991,49 +991,7 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
   );
 }
 export default function Dashboard() {
-  // --- ここから貼り付け ---
-  const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;600&family=Share+Tech+Mono&display=swap');
-    
-    .stat-card { 
-      background: ${TH.surface}; 
-      border: 1px solid ${TH.borderGold}; 
-      padding: 16px; 
-      border-radius: 4px; 
-      position: relative; 
-      overflow: hidden; 
-      transition: all 0.3s; 
-    }
-    .stat-card::before { 
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; 
-      background: linear-gradient(90deg, transparent, ${TH.gold}, transparent); 
-    }
-    
-    .tab-btn { 
-      flex: 1; padding: 12px; background: none; border: none; 
-      color: ${TH.textMuted}; cursor: pointer; font-size: 11px; 
-      letter-spacing: 3px; text-transform: uppercase; 
-      border-bottom: 2px solid transparent; transition: 0.3s; 
-    }
-    .tab-btn.active { 
-      color: ${TH.gold}; border-bottom-color: ${TH.gold}; 
-      text-shadow: 0 0 10px ${TH.gold}44; 
-    }
-    
-    .row { 
-      display: flex; align-items: center; padding: 14px 18px; 
-      border-bottom: 1px solid ${TH.border}; transition: background 0.2s; 
-    }
-    .row:hover { background: ${TH.surfaceHover}; }
-    
-    .edit-btn { 
-      background: none; border: none; color: ${TH.textMuted}; 
-      cursor: pointer; font-size: 14px; opacity: 0.6; transition: 0.2s; 
-    }
-    .edit-btn:hover { color: ${TH.gold}; opacity: 1; }
-  `;
-  // --- ここまで ---
-  // --- 1. 全ての State（状態）管理 ---
+  // --- 1. State（状態）管理：すべて関数の先頭に集約 ---
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setSyncStatus] = useState("idle");
   const user: User | null = session?.user ?? null;
@@ -1044,13 +1002,8 @@ export default function Dashboard() {
   const [userName, setUserName] = useState(() => LS.get("apx7_uname", ""));
   const [streakPct, setStreakPct] = useState(() => LS.get("apx7_spct", 80));
 
-  const setLang = (v: any) => { const n = typeof v === "function" ? v(lang) : v; setLangRaw(n); LS.set("apx7_lang", n); };
-  const setTheme = (v: any) => { const n = typeof v === "function" ? v(themeName) : v; setThemeRaw(n); LS.set("apx7_theme", n); };
-  const TH = THEMES[themeName as keyof typeof THEMES] || THEMES.dark;
-  const t = DICT[lang as keyof typeof DICT];
-
-  const [tasks, setTasks] = useState(() => LS.get("apx7_tasks", DEF_TASKS));
-  const [sched, setSched] = useState(() => LS.get("apx7_sched", DEF_SCHEDULE));
+  const [tasks, setTasks] = useState<any[]>(() => LS.get("apx7_tasks", DEF_TASKS));
+  const [sched, setSched] = useState<any[]>(() => LS.get("apx7_sched", DEF_SCHEDULE));
   const [links, setLinks] = useState(() => LS.get("apx7_links", DEF_LINKS));
   const [goals, setGoals] = useState(() => LS.get("apx7_goals", DEF_GOALS));
   const [events, setEvents] = useState(() => LS.get("apx7_events", []));
@@ -1058,7 +1011,6 @@ export default function Dashboard() {
   const [cds, setCDs] = useState(() => LS.get("apx7_cds", []));
   const [activeCd, setActiveCd] = useState(() => LS.get("apx7_acd", null));
   const [calColors, setCalColors] = useState(() => LS.get("apx7_calcol", {}));
-  const [streakLog, setStreakLog] = useState(() => LS.get("apx7_slog", {}));
 
   const [time, setTime] = useState(new Date());
   const [activeTab, setTab] = useState("today");
@@ -1066,12 +1018,20 @@ export default function Dashboard() {
   const [isMobile, setMobile] = useState(false);
   const [focusMode, setFocus] = useState(false);
   const [settingsOpen, setSettings] = useState(false);
-  const [showPomo, setPomo] = useState(false);
   const [modal, setModal] = useState<any>(null);
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
-  // --- 2. 同期 & ライフサイクル ---
+  const setLang = (v: any) => { const n = typeof v === "function" ? v(lang) : v; setLangRaw(n); LS.set("apx7_lang", n); };
+  const setTheme = (v: any) => { const n = typeof v === "function" ? v(themeName) : v; setThemeRaw(n); LS.set("apx7_theme", n); };
+  const TH = THEMES[themeName as keyof typeof THEMES] || THEMES.dark;
+  const t = DICT[lang as keyof typeof DICT];
+
+  // --- 2. 共通ロジック & 同期 ---
+  const cloudSave = useCallback(async (key: string, value: any) => {
+    if (isOnline && user) await upsertData(user.id, key, value);
+  }, [isOnline, user]);
+
   useEffect(() => {
     onAuthStateChange((sess) => setSession(sess));
     const fn = () => setMobile(window.innerWidth < 768);
@@ -1084,9 +1044,8 @@ export default function Dashboard() {
     return () => clearInterval(ti);
   }, []);
 
-  // クラウドからのロード
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || !user) return;
     (async () => {
       setSyncStatus("syncing");
       const data = await fetchAllData(user.id);
@@ -1098,51 +1057,49 @@ export default function Dashboard() {
     })();
   }, [isOnline, user?.id]);
 
-  // 保存処理
-  const cloudSave = useCallback(async (key: string, value: any) => {
-    if (!isOnline) return;
-    await upsertData(user.id, key, value);
-  }, [isOnline, user]);
-
   useEffect(() => { LS.set("apx7_tasks", tasks); cloudSave("tasks", tasks); }, [tasks, cloudSave]);
   useEffect(() => { LS.set("apx7_sched", sched); cloudSave("sched", sched); }, [sched, cloudSave]);
 
-  // --- 3. アクション ---
-  const toggleTask = (id: string) => setTasks((ts: any) => ts.map((t: any) => t.id === id ? { ...t, done: !t.done } : t));
-  const saveTask = (item: any, d: any) => { if (!item) setTasks((ts: any) => [...ts, { id: String(Date.now()), done: false, ...d }]); else setTasks((ts: any) => ts.map((t: any) => t.id === item.id ? { ...t, ...d } : t)); };
-  const toggleSched = (id: string) => setSched((s: any) => s.map((r: any) => r.id === id ? { ...r, done: !r.done } : r));
-  const setCellColor = (ds: string, c: string) => setCalColors((cc: any) => ({ ...cc, [ds]: c }));
+  const toggleTask = (id: string) => setTasks(prev => prev.map(tk => tk.id === id ? { ...tk, done: !tk.done } : tk));
+  const saveTask = (item: any, d: any) => { 
+    if (!item) setTasks(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
+    else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
+  };
+  const toggleSched = (id: string) => setSched(prev => prev.map(rc => rc.id === id ? { ...rc, done: !rc.done } : rc));
+  const setCellColor = (ds: string, c: string) => setCalColors(prev => ({ ...prev, [ds]: c }));
 
-  // --- 4. サブコンポーネント (Dashboard内) ---
+  // --- 3. UI Helper (Dashboard内定義) ---
   const TasksPanel = () => (
     <Panel TH={TH}>
       <div style={{ display: "flex", borderBottom: `1px solid ${TH.border}` }}>
-        {["today", "goals", "chart"].map((tab) => (
-          <button key={tab} className={`tab-btn${activeTab === tab ? " active" : ""}`} onClick={() => setTab(tab)}>{t[tab as keyof typeof t]}</button>
+        {["today", "goals", "chart"].map((tabName) => (
+          <button key={tabName} className={`tab-btn${activeTab === tabName ? " active" : ""}`} onClick={() => setTab(tabName)}>
+            {t[tabName as keyof typeof t]}
+          </button>
         ))}
       </div>
       {activeTab === "today" && (
         <div style={{ padding: "10px 0" }}>
-          {Array.from(new Set(tasks.map((t: any) => t.category || "Focus"))).map((cat: any) => {
-            const sorted = [...tasks.filter((tk: any) => (tk.category || "Focus") === cat)].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+          {Array.from(new Set(tasks.map(tk => tk.category || "Focus"))).map(catName => {
+            const sortedInCat = [...tasks.filter(tk => (tk.category || "Focus") === catName)].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
             return (
-              <div key={cat} style={{ marginBottom: 15 }}>
+              <div key={catName} style={{ marginBottom: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
-                  <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
-                  <button onClick={() => setTasks((ts: any) => ts.filter((tk: any) => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none' }}>CLEAR</button>
+                  <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{catName}</span>
+                  <button onClick={() => setTasks(prev => prev.filter(tk => (tk.category || "Focus") !== catName))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none' }}>CLEAR</button>
                 </div>
-                {sorted.map((t2: any) => (
-                  <div key={t2.id} className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                {sortedInCat.map(taskItem => (
+                  <div key={taskItem.id} className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, background: t2.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                        {t2.done && "✓"}
+                      <div onClick={(e) => { e.stopPropagation(); toggleTask(taskItem.id); }} style={{ width: 22, height: 22, border: `1px solid ${taskItem.done ? TH.gold : TH.border}`, background: taskItem.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        {taskItem.done && "✓"}
                       </div>
-                      <span style={{ flex: 1, fontSize: 13, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.6 : 1 }} onClick={() => setModal({ type: "task", item: t2 })}>{t2.text}</span>
-                      <button className="edit-btn" onClick={() => setModal({ type: "task", item: t2 })}>✏️</button>
+                      <span style={{ flex: 1, fontSize: 13, textDecoration: taskItem.done ? "line-through" : "none", opacity: taskItem.done ? 0.6 : 1 }} onClick={() => setModal({ type: "task", item: taskItem })}>{taskItem.text}</span>
+                      <button className="edit-btn" onClick={() => setModal({ type: "task", item: taskItem })}>✏️</button>
                     </div>
-                    {t2.memo && (
+                    {taskItem.memo && (
                       <div style={{ paddingLeft: 34, marginTop: 4 }}>
-                        <button onClick={() => setModal({ type: "task", item: t2 })} style={{ background: `${TH.gold}11`, border: `1px solid ${TH.goldDark}44`, color: TH.goldDark, fontSize: 10, padding: '2px 8px', borderRadius: 4 }}>📄 メモを表示</button>
+                        <button onClick={() => setModal({ type: "task", item: taskItem })} style={{ background: `${TH.gold}11`, border: `1px solid ${TH.goldDark}44`, color: TH.goldDark, fontSize: 10, padding: '2px 8px', borderRadius: 4 }}>📄 メモを表示</button>
                       </div>
                     )}
                   </div>
@@ -1156,18 +1113,24 @@ export default function Dashboard() {
     </Panel>
   );
 
+  // --- 4. 描画用データ ---
   const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const todayDow = time.getDay();
-  const dstr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
+  const currentDayOfWeek = time.getDay();
+  const currentDayStr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
+
+  const css = `
+    .tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;}
+    .tab-btn.active{color:${TH.gold};border-bottom:2px solid ${TH.gold};}
+    .row{display:flex;padding:12px 15px;border-bottom:1px solid ${TH.border};align-items:center;}
+    .edit-btn{background:none;border:none;color:#555;cursor:pointer;}
+  `;
 
   // --- 5. メイン RENDER ---
   return (
     <div style={{ minHeight: "100vh", background: TH.bg, color: TH.text, position: "relative", fontFamily: "serif" }}>
       <style>{css}</style>
-      
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px" }}>
-        {/* HEADER */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
           <div>
             <h1 style={{ fontSize: 32, letterSpacing: 8, color: TH.gold }}>APEX HUB</h1>
@@ -1180,16 +1143,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* MAIN CONTENT */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <Panel TH={TH}>
               <PanelHeader title={t.routine_title} sub={t.routine_sub} TH={TH} />
-              {sched.filter((r: any) => isActiveToday(r, todayDow)).map((r: any) => (
-                <div key={r.id} className="row">
-                  <div onClick={() => toggleSched(r.id)} style={{ width: 20, height: 20, border: `1px solid ${r.done ? TH.gold : TH.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{r.done && "✓"}</div>
-                  <span style={{ flex: 1, marginLeft: 10, fontSize: 13, textDecoration: r.done ? "line-through" : "none" }}>{r.task}</span>
-                </div>
+              {sched.filter(rc => isActiveToday(rc, currentDayOfWeek)).map(rc => (
+                <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
               ))}
               <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
             </Panel>
@@ -1199,23 +1158,16 @@ export default function Dashboard() {
             <Panel TH={TH}>
               <PanelHeader title={t.events_title} TH={TH} />
               <div style={{ padding: 15 }}>
-                <EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(d: string) => setModal({ type: "event", initDate: d })} />
+                <EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(dStr: string) => setModal({ type: "event", initDate: dStr })} />
               </div>
             </Panel>
           </div>
         </div>
       </div>
 
-      {/* MODALS & SETTINGS */}
       {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettings(false)} lang={lang} setLang={setLang} themeName={themeName} setTheme={setTheme} userName={userName} setUserName={setUserName} streakPct={streakPct} setStreakPct={setStreakPct} t={t} TH={TH} user={user} />}
-      {modal?.type === "task" && <TaskModal task={modal.item} onSave={(d: any) => saveTask(modal.item, d)} onDelete={(id: string) => setTasks((ts: any) => ts.filter((t: any) => t.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
-
-      {/* MOBILE NAV */}
-      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: isMobile ? "flex" : "none", background: TH.bg2, borderTop: `1px solid ${TH.border}`, justifyContent: "space-around", padding: 10 }}>
-        {["schedule", "tasks", "links"].map(key => (
-          <button key={key} onClick={() => setMob(key)} style={{ background: "none", border: "none", color: mobSec === key ? TH.gold : "#555" }}>{key.toUpperCase()}</button>
-        ))}
-      </nav>
+      {modal?.type === "task" && <TaskModal task={modal.item} onSave={(d: any) => saveTask(modal.item, d)} onDelete={(id: string) => setTasks(prev => prev.filter(tk => tk.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
+      {modal?.type === "sched" && <ScheduleModal item={modal.item} onSave={(d: any) => setSched(prev => modal.item ? prev.map(rc => rc.id === modal.item.id ? {...rc, ...d} : rc) : [...prev, {id: String(Date.now()), done: false, ...d}])} onDelete={(id: string) => setSched(prev => prev.filter(rc => rc.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
     </div>
   );
 }
