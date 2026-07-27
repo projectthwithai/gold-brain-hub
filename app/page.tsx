@@ -1103,7 +1103,92 @@ function AddRow({onClick,label,TH}: any){
     </button>
   );
 }
+function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
+  const [time, setTime] = useState(item?.time || "08:00");
+  const [endTime, setEndTime] = useState(item?.endTime || ""); 
+  const [task, setTask] = useState(item?.task || "");
+  const [icon, setIcon] = useState(item?.icon || "📌");
+  const [freq, setFreq] = useState(item?.freq || "daily");
+  const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
+  const [options, setOptions] = useState<string[]>(item?.options || [""]);
+  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
+  
+  const IS = mkIS(TH);
+  const toggleDay = (d: number) => setDays((ds: any) => ds.includes(d) ? ds.filter((x: any) => x !== d) : [...ds, d].sort());
+  const updateOption = (i: number, v: string) => { const n = [...options]; n[i] = v; setOptions(n); };
+  const addOpt = () => setOptions([...options, ""]);
+  const remOpt = (i: number) => setOptions(options.filter((_, idx) => idx !== i));
+
+  return (
+    <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
+      <ModalHeader title={item ? "EDIT ROUTINE" : "ADD ROUTINE"} onClose={onClose} TH={TH}/>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>START</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>END (OPT)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
+      </div>
+      <Field label="TASK NAME"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="Routine name..."/></Field>
+      <Field label="OPTIONS (選択肢)">
+        {options.map((opt, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i+1}`} />
+            <button onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+          </div>
+        ))}
+        <button onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ ADD OPTION</button>
+      </Field>
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        {item && <GBtn variant="danger" onClick={() => { onDelete(item.id); onClose(); }} TH={TH}>DELETE</GBtn>}
+        <GBtn onClick={() => { 
+          onSave({ time, endTime, task, icon, freq, days, showOnCalendar, options: options.filter(o => o.trim() !== "") }); 
+          onClose(); 
+        }} TH={TH}>SAVE</GBtn>
+      </div>
+    </ModalBackdrop>
+  );
+}
 export default function Dashboard() {
+  // --- ここから貼り付け ---
+  const css = `
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;600&family=Share+Tech+Mono&display=swap');
+    
+    .stat-card { 
+      background: ${TH.surface}; 
+      border: 1px solid ${TH.borderGold}; 
+      padding: 16px; 
+      border-radius: 4px; 
+      position: relative; 
+      overflow: hidden; 
+      transition: all 0.3s; 
+    }
+    .stat-card::before { 
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; 
+      background: linear-gradient(90deg, transparent, ${TH.gold}, transparent); 
+    }
+    
+    .tab-btn { 
+      flex: 1; padding: 12px; background: none; border: none; 
+      color: ${TH.textMuted}; cursor: pointer; font-size: 11px; 
+      letter-spacing: 3px; text-transform: uppercase; 
+      border-bottom: 2px solid transparent; transition: 0.3s; 
+    }
+    .tab-btn.active { 
+      color: ${TH.gold}; border-bottom-color: ${TH.gold}; 
+      text-shadow: 0 0 10px ${TH.gold}44; 
+    }
+    
+    .row { 
+      display: flex; align-items: center; padding: 14px 18px; 
+      border-bottom: 1px solid ${TH.border}; transition: background 0.2s; 
+    }
+    .row:hover { background: ${TH.surfaceHover}; }
+    
+    .edit-btn { 
+      background: none; border: none; color: ${TH.textMuted}; 
+      cursor: pointer; font-size: 14px; opacity: 0.6; transition: 0.2s; 
+    }
+    .edit-btn:hover { color: ${TH.gold}; opacity: 1; }
+  `;
+  // --- ここまで ---
   // --- 1. 全ての State（状態）管理 ---
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setSyncStatus] = useState("idle");
@@ -1235,7 +1320,7 @@ export default function Dashboard() {
   // --- 5. メイン RENDER ---
   return (
     <div style={{ minHeight: "100vh", background: TH.bg, color: TH.text, position: "relative", fontFamily: "serif" }}>
-      <style>{`.tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;}.tab-btn.active{color:${TH.gold};border-bottom:2px solid ${TH.gold};}.row{display:flex;padding:12px 15px;border-bottom:1px solid ${TH.border};align-items:center;}.edit-btn{background:none;border:none;color:#555;cursor:pointer;}`}</style>
+      <style>{css}</style>
       
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px" }}>
         {/* HEADER */}
