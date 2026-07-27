@@ -750,167 +750,55 @@ function TaskModal({task,onSave,onDelete,onClose,t,TH}: any){
 }
 
 function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
-  // --- 既存の状態を維持しつつ新設 ---
   const [time, setTime] = useState(item?.time || "08:00");
-  const [endTime, setEndTime] = useState(item?.endTime || ""); // ★追加
+  const [endTime, setEndTime] = useState(item?.endTime || ""); 
   const [task, setTask] = useState(item?.task || "");
   const [icon, setIcon] = useState(item?.icon || "📌");
-  const [iconImg, setIconImg] = useState(item?.iconImg || null); // 維持
+  const [iconImg, setIconImg] = useState(item?.iconImg || null);
   const [freq, setFreq] = useState(item?.freq || "daily");
   const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
-  const [steps, setSteps] = useState<RoutineStep[]>(item?.steps || []); // 維持
-  const [isShared, setIsShared] = useState(item?.isShared || false); // 維持
+  const [steps, setSteps] = useState<RoutineStep[]>(item?.steps || []);
+  const [isShared, setIsShared] = useState(item?.isShared || false);
   const [options, setOptions] = useState<string[]>(item?.options || [""]);
-  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true); // 維持
+  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
   const [stepDraft, setStepDraft] = useState("");
   
   const IS = mkIS(TH);
-  const toggleDay = d => setDays(ds => ds.includes(d) ? ds.filter(x => x !== d) : [...ds, d].sort());
-  const freqOpts = [
-    {v:"daily",l:t.freq_daily},{v:"every2",l:t.freq_every2},{v:"every3",l:t.freq_every3},
-    {v:"weekly",l:t.freq_weekly},{v:"custom",l:t.freq_custom},{v:"rotation",l:"ローテーション"}
-  ];
+  const toggleDay = (d: number) => setDays((ds: any) => ds.includes(d) ? ds.filter((x: any) => x !== d) : [...ds, d].sort());
+  const updateOption = (i: number, v: string) => { const n = [...options]; n[i] = v; setOptions(n); };
+  const addOpt = () => setOptions([...options, ""]);
+  const remOpt = (i: number) => setOptions(options.filter((_, idx) => idx !== i));
+  const addStep = () => { if(!stepDraft.trim()) return; setSteps(ss => [...ss, {id: String(Date.now()), title: stepDraft.trim(), order: ss.length, isCompleted: false}]); setStepDraft(""); };
+  const removeStep = (id: string) => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
 
-  // ステップ追加ロジック (維持)
-  const addStep = () => {
-    const title = stepDraft.trim();
-    if(!title) return;
-    setSteps(ss => [...ss, {id: crypto.randomUUID?.() || String(Date.now()), title, order: ss.length, isCompleted: false}]);
-    setStepDraft("");
-  };
-  const removeStep = id => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
-// 選択肢の各項目を更新する
-const updateOption = (index: number, value: string) => {
-  const newOptions = [...options];
-  newOptions[index] = value;
-  setOptions(newOptions);
-};
-
-// 新しい入力欄を1つ追加する
-const addOptionField = () => setOptions([...options, ""]);
-
-// 指定した入力欄を削除する
-const removeOptionField = (index: number) => {
-  if (options.length > 1) {
-    setOptions(options.filter((_, i) => i !== index));
-  } else {
-    setOptions([""]); // 最低1つは残す
-  }
-};
-  return(
+  return (
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
-      <ModalHeader title={item ? t.modal_edit_sched : t.modal_add_sched} onClose={onClose} TH={TH}/>
-      
-      {/* 時間設定 (開始 & 終了) */}
+      <ModalHeader title={item ? "EDIT ROUTINE" : "ADD ROUTINE"} onClose={onClose} TH={TH}/>
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}>
-          <label style={mkLS(TH)}>開始時刻</label>
-          <input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/>
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={mkLS(TH)}>終了時刻 (任意)</label>
-          <input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/>
-        </div>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>開始時刻</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>終了時刻 (任意)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
       </div>
-
-      <Field label={t.task_name}>
-        <input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder={t.sched_ph} autoFocus/>
-      </Field>
-
-      {/* 選択肢設定 */}
+      <Field label="ルーティン名"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="例：Deep Work"/></Field>
       <Field label="選択肢 (どれか一つ選んで完了にする)">
-        {options.map((opt, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input 
-              style={{ ...IS, flex: 1 }} 
-              value={opt} 
-              onChange={e => updateOption(idx, e.target.value)} 
-              placeholder={`選択肢 ${idx + 1}`}
-            />
-            <button 
-              type="button" 
-              onClick={() => removeOptionField(idx)}
-              style={{ background: 'transparent', border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: 'pointer', padding: '0 10px', borderRadius: 2 }}
-            >
-              ✕
-            </button>
+        {options.map((opt, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`選択肢 ${i+1}`} />
+            <button type="button" onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
           </div>
         ))}
-        <button 
-          type="button" 
-          onClick={addOptionField}
-          style={{ 
-            width: '100%', padding: '8px', background: `${TH.gold}11`, border: `1px dashed ${TH.goldDark}`, 
-            color: TH.gold, fontSize: 11, cursor: 'pointer', borderRadius: 2 
-          }}
-        >
-          ＋ 選択肢を追加
-        </button>
+        <button type="button" onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ 選択肢を追加</button>
       </Field>
-
-      <Field label={t.freq_lbl}>
-        <div style={{display:"flex", gap:5, flexWrap:"wrap"}}>
-          {freqOpts.map(o=>(
-            <button key={o.v} onClick={()=>setFreq(o.v)} style={{
-              fontSize:11, padding:"6px 12px", borderRadius:2, cursor:"pointer",
-              background:freq===o.v ? `${TH.gold}22` : "transparent",
-              border:`1px solid ${freq===o.v ? TH.gold : TH.border}`,
-              color:freq===o.v ? TH.gold : TH.textDim}}>{o.l}</button>
-          ))}
-        </div>
-      </Field>
-
-      {/* アイコンピッカー (維持) */}
-      <Field label={t.icon_lbl}>
-        <IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/>
-      </Field>
-
-      {/* ステップ管理UI (維持) */}
-      <Field label={t.steps_label}>
-        <div style={{display:"flex", gap:8, marginBottom:8}}>
-          <input style={{...IS, flex:1}} value={stepDraft} onChange={e=>setStepDraft(e.target.value)}
-            placeholder={t.step_title_ph} onKeyDown={e=>e.key==="Enter"&&addStep()}/>
-          <GBtn onClick={addStep} TH={TH}>{t.add_step}</GBtn>
-        </div>
-        {steps.map((s, i)=>(
-          <div key={s.id} style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
-            <span style={{fontSize:12, color:TH.textMuted, width:20}}>{i+1}.</span>
-            <span style={{flex:1, fontSize:14, color:TH.text}}>{s.title}</span>
-            <button type="button" onClick={()=>removeStep(s.id)} style={{background:"transparent", border:`1px solid ${TH.border}`, color:TH.textMuted, cursor:"pointer", padding:"4px 8px", borderRadius:2}}>✕</button>
-          </div>
-        ))}
-      </Field>
-
-      {/* 各種チェックボックス (維持) */}
+      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
-          <input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/>
-          <span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span>
-        </label>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
-          <input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/>
-          <span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span>
-        </label>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span></label>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span></label>
       </div>
-
-      <div style={{display:"flex", gap:8, justifyContent:"flex-end", paddingTop:4}}>
+      <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
         {item && <GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
         <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
         <GBtn onClick={()=>{
           if(!task.trim() || !time) return;
-          onSave({
-            time, 
-            endTime: endTime || null, 
-            task: task.trim(), 
-            icon, 
-            iconImg,
-            freq, 
-            days, 
-            steps,
-            isShared,
-            showOnCalendar,
-            options: options.filter(s => s.trim() !== "") // 空文字を除去して配列として保存
-          });
+          onSave({ time, endTime: endTime || null, task: task.trim(), icon, iconImg, freq, days, steps, isShared, showOnCalendar, options: options.filter(o => o.trim() !== "") });
           onClose();
         }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
       </div>
@@ -1123,25 +1011,25 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
       <ModalHeader title={item ? "EDIT ROUTINE" : "ADD ROUTINE"} onClose={onClose} TH={TH}/>
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>START</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>END (OPT)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>開始時刻</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
+        <div style={{ flex: 1 }}><label style={mkLS(TH)}>終了時刻 (任意)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
       </div>
-      <Field label="TASK NAME"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="Routine name..."/></Field>
-      <Field label="OPTIONS (選択肢)">
+      <Field label="ルーティン名"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="例：Deep Work"/></Field>
+      <Field label="選択肢 (どれか一つ選んで完了にする)">
         {options.map((opt, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i+1}`} />
-            <button onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`選択肢 ${i+1}`} />
+            <button type="button" onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
           </div>
         ))}
-        <button onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ ADD OPTION</button>
+        <button type="button" onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ 選択肢を追加</button>
       </Field>
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        {item && <GBtn variant="danger" onClick={() => { onDelete(item.id); onClose(); }} TH={TH}>DELETE</GBtn>}
+        {item && <GBtn variant="danger" onClick={() => { onDelete(item.id); onClose(); }} TH={TH}>削除</GBtn>}
         <GBtn onClick={() => { 
           onSave({ time, endTime, task, icon, freq, days, showOnCalendar, options: options.filter(o => o.trim() !== "") }); 
           onClose(); 
-        }} TH={TH}>SAVE</GBtn>
+        }} TH={TH}>保存</GBtn>
       </div>
     </ModalBackdrop>
   );
