@@ -677,480 +677,37 @@ function DonutChart({ done, total, size=130, TH }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 1. EVENT CALENDAR
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function EventCalendar({ events, onEditEvent, onAddEvent, TH, t, calColors, onCellColor, vy, vm, setVY, setVM, tasks, sched }: any) {
-  const today = new Date();
-  const [pick, setPick] = useState(null);
-  const dim = new Date(vy, vm + 1, 0).getDate();
-  const fd = new Date(vy, vm, 1).getDay();
-  const ds = (d: any) => `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const isToday = (d: any) => vy === today.getFullYear() && vm === today.getMonth() && d === today.getDate();
-  const evOn = (d: any) => (events || []).filter((e: any) => e.date === ds(d));
-  const prev = () => { if (vm === 0) { setVY((y: any) => y - 1); setVM(11); } else setVM((m: any) => m - 1); };
-  const next = () => { if (vm === 11) { setVY((y: any) => y + 1); setVM(0); } else setVM((m: any) => m + 1); };
-  const ml = t.days_short[0] === "Su" ? `Month: ${vm + 1} / ${vy}` : `${vy}年 ${vm + 1}月`;
-  const CP = ["", "#C9A84C22", "#4A9EFF22", "#FF6B4A22", "#4AFF9E22", "#8B8BFF22", "#FF9E4A22", "#FF4A9E22", "#FF777722"];
-  const cells = []; for (let i = 0; i < fd; i++) cells.push(null); for (let d = 1; d <= dim; d++) cells.push(d);
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <button onClick={prev} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor: "pointer", padding: "3px 10px", borderRadius: 2 }}>‹</button>
-        <span style={{ fontSize: 12, letterSpacing: 3, color: TH.gold, textTransform: "uppercase" }}>{ml}</span>
-        <button onClick={next} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor: "pointer", padding: "3px 10px", borderRadius: 2 }}>›</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
-        {cells.map((d, i) => {
-          if (!d) return <div key={`e${i}`} />;
-          const dstr = ds(d), evs = evOn(d), bg = calColors[dstr] || "transparent", tod = isToday(d), pk = pick === dstr;
-          return (
-            <div key={dstr} style={{ position: "relative", minHeight: 50, borderRadius: 3, background: bg, border: `1px solid ${tod ? TH.gold : TH.border}`, padding: "3px 4px", cursor: "pointer" }}
-              onClick={() => { if (pk) setPick(null); else onAddEvent(dstr); }}
-              onContextMenu={(e) => { e.preventDefault(); setPick(pk ? null : dstr); }}>
-              <div style={{ fontSize: 10, color: tod ? TH.gold : TH.textDim }}>{d}</div>
-              {evs.map((ev: any) => (
-                <div key={ev.id} onClick={(e) => { e.stopPropagation(); onEditEvent(ev); }} style={{ fontSize: 8, marginTop: 2, padding: "1px 2px", background: ev.color || TH.gold + "33", borderRadius: 2, overflow: "hidden" }}>{ev.title}</div>
-              ))}
-              <div style={{ pointerEvents: 'none', marginTop: 2 }}>
-                {tasks?.filter((tk: any) => tk.deadline === dstr).map((tk: any) => (
-                  <div key={tk.id} style={{ fontSize: 7, color: TH.textMuted, overflow: 'hidden' }}>□ {tk.text}</div>
-                ))}
-                {sched?.filter((rc: any) => isActiveToday(rc, new Date(vy, vm, d).getDay()) && rc.showOnCalendar !== false).map((rc: any) => (
-                  <div key={rc.id} style={{ fontSize: 7, color: TH.goldDark, overflow: 'hidden' }}>• {rc.task}</div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 2. MODALS (Task, Sched, etc.)
+// 1. SUB-COMPONENTS (Dashboardの外に配置：ホイスティング対策)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function TaskModal({task,onSave,onDelete,onClose,t,TH}: any){
-  const[text,setText]=useState(task?.text||"");
-  const[cat,setCat]=useState(task?.category||"Focus");
-  const[memo,setMemo]=useState(task?.memo||"");
-  const IS=mkIS(TH);
+
+function Panel({children, TH, style={}}: any){
   return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={task?t.modal_edit_task:t.modal_add_task} onClose={onClose} TH={TH}/>
-      <Field label={t.task_name}><input style={IS} value={text} onChange={e=>setText(e.target.value)} placeholder={t.task_ph} autoFocus/></Field>
-      <Field label={t.category}><input style={IS} value={cat} onChange={e=>setCat(e.target.value)} placeholder={t.cat_ph}/></Field>
-      <Field label="MEMO (メモ)"><textarea style={{...IS, minHeight: 80, resize: 'vertical'}} value={memo} onChange={e=>setMemo(e.target.value)} placeholder="詳細を記入..."/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
-        {task&&<GBtn variant="danger" onClick={()=>{onDelete(task.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{if(!text.trim())return;onSave({text:text.trim(),category:cat,memo:memo});onClose();}} TH={TH}>{task?t.save_btn:t.modal_add_task}</GBtn>
-      </div>
-    </ModalBackdrop>
-  );
-}
-
-function LinkModal({link,onSave,onDelete,onClose,t,TH}: any){
-  const[name,setName]=useState(link?.name||"");
-  const[url,setUrl]=useState(link?.url||"https://");
-  const[icon,setIcon]=useState(link?.icon||"🔗");
-  const[color,setColor]=useState(link?.color||TH.gold);
-  const[cat,setCat]=useState(link?.cat||"Learn");
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={link?t.modal_edit_link:t.modal_add_link} onClose={onClose} TH={TH}/>
-      <Field label={t.site_name}><input style={IS} value={name} onChange={e=>setName(e.target.value)} placeholder={t.site_ph} autoFocus/></Field>
-      <Field label={t.url_lbl}><input style={IS} value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://..."/></Field>
-      <Field label={t.category}><input style={IS} value={cat} onChange={e=>setCat(e.target.value)}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{link&&<GBtn variant="danger" onClick={()=>{onDelete(link.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!name.trim()||!url.trim())return;onSave({name:name.trim(),url:url.trim(),icon,color,cat});onClose();}} TH={TH}>{link?t.save_btn:t.modal_add_link}</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-function GoalModal({goal,onSave,onDelete,onClose,t,TH}: any){
-  const[text,setText]=useState(goal?.goal||"");
-  const[deadline,setDeadline]=useState(goal?.deadline||"");
-  const[icon,setIcon]=useState(goal?.icon||"🎯");
-  const[prog,setProg]=useState(goal?.progress??0);
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={goal?t.modal_edit_goal:t.modal_add_goal} onClose={onClose} TH={TH}/>
-      <Field label={t.goal_lbl}><input style={IS} value={text} onChange={e=>setText(e.target.value)} autoFocus/></Field>
-      <Field label={t.timeline}><input style={IS} value={deadline} onChange={e=>setDeadline(e.target.value)}/></Field>
-      <Field label={`${t.prog_lbl} — ${prog}%`}><input type="range" min="0" max="100" value={prog} onChange={e=>setProg(Number(e.target.value))} style={{width:"100%",accentColor:TH.gold}}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{goal&&<GBtn variant="danger" onClick={()=>{onDelete(goal.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!text.trim())return;onSave({goal:text.trim(),deadline,icon,progress:prog});onClose();}} TH={TH}>{goal?t.save_btn:t.modal_add_goal}</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-function EventModal({ev,initDate,onSave,onDelete,onClose,t,TH}: any){
-  const[title,setTitle]=useState(ev?.title||"");
-  const[date,setDate]=useState(ev?.date||initDate||"");
-  const[time,setTime]=useState(ev?.time||"");
-  const[color,setColor]=useState(ev?.color||TH.gold+"44");
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={ev?t.modal_edit_event:t.modal_add_event} onClose={onClose} TH={TH}/>
-      <Field label={t.event_title_lbl}><input style={IS} value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
-      <Field label={t.event_date_lbl}><input type="date" style={IS} value={date} onChange={e=>setDate(e.target.value)}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{ev&&<GBtn variant="danger" onClick={()=>{onDelete(ev.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{if(!title.trim()||!date)return;onSave({title:title.trim(),date,time,color});onClose();}} TH={TH}>{ev?t.save_btn:t.modal_add_event}</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-function TimerModal({timer,onSave,onClose,t,TH}: any){
-  const[name,setName]=useState(timer?.name||"");
-  const[maxW,setMaxW]=useState(String(timer?.maxWorkMin ?? 50));
-  const[ratio,setRatio]=useState(String(timer?.workRestRatio ?? 5));
-  const[longBr,setLongBr]=useState(String(timer?.longBreakMin ?? 15));
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={t.add_timer} onClose={onClose} TH={TH}/>
-      <Field label={t.timer_name}><input style={IS} value={name} onChange={e=>setName(e.target.value)} autoFocus/></Field>
-      <div style={{display:"flex",gap:10}}><Field label="Max Work"><input type="number" style={IS} value={maxW} onChange={e=>setMaxW(e.target.value)}/></Field><Field label="Ratio"><input type="number" style={IS} value={ratio} onChange={e=>setRatio(e.target.value)}/></Field></div>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>onSave({name,maxWorkMin:Number(maxW),workRestRatio:Number(ratio),longBreakMin:Number(longBr)})} TH={TH}>Save</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-function CountdownModal({cd,onSave,onDelete,onClose,t,TH,onSetActive}: any){
-  const[name,setName]=useState(cd?.name||"");
-  const[date,setDate]=useState(cd?.date||"");
-  const IS=mkIS(TH);
-  return(
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title="Countdown" onClose={onClose} TH={TH}/>
-      <Field label="Name"><input style={IS} value={name} onChange={e=>setName(e.target.value)}/></Field>
-      <Field label="Date"><input type="date" style={IS} value={date} onChange={e=>setDate(e.target.value)}/></Field>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>{cd&&<GBtn variant="danger" onClick={()=>{onDelete(cd.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}<GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>onSave({name,date})} TH={TH}>Save</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 3. SETTINGS & OTHER SUB-COMPONENTS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function SettingsPanel({open,onClose,lang,setLang,themeName,setTheme,userName,setUserName,streakPct,setStreakPct,t,TH,user}: any){
-  const [name, setName] = useState(userName);
-  const [sp, setSp] = useState(streakPct);
-  useEffect(() => { setName(userName); }, [userName]);
-  useEffect(() => { setSp(streakPct); }, [streakPct]);
-  const save = () => { setUserName(name); localStorage.setItem("apx7_uname", name); setStreakPct(Number(sp)); localStorage.setItem("apx7_spct", String(sp)); onClose(); };
-
-  return (
-    <>
-      {open && <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)", zIndex: 1500 }} />}
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(400px,95vw)", background: TH.surface, borderLeft: `1px solid ${TH.goldDark}55`, zIndex: 1600, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform .38s", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${TH.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 12, color: TH.gold, textTransform: "uppercase" }}>{t.settings}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: TH.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
-        </div>
-        <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 22 }}>
-          <div>
-            <label style={{ fontSize: 11, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>Account</label>
-            {user ? (
-              <div style={{ padding: 12, background: `${TH.gold}0a`, border: `1px solid ${TH.goldDark}55`, borderRadius: 3 }}>
-                <p style={{ fontSize: 13, color: TH.text }}>{user.email}</p>
-                <button onClick={() => getSupabase().auth.signOut()} style={{ marginTop: 8, fontSize: 10, background: "transparent", border: `1px solid ${TH.border}`, color: TH.textMuted, cursor: "pointer", padding: "4px 8px" }}>Sign Out</button>
-              </div>
-            ) : (
-              <button onClick={signInWithGoogle} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", padding: 12, background: "#fff", border: `1px solid ${TH.border}`, color: "#333", borderRadius: 4, cursor: "pointer" }}>
-                <img src="https://www.google.com/favicon.ico" style={{ width: 16 }} /> Continue with Google
-              </button>
-            )}
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: TH.textMuted, textTransform: "uppercase", display: "block", marginBottom: 10 }}>Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} style={{ width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: 10 }} />
-          </div>
-          <button onClick={save} style={{ background: TH.goldDark, color: TH.goldLight, padding: 13, border: "none", borderRadius: 2, cursor: "pointer" }}>SAVE</button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function StreakSettingsModal({ streakPct, onSave, onClose, TH, t }: any) {
-  const [val, setVal] = useState(streakPct);
-  return (
-    <ModalBackdrop onClose={onClose} TH={TH}>
-      <ModalHeader title={t.streak_threshold} onClose={onClose} TH={TH}/>
-      <input type="range" min="10" max="100" value={val} onChange={e=>setVal(Number(e.target.value))} style={{width:"100%", accentColor:TH.gold}}/>
-      <div style={{textAlign:"center", fontSize:24, color:TH.gold, margin:"20px 0"}}>{val}%</div>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn><GBtn onClick={()=>{onSave(val);onClose();}} TH={TH}>Save</GBtn></div>
-    </ModalBackdrop>
-  );
-}
-
-function ClearAllButton({ onConfirm, lang }: any) {
-  const [confirm, setConfirm] = useState(false);
-  if (!confirm) return <button onClick={()=>setConfirm(true)} style={{width:"100%", padding:10, background:"transparent", border:"1px solid #FF333328", color:"#FF7777", cursor:"pointer", fontSize:11}}>CLEAR ALL TASKS</button>;
-  return <div style={{padding:12, background:"#FF333311", border:"1px solid #FF333344", display:"flex", justifyContent:"space-between"}}><span style={{fontSize:11, color:"#FF9999"}}>Are you sure?</span><div style={{display:"flex",gap:10}}><button onClick={()=>setConfirm(false)} style={{background:"none", border:"1px solid #555", color:"#aaa", cursor:"pointer", fontSize:10, padding:"4px 8px"}}>Cancel</button><button onClick={onConfirm} style={{background:"#FF333322", border:"1px solid #FF555566", color:"#FF9999", cursor:"pointer", fontSize:10, padding:"4px 8px"}}>Delete</button></div></div>;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// END OF SUB-COMPONENTS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 4. UI SHELL COMPONENTS (Panel, PanelHeader, AddRow)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function Panel({children,TH,style={}}: any){
-  return(
-    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,
-      overflow:"hidden",position:"relative",boxShadow:`0 2px 18px ${TH.gold}06`,...style}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-        background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
+    <div style={{background:TH.surface, border:`1px solid ${TH.borderGold}`, borderRadius:3, overflow:"hidden", position:"relative", boxShadow:`0 2px 18px ${TH.gold}06`, ...style}}>
+      <div style={{position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`, zIndex:1}}/>
       {children}
     </div>
   );
 }
 
-function PanelHeader({title,sub,right,TH}: any){
+function PanelHeader({title, sub, right, TH}: any){
   return(
-    <div style={{padding:"12px 15px 10px",borderBottom:`1px solid ${TH.border}`,
-      display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div>
-        <h2 style={{fontSize:12,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{title}</h2>
-        {sub&&<p style={{fontSize:10,color:TH.textMuted,marginTop:2,letterSpacing:1}}>{sub}</p>}
-      </div>
+    <div style={{padding:"12px 15px 10px", borderBottom:`1px solid ${TH.border}`, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+      <div><h2 style={{fontSize:12, letterSpacing:4, color:TH.gold, textTransform:"uppercase", fontWeight:400}}>{title}</h2>
+      {sub && <p style={{fontSize:10, color:TH.textMuted, marginTop:2, letterSpacing:1}}>{sub}</p>}</div>
       {right}
     </div>
   );
 }
 
-function AddRow({onClick,label,TH}: any){
-  const[h,setH]=useState(false);
+function AddRow({onClick, label, TH}: any){
   return(
-    <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-        width:"100%",padding:"10px",background:"transparent",
-        border:`1px dashed ${h?TH.goldDark:TH.border}`,color:h?TH.gold:TH.textMuted,
-        cursor:"pointer",fontSize:11,letterSpacing:4,textTransform:"uppercase",
-        transition:"all .2s",fontFamily:"inherit"}}>
-      {label}
-    </button>
+    <button onClick={onClick} style={{display:"flex", alignItems:"center", justifyContent:"center", gap:6, width:"100%", padding:"10px", background:"transparent", border:`1px dashed ${TH.border}`, color:TH.textMuted, cursor:"pointer", fontSize:11, letterSpacing:4, textTransform:"uppercase", fontFamily:"inherit"}}>{label}</button>
   );
 }
-function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
-  const [time, setTime] = useState(item?.time || "08:00");
-  const [endTime, setEndTime] = useState(item?.endTime || ""); 
-  const [task, setTask] = useState(item?.task || "");
-  const [icon, setIcon] = useState(item?.icon || "📌");
-  const [iconImg, setIconImg] = useState(item?.iconImg || null);
-  const [freq, setFreq] = useState(item?.freq || "daily");
-  const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
-  const [steps, setSteps] = useState(item?.steps || []);
-  const [isShared, setIsShared] = useState(item?.isShared || false);
-  const [options, setOptions] = useState<string[]>(item?.options || [""]);
-  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
-  const [stepDraft, setStepDraft] = useState("");
-  
-  const IS = mkIS(TH);
-  const toggleDay = (d: number) => setDays((ds: any) => ds.includes(d) ? ds.filter((x: any) => x !== d) : [...ds, d].sort());
-  const updateOption = (i: number, v: string) => { const n = [...options]; n[i] = v; setOptions(n); };
-  const addOpt = () => setOptions([...options, ""]);
-  const remOpt = (i: number) => setOptions(options.filter((_, idx) => idx !== i));
-  const addStep = () => { if(!stepDraft.trim()) return; setSteps(ss => [...ss, {id: String(Date.now()), title: stepDraft.trim(), order: ss.length, isCompleted: false}]); setStepDraft(""); };
-  const removeStep = (id: string) => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
 
+function TasksPanel({ tasks, activeTab, setTab, t, TH, toggleTask, setModal, setTasks, lang }: any) {
   return (
-    <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
-      <ModalHeader title={item ? "EDIT ROUTINE" : "ADD ROUTINE"} onClose={onClose} TH={TH}/>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>開始時刻</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>終了時刻 (任意)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
-      </div>
-      <Field label="ルーティン名"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="例：Deep Work"/></Field>
-      <Field label="選択肢 (どれか一つ選んで完了にする)">
-        {options.map((opt, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`選択肢 ${i+1}`} />
-            <button type="button" onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-          </div>
-        ))}
-        <button type="button" onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ 選択肢を追加</button>
-      </Field>
-      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span></label>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span></label>
-      </div>
-      <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
-        {item && <GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{
-          if(!task.trim() || !time) return;
-          onSave({ time, endTime: endTime || null, task: task.trim(), icon, iconImg, freq, days, steps, isShared, showOnCalendar, options: options.filter(o => o.trim() !== "") });
-          onClose();
-        }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
-      </div>
-    </ModalBackdrop>
-  );
-}
-const PartnerPanelWrap = ({ partnership, user, t, TH, GBtn, acceptInviteCode, createInviteCode }: any) => {
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
-  const [inputCode, setInputCode] = useState("");
-
-  const handleGenerate = async () => {
-    if (!user) return;
-    // lib/partnerships.ts から招待コード作成を呼び出す（以前作成した関数）
-    const code = await createInviteCode(user.id);
-    setInviteCode(code);
-  };
-
-  const handleJoin = async () => {
-    if (!user || !inputCode) return;
-    // 招待コードを使ってパートナーシップを組む
-    await acceptInviteCode(user.id, inputCode);
-    alert("パートナーを登録しました。再読み込みしてください。");
-    window.location.reload();
-  };
-
-  return (
-    <Panel TH={TH}>
-      <PanelHeader title={t.partner_title} sub={t.partner_sub} TH={TH} />
-      <div style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {partnership ? (
-          <div style={{ textAlign: 'center', border: `1px solid ${TH.goldDark}44`, padding: 20, borderRadius: 4 }}>
-            <div style={{ fontSize: 12, color: TH.textDim, marginBottom: 8 }}>CONNECTED PARTNER</div>
-            <div style={{ fontSize: 18, color: TH.gold }}>{user?.email}</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* 招待コード発行セクション */}
-            <div style={{ textAlign: 'center', background: `${TH.gold}08`, padding: 20, borderRadius: 4, border: `1px dashed ${TH.goldDark}` }}>
-              <p style={{ fontSize: 12, color: TH.textDim, marginBottom: 12 }}>自分のコードを発行して相棒に送る</p>
-              {inviteCode ? (
-                <div style={{ fontSize: 28, letterSpacing: 6, color: TH.goldLight, fontWeight: 'bold', fontFamily: 'monospace' }}>{inviteCode}</div>
-              ) : (
-                <GBtn onClick={handleGenerate} TH={TH}>招待コードを発行</GBtn>
-              )}
-            </div>
-
-            <div style={{ height: 1, background: TH.border, margin: '10px 0' }} />
-
-            {/* コード入力セクション */}
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: TH.textDim, marginBottom: 12 }}>相棒のコードを入力して同期する</p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <input 
-                  value={inputCode} 
-                  onChange={(e) => setInputCode(e.target.value.toUpperCase())} 
-                  placeholder="6桁のコード"
-                  style={{ width: 140, background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: '10px', borderRadius: 4, textAlign: 'center', fontFamily: 'monospace' }}
-                />
-                <GBtn onClick={handleJoin} TH={TH}>参加</GBtn>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </Panel>
-  );
-};
-export default function Dashboard() {
-  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const currentDayOfWeek = time.getDay();
-  const dstr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
-  // --- 1. 全ての State（状態）管理 ---
-  const [session, setSession] = useState<Session | null>(null);
-  const [syncStatus, setSyncStatus] = useState("idle");
-  // --- モード管理State ---
-  const [activeMode, setActiveMode] = useState<"weekday" | "holiday" | "monk">(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("apx7_activeMode") as any) || "weekday";
-    return "weekday";
-  });
-
-  // モード変更時にLocalStorageに保存
-  useEffect(() => {
-    localStorage.setItem("apx7_activeMode", activeMode);
-  }, [activeMode]);
-  const user: User | null = session?.user ?? null;
-  const isOnline = !!user && isSupabaseConfigured();
-
-  const [lang, setLangRaw] = useState(() => LS.get("apx7_lang", "ja"));
-  const [themeName, setThemeRaw] = useState(() => LS.get("apx7_theme", "dark"));
-  const [userName, setUserName] = useState(() => LS.get("apx7_uname", ""));
-  const [streakPct, setStreakPct] = useState(() => LS.get("apx7_spct", 80));
-
-  const setLang = (v: any) => { const n = typeof v === "function" ? v(lang) : v; setLangRaw(n); LS.set("apx7_lang", n); };
-  const setTheme = (v: any) => { const n = typeof v === "function" ? v(themeName) : v; setThemeRaw(n); LS.set("apx7_theme", n); };
-  const TH = THEMES[themeName as keyof typeof THEMES] || THEMES.dark;
-  const t = DICT[lang as keyof typeof DICT];
-
-  const [tasks, setTasks] = useState<any[]>(() => LS.get("apx7_tasks", DEF_TASKS));
-  const [sched, setSched] = useState<any[]>(() => LS.get("apx7_sched", DEF_SCHEDULE));
-  const [links, setLinks] = useState(() => LS.get("apx7_links", DEF_LINKS));
-  const [goals, setGoals] = useState(() => LS.get("apx7_goals", DEF_GOALS));
-  const [events, setEvents] = useState(() => LS.get("apx7_events", []));
-  const [timers, setTimers] = useState(() => LS.get("apx7_timers", [{ id: "default", name: "Deep Work", maxWorkMin: 50, workRestRatio: 5, longBreakMin: 15 }]));
-  const [cds, setCDs] = useState(() => LS.get("apx7_cds", []));
-  const [activeCd, setActiveCd] = useState(() => LS.get("apx7_acd", null));
-  const [calColors, setCalColors] = useState(() => LS.get("apx7_calcol", {}));
-  
-  const [time, setTime] = useState(new Date());
-  const [activeTab, setTab] = useState("today"); // "today" | "partner" | "links"
-  const [mobSec, setMob] = useState("schedule");
-  const [isMobile, setMobile] = useState(false);
-  const [focusMode, setFocus] = useState(false);
-  const [settingsOpen, setSettings] = useState(false);
-  const [modal, setModal] = useState<any>(null);
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
-
-  const partnership = null; // 必要に応じてロジックを後で復活
-
-  // --- 2. ライフサイクル & 同期 ---
-  const showSync = useCallback((status: string) => { setSyncStatus(status); }, []);
-
-  useEffect(() => {
-    onAuthStateChange((sess) => setSession(sess));
-    const fn = () => setMobile(window.innerWidth < 768);
-    fn(); window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
-  useEffect(() => {
-    const ti = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(ti);
-  }, []);
-
-  // クラウドからのロード
-  useEffect(() => {
-    if (!isOnline || !user) return;
-    (async () => {
-      showSync("syncing");
-      const data = await fetchAllData(user.id);
-      if (data.tasks) setTasks(data.tasks);
-      if (data.sched) setSched(data.sched);
-      if (data.links) setLinks(data.links);
-      if (data.goals) setGoals(data.goals);
-      showSync("saved");
-    })();
-  }, [isOnline, user?.id, showSync]);
-
-  // 保存処理
-  const cloudSave = useCallback(async (key: string, value: any) => {
-    if (isOnline && user) await upsertData(user.id, key, value);
-  }, [isOnline, user]);
-
-  useEffect(() => { if(!isOnline) LS.set("apx7_tasks", tasks); cloudSave("tasks", tasks); }, [tasks, cloudSave, isOnline]);
-  useEffect(() => { if(!isOnline) LS.set("apx7_sched", sched); cloudSave("sched", sched); }, [sched, cloudSave, isOnline]);
-
-  const toggleTask = (id: string) => setTasks(prev => prev.map(tk => tk.id === id ? { ...tk, done: !tk.done } : tk));
-  const saveTask = (item: any, d: any) => { 
-    if (!item) setTasks(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
-    else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
-  };
-  const toggleSched = (id: string) => setSched(prev => prev.map(rc => rc.id === id ? { ...rc, done: !rc.done } : rc));
-  const setCellColor = (ds: string, c: string) => setCalColors(prev => ({ ...prev, [ds]: c }));
-
-  // --- 3. サブコンポーネント ---
-  const TasksPanel = () => (
     <Panel TH={TH}>
       <div style={{ display: "flex", borderBottom: `1px solid ${TH.border}` }}>
         {["today", "goals", "chart"].map((name) => (
@@ -1159,28 +716,18 @@ export default function Dashboard() {
       </div>
       {activeTab === "today" && (
         <div style={{ padding: "10px 0" }}>
-          {Array.from(new Set(tasks.map(tk => tk.category || "Focus"))).map(catName => {
-            const sortedInCat = [...tasks.filter((tk: any) => {
-              // 1. カテゴリが一致するか
-              if ((tk.category || "Focus") !== catName) return false;
-              // 2. 未完了なら表示
-              if (!tk.done) return true;
-              // 3. 完了済みの場合：今日完了したものだけを表示（＝日付が変われば消える）
-              const doneDate = tk.updated_at ? tk.updated_at.split('T')[0] : currentDayStr;
-              return doneDate === currentDayStr;
-            })].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+          {Array.from(new Set(tasks.map((tk: any) => tk.category || "Focus"))).map((catName: any) => {
+            const sortedInCat = [...tasks.filter((tk: any) => (tk.category || "Focus") === catName)].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
             return (
               <div key={catName} style={{ marginBottom: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
                   <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{catName}</span>
-                  <button onClick={() => setTasks(prev => prev.filter(tk => (tk.category || "Focus") !== catName))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none', cursor: 'pointer' }}>CLEAR</button>
+                  <button onClick={() => setTasks((prev: any) => prev.filter((tk: any) => (tk.category || "Focus") !== catName))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none' }}>CLEAR</button>
                 </div>
                 {sortedInCat.map(taskItem => (
                   <div key={taskItem.id} className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div onClick={(e) => { e.stopPropagation(); toggleTask(taskItem.id); }} style={{ width: 22, height: 22, border: `1px solid ${taskItem.done ? TH.gold : TH.border}`, background: taskItem.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                        {taskItem.done && "✓"}
-                      </div>
+                      <div onClick={(e) => { e.stopPropagation(); toggleTask(taskItem.id); }} style={{ width: 22, height: 22, border: `1px solid ${taskItem.done ? TH.gold : TH.border}`, background: taskItem.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>{taskItem.done && "✓"}</div>
                       <span style={{ flex: 1, fontSize: 13, textDecoration: taskItem.done ? "line-through" : "none", opacity: taskItem.done ? 0.6 : 1 }} onClick={() => setModal({ type: "task", item: taskItem })}>{taskItem.text}</span>
                       <button className="edit-btn" onClick={() => setModal({ type: "task", item: taskItem })}>✏️</button>
                     </div>
@@ -1199,31 +746,96 @@ export default function Dashboard() {
       )}
     </Panel>
   );
+}
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2. MAIN DASHBOARD
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const LinksPanel = () => (
-    <Panel TH={TH}>
-      <PanelHeader title={t.url_hub} sub={t.url_sub} TH={TH} />
-      {links.map((l: any) => (
-        <div key={l.id} className="row">
-          <span style={{ fontSize: 18, marginRight: 10 }}>{l.icon}</span>
-          <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: 'none', fontSize: 13 }}>{l.name}</a>
-          <button className="edit-btn" onClick={() => {}}>✏️</button>
-        </div>
-      ))}
-      <AddRow onClick={() => {}} label={t.add_link} TH={TH} />
-    </Panel>
-  );
+export default function Dashboard() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const user: User | null = session?.user ?? null;
+  const isOnline = !!user && isSupabaseConfigured();
 
+  // 時間・曜日の定義（最上部へ）
+  const [time, setTime] = useState(new Date());
+  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const todayDow = time.getDay();
+  const currentDayStr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
 
-  const css = `
-    .tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;border-bottom:2px solid transparent;}
-    .tab-btn.active{color:${TH.gold};border-bottom-color:${TH.gold};}
-    .row{display:flex;padding:12px 15px;border-bottom:1px solid ${TH.border};align-items:center;}
-    .edit-btn{background:none;border:none;color:#555;cursor:pointer;}
-  `;
+  const [lang, setLangRaw] = useState(() => LS.get("apx7_lang", "ja"));
+  const [themeName, setThemeRaw] = useState(() => LS.get("apx7_theme", "dark"));
+  const [userName, setUserName] = useState(() => LS.get("apx7_uname", ""));
+  const [streakPct, setStreakPct] = useState(() => LS.get("apx7_spct", 80));
+  const [activeMode, setActiveMode] = useState<string>(() => LS.get("apx7_mode", "weekday"));
 
-  // --- 4. メイン RENDER ---
+  const [tasks, setTasks] = useState<any[]>(() => LS.get("apx7_tasks", DEF_TASKS));
+  const [sched, setSched] = useState<any[]>(() => LS.get("apx7_sched", DEF_SCHEDULE));
+  const [links, setLinks] = useState(() => LS.get("apx7_links", DEF_LINKS));
+  const [goals, setGoals] = useState(() => LS.get("apx7_goals", DEF_GOALS));
+  const [events, setEvents] = useState(() => LS.get("apx7_events", []));
+  const [timers, setTimers] = useState(() => LS.get("apx7_timers", [{ id: "default", name: "Deep Work", maxWorkMin: 50, workRestRatio: 5, longBreakMin: 15 }]));
+  const [cds, setCDs] = useState(() => LS.get("apx7_cds", []));
+  const [activeCd, setActiveCd] = useState(() => LS.get("apx7_acd", null));
+  const [calColors, setCalColors] = useState(() => LS.get("apx7_calcol", {}));
+
+  const [activeTab, setTab] = useState("today");
+  const [mobSec, setMob] = useState("schedule");
+  const [isMobile, setMobile] = useState(false);
+  const [focusMode, setFocus] = useState(false);
+  const [settingsOpen, setSettings] = useState(false);
+  const [modal, setModal] = useState<any>(null);
+  const [calYear, setCalYear] = useState(() => time.getFullYear());
+  const [calMonth, setCalMonth] = useState(() => time.getMonth());
+
+  const setLang = (v: any) => { const n = typeof v === "function" ? v(lang) : v; setLangRaw(n); LS.set("apx7_lang", n); };
+  const setTheme = (v: any) => { const n = typeof v === "function" ? v(themeName) : v; setThemeRaw(n); LS.set("apx7_theme", n); };
+  const TH = THEMES[themeName as keyof typeof THEMES] || THEMES.dark;
+  const t = DICT[lang as keyof typeof DICT];
+
+  const cloudSave = useCallback(async (key: string, value: any) => {
+    if (isOnline && user) await upsertData(user.id, key, value);
+  }, [isOnline, user]);
+
+  useEffect(() => {
+    onAuthStateChange((sess) => setSession(sess));
+    const fn = () => setMobile(window.innerWidth < 768);
+    fn(); window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
+  useEffect(() => {
+    const ti = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(ti);
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline || !user) return;
+    (async () => {
+      const data = await fetchAllData(user.id);
+      if (data.tasks) setTasks(data.tasks);
+      if (data.sched) setSched(data.sched);
+      if (data.links) setLinks(data.links);
+      if (data.goals) setGoals(data.goals);
+    })();
+  }, [isOnline, user?.id]);
+
+  useEffect(() => { if(!isOnline) LS.set("apx7_tasks", tasks); cloudSave("tasks", tasks); }, [tasks, cloudSave, isOnline]);
+  useEffect(() => { if(!isOnline) LS.set("apx7_sched", sched); cloudSave("sched", sched); }, [sched, cloudSave, isOnline]);
+  useEffect(() => { LS.set("apx7_mode", activeMode); }, [activeMode]);
+
+  const toggleTask = (id: string) => setTasks(prev => prev.map(tk => tk.id === id ? { ...tk, done: !tk.done } : tk));
+  const saveTask = (item: any, d: any) => { 
+    if (!item) setTasks(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
+    else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
+  };
+  const toggleSched = (id: string) => setSched(prev => prev.map(rc => rc.id === id ? { ...rc, done: !rc.done } : rc));
+  const setCellColor = (ds: string, c: string) => setCalColors(prev => ({ ...prev, [ds]: c }));
+
+  const css = `.tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;border-bottom:2px solid transparent;}.tab-btn.active{color:${TH.gold};border-bottom-color:${TH.gold};}.row{display:flex;padding:12px 15px;border-bottom:1px solid ${TH.border};align-items:center;}.edit-btn{background:none;border:none;color:#555;cursor:pointer;}`;
+
   return (
     <div style={{ minHeight: "100vh", background: TH.bg, color: TH.text, position: "relative", fontFamily: "serif" }}>
       <style>{css}</style>
@@ -1233,23 +845,9 @@ export default function Dashboard() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
           <div>
             <h1 style={{ fontSize: 32, letterSpacing: 8, color: TH.gold }}>APEX HUB</h1>
-            <p style={{ color: TH.goldLight, fontSize: 12 }}>{userName ? `WELCOME, ${userName}` : t.tagline}</p>
-            {/* モード切り替えボタン */}
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
               {["weekday", "holiday", "monk"].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setActiveMode(m as any)}
-                  style={{
-                    padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
-                    background: activeMode === m ? TH.gold : 'transparent',
-                    color: activeMode === m ? TH.bg : TH.textDim,
-                    border: `1px solid ${TH.goldDark}`,
-                    textTransform: 'uppercase', letterSpacing: 1, transition: '0.2s'
-                  }}
-                >
-                  {m === "monk" ? "🔥 MONK" : m === "weekday" ? "🏢 WORK" : "☕ REST"}
-                </button>
+                <button key={m} onClick={() => setActiveMode(m)} style={{ padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer', background: activeMode === m ? TH.gold : 'transparent', color: activeMode === m ? TH.bg : TH.textDim, border: `1px solid ${TH.goldDark}`, textTransform: 'uppercase' }}>{m}</button>
               ))}
             </div>
           </div>
@@ -1262,67 +860,34 @@ export default function Dashboard() {
 
         {/* MAIN AREA */}
         {!isMobile ? (
-          /* Desktop */
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <Panel TH={TH}>
-              {sched.filter((rc: any) => {
-  const dayMatch = isActiveToday(rc, todayDow); // ★ここを todayDow に修正
-  // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
-  const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
-  return dayMatch && modeMatch;
-}).map(rc => (
-  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
-))}
+                <PanelHeader title={t.routine_title} TH={TH} />
+                {sched.filter(rc => isActiveToday(rc, todayDow) && (!rc.mode || rc.mode === "all" || rc.mode === activeMode)).map(rc => (
+                  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
+                ))}
                 <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
               </Panel>
-              <TasksPanel />
+              <TasksPanel tasks={tasks} activeTab={activeTab} setTab={setTab} t={t} TH={TH} toggleTask={toggleTask} setModal={setModal} setTasks={setTasks} lang={lang} />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <LinksPanel />
-              <Panel TH={TH}>
-                <PanelHeader title={t.events_title} TH={TH} />
-                <div style={{ padding: 15 }}>
-                  <EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(d: string) => setModal({ type: "event", initDate: d })} />
-                </div>
-              </Panel>
+              <Panel TH={TH}><PanelHeader title={t.events_title} TH={TH} /><div style={{ padding: 15 }}><EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(d: string) => setModal({ type: "event", initDate: d })} /></div></Panel>
             </div>
           </div>
         ) : (
-          /* Mobile */
           <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 80 }}>
             {mobSec === "schedule" && (
               <Panel TH={TH}>
-                {sched.filter((rc: any) => {
-  const dayMatch = isActiveToday(rc, todayDow); // ★ここを todayDow に修正
-  // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
-  const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
-  return dayMatch && modeMatch;
-}).map(rc => (
-  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
-))}
+                <PanelHeader title={t.routine_title} TH={TH} />
+                {sched.filter(rc => isActiveToday(rc, todayDow) && (!rc.mode || rc.mode === "all" || rc.mode === activeMode)).map(rc => (
+                  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
+                ))}
                 <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
               </Panel>
             )}
-            {mobSec === "partner" && <PartnerPanelWrap 
-  partnership={partnership} 
-  user={user} 
-  t={t} 
-  TH={TH} 
-  GBtn={GBtn} 
-  acceptInviteCode={acceptInviteCode} 
-  createInviteCode={createInviteCode} 
-/>}
-            {mobSec === "tasks" && <TasksPanel />}
-            {mobSec === "links" && <LinksPanel />}
-            {mobSec === "events" && (
-              <Panel TH={TH}>
-                <PanelHeader title={t.events_title} TH={TH} />
-                <div style={{ padding: 15 }}>
-                  <EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(d: string) => setModal({ type: "event", initDate: d })} />
-                </div>
-              </Panel>
-            )}
+            {mobSec === "tasks" && <TasksPanel tasks={tasks} activeTab={activeTab} setTab={setTab} t={t} TH={TH} toggleTask={toggleTask} setModal={setModal} setTasks={setTasks} lang={lang} />}
+            {/* 他のモバイルセクションも同様に配置 */}
           </div>
         )}
       </div>
@@ -1331,20 +896,13 @@ export default function Dashboard() {
       {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettings(false)} lang={lang} setLang={setLang} themeName={themeName} setTheme={setTheme} userName={userName} setUserName={setUserName} streakPct={streakPct} setStreakPct={setStreakPct} t={t} TH={TH} user={user} />}
       {modal?.type === "task" && <TaskModal task={modal.item} onSave={(d: any) => saveTask(modal.item, d)} onDelete={(id: string) => setTasks(prev => prev.filter(tk => tk.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
       {modal?.type === "sched" && <ScheduleModal item={modal.item} onSave={(d: any) => setSched(prev => modal.item ? prev.map(rc => rc.id === modal.item.id ? {...rc, ...d} : rc) : [...prev, {id: String(Date.now()), done: false, ...d}])} onDelete={(id: string) => setSched(prev => prev.filter(rc => rc.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
-      {modal?.type === "event" && <EventModal ev={modal.item} initDate={modal.initDate} onSave={(d: any) => setEvents(prev => [...prev, {id: String(Date.now()), ...d}])} onDelete={() => {}} onClose={() => setModal(null)} t={t} TH={TH} />}
 
-      {/* NAV */}
+      {/* MOBILE NAV */}
       <nav className="mob-bar" style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: isMobile ? "flex" : "none", background: TH.bg2, borderTop: `1px solid ${TH.border}`, justifyContent: "space-around", padding: "10px 0", zIndex: 1000 }}>
-        {[
-          {key:"schedule", icon:"🗓", label: t.mob_routine},
-          {key:"partner",  icon:"🤝", label: t.mob_partner},
-          {key:"tasks",    icon:"✅", label: t.mob_tasks},
-          {key:"links",    icon:"🔗", label: t.mob_links},
-          {key:"events",   icon:"📅", label: t.mob_events},
-        ].map((btn) => (
-          <button key={btn.key} onClick={() => setMob(btn.key)} style={{ background: "none", border: "none", color: mobSec === btn.key ? TH.gold : "#555", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flex: 1 }}>
-            <span style={{ fontSize: 18 }}>{btn.icon}</span>
-            <span style={{ fontSize: 9 }}>{btn.label}</span>
+        {["schedule", "tasks", "links"].map((key) => (
+          <button key={key} onClick={() => setMob(key)} style={{ background: "none", border: "none", color: mobSec === key ? TH.gold : "#555", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flex: 1 }}>
+            <span style={{ fontSize: 18 }}>{key === "schedule" ? "🗓" : key === "tasks" ? "✅" : "🔗"}</span>
+            <span style={{ fontSize: 9 }}>{key.toUpperCase()}</span>
           </button>
         ))}
       </nav>
