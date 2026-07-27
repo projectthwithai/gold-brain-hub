@@ -1052,6 +1052,10 @@ const PartnerPanelWrap = ({ partnership, user, t, TH, GBtn, acceptInviteCode, cr
   );
 };
 export default function Dashboard() {
+  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const currentDayOfWeek = time.getDay();
+  const dstr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
   // --- 1. 全ての State（状態）管理 ---
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setSyncStatus] = useState("idle");
@@ -1211,10 +1215,6 @@ export default function Dashboard() {
     </Panel>
   );
 
-  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const currentDayOfWeek = time.getDay();
-  const dstr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
 
   const css = `
     .tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;border-bottom:2px solid transparent;}
