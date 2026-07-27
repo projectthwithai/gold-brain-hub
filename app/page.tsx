@@ -1117,12 +1117,67 @@ export default function Dashboard() {
     </Panel>
   );
 
-  const PartnerPanelWrap = () => (
-    <Panel TH={TH}>
-      <PanelHeader title={t.partner_title} sub="Real-time sharing" TH={TH} />
-      <div style={{ padding: 20, textAlign: 'center', color: TH.textDim }}>{t.partner_title}はここに隔離されました</div>
-    </Panel>
-  );
+  const PartnerPanelWrap = () => {
+    const [inviteCode, setInviteCode] = useState<string | null>(null);
+    const [inputCode, setInputCode] = useState("");
+
+    const handleGenerate = async () => {
+      if (!user) return;
+      // lib/partnerships.ts から招待コード作成を呼び出す（以前作成した関数）
+      const code = await createInviteCode(user.id);
+      setInviteCode(code);
+    };
+
+    const handleJoin = async () => {
+      if (!user || !inputCode) return;
+      // 招待コードを使ってパートナーシップを組む
+      await acceptInviteCode(user.id, inputCode);
+      alert("パートナーを登録しました。再読み込みしてください。");
+      window.location.reload();
+    };
+
+    return (
+      <Panel TH={TH}>
+        <PanelHeader title={t.partner_title} sub={t.partner_sub} TH={TH} />
+        <div style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {partnership ? (
+            <div style={{ textAlign: 'center', border: `1px solid ${TH.goldDark}44`, padding: 20, borderRadius: 4 }}>
+              <div style={{ fontSize: 12, color: TH.textDim, marginBottom: 8 }}>CONNECTED PARTNER</div>
+              <div style={{ fontSize: 18, color: TH.gold }}>{user?.email}</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* 招待コード発行セクション */}
+              <div style={{ textAlign: 'center', background: `${TH.gold}08`, padding: 20, borderRadius: 4, border: `1px dashed ${TH.goldDark}` }}>
+                <p style={{ fontSize: 12, color: TH.textDim, marginBottom: 12 }}>自分のコードを発行して相棒に送る</p>
+                {inviteCode ? (
+                  <div style={{ fontSize: 28, letterSpacing: 6, color: TH.goldLight, fontWeight: 'bold', fontFamily: 'monospace' }}>{inviteCode}</div>
+                ) : (
+                  <GBtn onClick={handleGenerate} TH={TH}>招待コードを発行</GBtn>
+                )}
+              </div>
+
+              <div style={{ height: 1, background: TH.border, margin: '10px 0' }} />
+
+              {/* コード入力セクション */}
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: TH.textDim, marginBottom: 12 }}>相棒のコードを入力して同期する</p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <input 
+                    value={inputCode} 
+                    onChange={(e) => setInputCode(e.target.value.toUpperCase())} 
+                    placeholder="6桁のコード"
+                    style={{ width: 140, background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: '10px', borderRadius: 4, textAlign: 'center', fontFamily: 'monospace' }}
+                  />
+                  <GBtn onClick={handleJoin} TH={TH}>参加</GBtn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Panel>
+    );
+  };
 
   const LinksPanel = () => (
     <Panel TH={TH}>
