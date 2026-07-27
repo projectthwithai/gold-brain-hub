@@ -1267,7 +1267,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <Panel TH={TH}>
               {sched.filter((rc: any) => {
-  const dayMatch = isActiveToday(rc, currentDayOfWeek);
+  const dayMatch = isActiveToday(rc, todayDow); // ★ここを todayDow に修正
   // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
   const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
   return dayMatch && modeMatch;
@@ -1294,7 +1294,7 @@ export default function Dashboard() {
             {mobSec === "schedule" && (
               <Panel TH={TH}>
                 {sched.filter((rc: any) => {
-  const dayMatch = isActiveToday(rc, currentDayOfWeek);
+  const dayMatch = isActiveToday(rc, todayDow); // ★ここを todayDow に修正
   // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
   const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
   return dayMatch && modeMatch;
