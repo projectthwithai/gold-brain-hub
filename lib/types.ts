@@ -24,4 +24,11 @@ export interface RoutineItem {
   showOnCalendar?: boolean;
 }
 
-// ...他の interface (GoalItem, PartnerActivity等) はそのまま維持せよ
+export interface TaskItem {
+  id: string;
+  text: string;
+  done: boolean;
+  category: string;
+  memo?: string; // ★これが無いとボタンの判定でエラーになる
+  deadline?: string;
+}

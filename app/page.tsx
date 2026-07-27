@@ -1104,1302 +1104,189 @@ function AddRow({onClick,label,TH}: any){
   );
 }
 export default function Dashboard() {
-  // ── Auth & Sync state ─────────────────────────────────────────
-  const [session,     setSession]    = useState<Session | null>(null);   // Supabase session
-  const [syncStatus,  setSyncStatus] = useState("idle"); // "idle"|"syncing"|"saved"|"error"
-  const syncTimerRef  = useRef(null);
-
+  // --- 1. 全ての State（状態）管理 ---
+  const [session, setSession] = useState<Session | null>(null);
+  const [syncStatus, setSyncStatus] = useState("idle");
   const user: User | null = session?.user ?? null;
   const isOnline = !!user && isSupabaseConfigured();
 
-  // Show sync badge briefly then revert to idle
-  const showSync = useCallback((status) => {
-    setSyncStatus(status);
-    clearTimeout(syncTimerRef.current);
-    if (status === "saved" || status === "error") {
-      syncTimerRef.current = setTimeout(() => setSyncStatus("idle"), 2500);
-    }
-  }, []);
+  const [lang, setLangRaw] = useState(() => LS.get("apx7_lang", "ja"));
+  const [themeName, setThemeRaw] = useState(() => LS.get("apx7_theme", "dark"));
+  const [userName, setUserName] = useState(() => LS.get("apx7_uname", ""));
+  const [streakPct, setStreakPct] = useState(() => LS.get("apx7_spct", 80));
 
-  // Auth listener — runs once on mount
+  const setLang = (v: any) => { const n = typeof v === "function" ? v(lang) : v; setLangRaw(n); LS.set("apx7_lang", n); };
+  const setTheme = (v: any) => { const n = typeof v === "function" ? v(themeName) : v; setThemeRaw(n); LS.set("apx7_theme", n); };
+  const TH = THEMES[themeName as keyof typeof THEMES] || THEMES.dark;
+  const t = DICT[lang as keyof typeof DICT];
+
+  const [tasks, setTasks] = useState(() => LS.get("apx7_tasks", DEF_TASKS));
+  const [sched, setSched] = useState(() => LS.get("apx7_sched", DEF_SCHEDULE));
+  const [links, setLinks] = useState(() => LS.get("apx7_links", DEF_LINKS));
+  const [goals, setGoals] = useState(() => LS.get("apx7_goals", DEF_GOALS));
+  const [events, setEvents] = useState(() => LS.get("apx7_events", []));
+  const [timers, setTimers] = useState(() => LS.get("apx7_timers", [{ id: "default", name: "Deep Work", maxWorkMin: 50, workRestRatio: 5, longBreakMin: 15 }]));
+  const [cds, setCDs] = useState(() => LS.get("apx7_cds", []));
+  const [activeCd, setActiveCd] = useState(() => LS.get("apx7_acd", null));
+  const [calColors, setCalColors] = useState(() => LS.get("apx7_calcol", {}));
+  const [streakLog, setStreakLog] = useState(() => LS.get("apx7_slog", {}));
+
+  const [time, setTime] = useState(new Date());
+  const [activeTab, setTab] = useState("today");
+  const [mobSec, setMob] = useState("schedule");
+  const [isMobile, setMobile] = useState(false);
+  const [focusMode, setFocus] = useState(false);
+  const [settingsOpen, setSettings] = useState(false);
+  const [showPomo, setPomo] = useState(false);
+  const [modal, setModal] = useState<any>(null);
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+
+  // --- 2. 同期 & ライフサイクル ---
   useEffect(() => {
-    // 1. ページが開いた瞬間に、今のログイン状態を直接チェックする
-    const checkSession = async () => {
-      const sb = getSupabase();
-      if (sb) {
-        const { data: { session } } = await sb.auth.getSession();
-        setSession(session);
-      }
-    };
-    checkSession();
-
-    // 2. その後のログイン・ログアウトの変化を監視する
-    const unsub = onAuthStateChange(sess => setSession(sess));
-    return unsub;
+    onAuthStateChange((sess) => setSession(sess));
+    const fn = () => setMobile(window.innerWidth < 768);
+    fn(); window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
   }, []);
-  // Cloud save helper — called after every data change
-  const cloudSave = useCallback(async (key, value) => {
-    if (!isOnline) return; // offline → LocalStorage only (handled in each useEffect)
-    try {
-      showSync("syncing");
-      await upsertData(user.id, key, value);
-      showSync("saved");
-    } catch(e) {
-      console.error("Sync error:", e);
-      showSync("error");
-    }
-  }, [isOnline, user, showSync]);
 
-  // On login: pull all cloud data and merge into local state
+  useEffect(() => {
+    const ti = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(ti);
+  }, []);
+
+  // クラウドからのロード
   useEffect(() => {
     if (!isOnline) return;
     (async () => {
-      try {
-        showSync("syncing");
-        const data = await fetchAllData(user.id);
-        if (data.tasks)     setTasks(data.tasks);
-        if (data.sched)     setSched(data.sched);
-        if (data.links)     setLinks(data.links);
-        if (data.goals)     setGoals(data.goals);
-        if (data.events)    setEvents(data.events);
-        if (data.timers)    setTimers(data.timers);
-        if (data.cds)       setCDs(data.cds);
-        if (data.streakLog) setStreakLog(data.streakLog);
-        if (data.calColors) setCalColors(data.calColors);
-        if (data.settings) {
-          const s = data.settings;
-          if (s.lang)       setLangRaw(s.lang);
-          if (s.themeName)  setThemeRaw(s.themeName);
-          if (s.userName)   setUserName(s.userName);
-          if (s.streakPct != null) setStreakPct(s.streakPct);
-        }
-        showSync("saved");
-      } catch(e) {
-        console.error("Cloud load error:", e);
-        showSync("error");
-      }
+      setSyncStatus("syncing");
+      const data = await fetchAllData(user.id);
+      if (data.tasks) setTasks(data.tasks);
+      if (data.sched) setSched(data.sched);
+      if (data.links) setLinks(data.links);
+      if (data.goals) setGoals(data.goals);
+      setSyncStatus("saved");
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, user?.id]);
-  const [lang,       setLangRaw]  = useState(()=>LS.get("apx7_lang","en"));
-  const [themeName,  setThemeRaw] = useState(()=>LS.get("apx7_theme","dark"));
-  const [userName,   setUserName] = useState(()=>LS.get("apx7_uname",""));
-  const [streakPct,  setStreakPct]= useState(()=>LS.get("apx7_spct",80)); // default 80%
 
-  const setLang  = v => { const n=typeof v==="function"?v(lang):v; setLangRaw(n); if(!isOnline) LS.set("apx7_lang",n); };
-  const setTheme = v => { const n=typeof v==="function"?v(themeName):v; setThemeRaw(n); if(!isOnline) LS.set("apx7_theme",n); };
-
-  const TH = THEMES[themeName] || THEMES.dark;
-  const t  = DICT[lang];
-  const QUOTES = lang==="ja" ? QUOTES_JA : QUOTES_EN;
-
-  // ── Data ───────────────────────────────────────────────────
-  const [tasks,    setTasks]    = useState(()=>LS.get("apx7_tasks",   DEF_TASKS));
-  const [sched,    setSched]    = useState(()=>LS.get("apx7_sched",   DEF_SCHEDULE));
-  const [links,    setLinks]    = useState(()=>LS.get("apx7_links",   DEF_LINKS));
-  const [goals,    setGoals]    = useState(()=>LS.get("apx7_goals",   DEF_GOALS));
-  const [events,   setEvents]   = useState(()=>LS.get("apx7_events",  []));
-  const [timers,   setTimers]   = useState(()=>LS.get("apx7_timers",  [{id:"default",name:"Liquid Pomodoro",maxWorkMin:DEFAULT_MAX_WORK_MIN,workRestRatio:DEFAULT_WORK_REST_RATIO,longBreakMin:DEFAULT_LONG_BREAK_MIN}]));
-  const [cds,      setCDs]      = useState(()=>LS.get("apx7_cds",     [])); // countdowns
-  const [activeCd, setActiveCd] = useState(()=>LS.get("apx7_acd",    null)); // id of active countdown
-  const [calColors,setCalColors]= useState(()=>LS.get("apx7_calcol", {}));
-
-  // 【新設】ログイン時にクラウドからデータを強制ロードする
-  useEffect(() => {
+  // 保存処理
+  const cloudSave = useCallback(async (key: string, value: any) => {
     if (!isOnline) return;
-    const loadCloudData = async () => {
-      try {
-        showSync("syncing");
-        const cloudData = await fetchAllData(user.id);
-        
-        // --- ここで全データを上書きする ---
-        if (cloudData.tasks)     setTasks(cloudData.tasks);
-        if (cloudData.sched)     setSched(cloudData.sched);
-        if (cloudData.links)     setLinks(cloudData.links);
-        if (cloudData.goals)     setGoals(cloudData.goals);
-        if (cloudData.events)    setEvents(cloudData.events);
-        if (cloudData.timers)    setTimers(cloudData.timers);
-        if (cloudData.cds)       setCDs(cloudData.cds);
-        if (cloudData.streakLog) setStreakLog(cloudData.streakLog);
-        if (cloudData.calColors) setCalColors(cloudData.calColors);
-        
-        if (cloudData.settings) {
-          const s = cloudData.settings;
-          if (s.lang)       setLangRaw(s.lang);
-          if (s.themeName)  setThemeRaw(s.themeName);
-          if (s.userName)   setUserName(s.userName);
-          if (s.streakPct != null) setStreakPct(s.streakPct);
-        }
-        showSync("saved");
-      } catch(e) {
-        console.error("Cloud load error:", e);
-        showSync("error");
-      }
-    };
-    loadCloudData();
-  }, [isOnline, user?.id, showSync]);
+    await upsertData(user.id, key, value);
+  }, [isOnline, user]);
 
-  // ── Streak state — stored separately ──────────────────────
-  // streakLog: { "YYYY-MM-DD": true } — records days where threshold was met
-  const [streakLog, setStreakLog] = useState(()=>LS.get("apx7_slog", {}));
+  useEffect(() => { LS.set("apx7_tasks", tasks); cloudSave("tasks", tasks); }, [tasks, cloudSave]);
+  useEffect(() => { LS.set("apx7_sched", sched); cloudSave("sched", sched); }, [sched, cloudSave]);
 
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_tasks",   tasks);    cloudSave("tasks",   tasks);   },[tasks, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_sched",   sched);    cloudSave("sched",   sched);
-    if (isOnline && user) syncAllRoutinesToDb(user.id, sched as RoutineItem[]);
-  },[sched, isOnline, cloudSave, user?.id]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_links",   links);    cloudSave("links",   links);   },[links, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_goals",   goals);    cloudSave("goals",   goals);   },[goals, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_events",  events);   cloudSave("events",  events);  },[events, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_timers",  timers);   cloudSave("timers",  timers);  },[timers, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_cds",     cds);      cloudSave("cds",     cds);     },[cds, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_acd",     activeCd); },[activeCd, isOnline]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_calcol",  calColors);cloudSave("calColors",calColors);},[calColors, isOnline, cloudSave]);
-  useEffect(()=>{ if(!isOnline) LS.set("apx7_slog",    streakLog);cloudSave("streakLog",streakLog);},[streakLog, isOnline, cloudSave]);
-  // Save settings bundle when any setting changes
-  useEffect(()=>{
-    const s={lang,themeName:themeName,userName,streakPct};
-    if(!isOnline){ LS.set("apx7_lang",lang); LS.set("apx7_theme",themeName); }
-    cloudSave("settings", s);
-  },[lang,themeName,userName,streakPct, isOnline, cloudSave]);
+  // --- 3. アクション ---
+  const toggleTask = (id: string) => setTasks((ts: any) => ts.map((t: any) => t.id === id ? { ...t, done: !t.done } : t));
+  const saveTask = (item: any, d: any) => { if (!item) setTasks((ts: any) => [...ts, { id: String(Date.now()), done: false, ...d }]); else setTasks((ts: any) => ts.map((t: any) => t.id === item.id ? { ...t, ...d } : t)); };
+  const toggleSched = (id: string) => setSched((s: any) => s.map((r: any) => r.id === id ? { ...r, done: !r.done } : r));
+  const setCellColor = (ds: string, c: string) => setCalColors((cc: any) => ({ ...cc, [ds]: c }));
 
-  // ── STREAK LOGIC — based on ROUTINE completion ─────────────
-  const todayStr = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  })();
-
-  const todayDow    = new Date().getDay();
-  const getRotationItem = (routine: any) => {
-    if (!routine.freq || routine.freq !== "rotation") return true;
-    const daysSinceEpoch = Math.floor(Date.now() / 86400000);
-    const rotationGroup = sched.filter(r => r.freq === "rotation");
-    if (rotationGroup.length === 0) return true;
-    return rotationGroup[daysSinceEpoch % rotationGroup.length].id === routine.id;
-  };
-  const activeSched = sched.filter(r => isActiveToday(r, todayDow) && getRotationItem(r));
-  const schedDone   = activeSched.filter(r => r.done).length;
-  const routinePct  = activeSched.length > 0
-    ? Math.round((schedDone / activeSched.length) * 100)
-    : 0;
-  const metThreshold = routinePct >= streakPct;
-
-  // Update streakLog whenever routine completion or threshold changes.
-  // Once today is marked "met", it stays met until tomorrow's reset.
-  // If routines are unchecked (dropping below threshold), today's entry
-  // is REMOVED — so tomorrow starts fresh without a false streak day.
-  useEffect(() => {
-    setStreakLog(prev => {
-      const alreadyMet = !!prev[todayStr];
-      if (alreadyMet && !metThreshold) {
-        // Routines un-checked — remove today so streak doesn't count this day
-        const next = { ...prev };
-        delete next[todayStr];
-        if(!isOnline) LS.set("apx7_slog", next);
-        return next;
-      }
-      if (!alreadyMet && metThreshold) {
-        // Threshold newly crossed — mark today
-        const next = { ...prev, [todayStr]: true };
-        if(!isOnline) LS.set("apx7_slog", next);
-        return next;
-      }
-      return prev; // no change
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedDone, activeSched.length, streakPct, todayStr]);
-
-  // Compute display streak: consecutive days in log ending today (or yesterday if today unmet)
-  const streak = (() => {
-    const fmt = d =>
-      `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    let count = 0;
-    const d = new Date();
-    // Start from today if met, yesterday otherwise
-    if (!streakLog[fmt(d)]) d.setDate(d.getDate() - 1);
-    while (streakLog[fmt(d)]) {
-      count++;
-      d.setDate(d.getDate() - 1);
-    }
-    return count;
-  })();
-
-  // ── UI State ───────────────────────────────────────────────
-  const [time,setTime]         = useState(new Date());
-  const [quoteIdx,setQI]       = useState(0);
-  const [activeTab,setTab]     = useState("today");
-  const [mobSec,setMob]        = useState("schedule");
-  const [isMobile,setMobile]   = useState(false);
-  const [focusMode,setFocus]   = useState(false);
-  const [settingsOpen,setSettings]=useState(false);
-  const [showPomo,setPomo]     = useState(false);
-  const [saveFlash,setSave]    = useState(false);
-  const [modal,setModal]       = useState(null);
-  // Calendar view state lifted here so it survives EventsPanel re-renders
-  const [calYear,  setCalYear]  = useState(()=>new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(()=>new Date().getMonth());
-  // Lifted from ClearAllButton so it survives TasksPanel re-renders
-  const [clearStep, setClearStep] = useState(0);
-  const [expandedRoutines, setExpandedRoutines] = useState<Record<string, boolean>>({});
-  const [stepPlayerRoutine, setStepPlayerRoutine] = useState<RoutineItem | null>(null);
-  const [partnership, setPartnership] = useState<Partnership | null>(null);
-  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
-  const [partnerActivities, setPartnerActivities] = useState<PartnerActivity[]>([]);
-  const [partnerSnapshot, setPartnerSnapshot] = useState<PartnerSnapshot | null>(null);
-  const [mySnapshot, setMySnapshot] = useState<PartnerSnapshot | null>(null);
-  const [partnerLoading, setPartnerLoading] = useState(false);
-  const [stepFocusMode, setStepFocusMode] = useState(false);
-
-  // ── Notification permission + AudioContext unlock on first user click ──
-  useEffect(() => {
-    // Request notification permission on mount
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-    // Unlock AudioContext on first click anywhere on the page
-    const unlock = () => {
-      unlockAudio();
-      document.removeEventListener("click", unlock);
-    };
-    document.addEventListener("click", unlock);
-    return () => document.removeEventListener("click", unlock);
-  }, []);
-
-  // ── Daily auto-reset: when the date changes, uncheck all tasks and routines ──
-  useEffect(()=>{
-    const lastDate = LS.get("apx7_last_date", "");
-    if (lastDate && lastDate !== todayStr) {
-      // New day detected — clear all done states
-      setTasks(ts => ts.map(t2 => ({...t2, done: false})));
-      setSched(s  => s.map(r  => ({...r,  done: false, steps: resetSteps(r.steps) })));
-    }
-    if(!isOnline) LS.set("apx7_last_date", todayStr);
-  }, [todayStr]);
-
-  useEffect(()=>{
-    const ti=setInterval(()=>setTime(new Date()),1000);
-    const q =setInterval(()=>setQI(i=>(i+1)%QUOTES.length),7000);
-    return()=>{ clearInterval(ti); clearInterval(q); };
-  },[QUOTES.length]);
-
-  useEffect(()=>{
-    const fn=()=>setMobile(window.innerWidth<768);
-    fn(); window.addEventListener("resize",fn);
-    return()=>window.removeEventListener("resize",fn);
-  },[]);
-
-  // ── Derived ────────────────────────────────────────────────
-  const doneCount = tasks.filter(t2=>t2.done).length;
-  const taskPct   = tasks.length ? Math.round((doneCount/tasks.length)*100) : 0;
-  const activeCdObj = cds.find(c=>c.id===activeCd) || null;
-
-  const timeStr = time.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-  const dateStr = time.toLocaleDateString(lang==="ja"?"ja-JP":"en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
-  const greeting = () => {
-    const h=time.getHours(), nm=userName?`, ${userName}`:"";
-    if(h<12) return `${t.greeting_morning}${nm}`;
-    if(h<18) return `${t.greeting_afternoon}${nm}`;
-    return `${t.greeting_evening}${nm}`;
-  };
-
-  // ── CRUD ───────────────────────────────────────────────────
-  const toggleTask  = id => setTasks(ts=>ts.map(t2=>t2.id===id?{...t2,done:!t2.done}:t2));
-  const saveTask    = (item,d)=>{ if(!item)setTasks(ts=>[...ts,{id:nid(),done:false,...d}]); else setTasks(ts=>ts.map(t2=>t2.id===item.id?{...t2,...d}:t2)); };
-  const deleteTask  = id=>setTasks(ts=>ts.filter(t2=>t2.id!==id));
-  const toggleSched = (id: string) =>
-    setSched((s) =>
-      s.map((r) => {
-        if (r.id !== id) return r;
-        const newDone = !r.done;
-        if (r.steps?.length) {
-          const steps = newDone
-            ? completeAllSteps(r.steps)
-            : resetSteps(r.steps)!;
-          return { ...r, done: newDone, steps };
-        }
-        return { ...r, done: newDone };
-      }),
-    );
-
-  const toggleRoutineStep = (routineId: string, stepId: string) => {
-    setSched((s) =>
-      s.map((r) => {
-        if (r.id !== routineId || !r.steps?.length) return r;
-        const { steps, allDone } = toggleStep(r.steps, stepId);
-        return { ...r, steps, done: allDone };
-      }),
-    );
-  };
-
-  const completePlayerStep = (stepId: string) => {
-    if (!stepPlayerRoutine) return;
-    setSched((s) => {
-      const next = s.map((r) => {
-        if (r.id !== stepPlayerRoutine.id || !r.steps?.length) return r;
-        const { steps, allDone } = applyStepCompletion(r.steps, stepId);
-        const updated = { ...r, steps, done: allDone };
-        queueMicrotask(() => setStepPlayerRoutine(updated));
-        return updated;
-      });
-      return next;
-    });
-    if (partnership && user) {
-      const msg =
-        lang === "ja"
-          ? `${userName || "相棒"}が「${stepPlayerRoutine.task}」のステップを完了`
-          : `${userName || "Partner"} completed a step in "${stepPlayerRoutine.task}"`;
-      logPartnerActivity(user.id, partnership.id, "step_complete", { message: msg });
-    }
-  };
-
-  const saveSched = (item: RoutineItem | null, d: Partial<RoutineItem>) => {
-    const sort = (a: RoutineItem[]) => [...a].sort((x, y) => x.time.localeCompare(y.time));
-    if (!item) {
-      setSched(s => sort([...s, { id: nid(), done: false, ...d } as RoutineItem]));
-    } else {
-      setSched(s => sort(s.map(r => r.id === item.id ? { ...r, ...d } : r)));
-    }
-    // クラウド保存は useEffect が自動で行う
-  };
-
-  const deleteSched = (id: string) => setSched((s) => s.filter((r) => r.id !== id));
-  const saveLink    = (item,d)=>{ if(!item)setLinks(ls=>[...ls,{id:nid(),...d}]); else setLinks(ls=>ls.map(l=>l.id===item.id?{...l,...d}:l)); };
-  const deleteLink  = id=>setLinks(ls=>ls.filter(l=>l.id!==id));
-  const saveGoal    = (item,d)=>{ if(!item)setGoals(gs=>[...gs,{id:nid(),...d}]); else setGoals(gs=>gs.map(g=>g.id===item.id?{...g,...d}:g)); };
-  const deleteGoal  = id=>setGoals(gs=>gs.filter(g=>g.id!==id));
-  const saveEvent   = (item,d)=>{ if(!item)setEvents(es=>[...es,{id:nid(),...d}]); else setEvents(es=>es.map(e=>e.id===item.id?{...e,...d}:e)); };
-  const deleteEvent = id=>setEvents(es=>es.filter(e=>e.id!==id));
-  const saveTimer   = (item,d)=>{ if(!item)setTimers(ts=>[...ts,{id:nid(),...d}]); else setTimers(ts=>ts.map(x=>x.id===item.id?{...x,...d}:x)); };
-  const deleteTimer = id=>setTimers(ts=>ts.filter(x=>x.id!==id));
-  const saveCd      = (item,d)=>{ if(!item)setCDs(cs=>[...cs,{id:nid(),...d}]); else setCDs(cs=>cs.map(c=>c.id===item.id?{...c,...d}:c)); };
-  const deleteCd    = id=>{ setCDs(cs=>cs.filter(c=>c.id!==id)); if(activeCd===id)setActiveCd(null); };
-  const resetDay    = ()=>{ if(!confirm(lang==="ja"?"チェックをリセット？":"Reset today's checks?"))return;
-    setTasks(ts=>ts.map(t2=>({...t2,done:false})));
-    setSched(s=>s.map(r=>({...r,done:false,steps:resetSteps(r.steps)})));
-  };
-  const setCellColor= (ds,c)=>setCalColors(cc=>({...cc,[ds]:c}));
-
-  const startStepPlayer = (routine: RoutineItem) => {
-    setStepPlayerRoutine(routine);
-    setStepFocusMode(true);
-    if (partnership && user) {
-      const msg =
-        lang === "ja"
-          ? `${userName || "相棒"}がDeep Workを開始: ${routine.task}`
-          : `${userName || "Partner"} started Deep Work: ${routine.task}`;
-      logPartnerActivity(user.id, partnership.id, "work_start", { message: msg });
-    }
-  };
-
-  const handleGenerateInvite = async () => {
-    if (!user) return;
-    setPartnerLoading(true);
-    const code = await createInviteCode(user.id);
-    setPendingInviteCode(code);
-    setPartnerLoading(false);
-  };
-
-  const handleJoinPartner = async (code: string) => {
-    if (!user) return;
-    setPartnerLoading(true);
-    const p = await acceptInviteCode(user.id, code);
-    if (p) {
-      setPartnership(p);
-      setPendingInviteCode(null);
-      const acts = await fetchPartnerActivities(p.id);
-      setPartnerActivities(acts);
-      const partnerId = getPartnerUserId(p, user.id);
-      if (partnerId) {
-        const snap = await fetchPartnerSnapshot(partnerId, p.id);
-        setPartnerSnapshot(snap);
-      }
-    }
-    setPartnerLoading(false);
-  };
-
-  useEffect(() => {
-    if (!stepPlayerRoutine) return;
-    const fresh = sched.find((r) => r.id === stepPlayerRoutine.id);
-    if (fresh) setStepPlayerRoutine(fresh as RoutineItem);
-  }, [sched, stepPlayerRoutine?.id]);
-
-  useEffect(() => {
-    if (!isOnline || !user?.id) {
-      setPartnership(null);
-      setPendingInviteCode(null);
-      return;
-    }
-    (async () => {
-      setPartnerLoading(true);
-      const p = await fetchActivePartnership(user.id);
-      setPartnership(p);
-      if (p) {
-        const acts = await fetchPartnerActivities(p.id);
-        setPartnerActivities(acts);
-        const partnerId = getPartnerUserId(p, user.id);
-        if (partnerId) {
-          const snap = await fetchPartnerSnapshot(partnerId, p.id);
-          setPartnerSnapshot(snap);
-        }
-      } else {
-        const code = await fetchPendingInviteCode(user.id);
-        setPendingInviteCode(code);
-      }
-      setPartnerLoading(false);
-    })();
-  }, [isOnline, user?.id]);
-
-  useEffect(() => {
-    if (!partnership?.id || !user?.id) return;
-    return subscribePartnerActivities(partnership.id, (activity) => {
-      setPartnerActivities((prev) => [activity, ...prev].slice(0, 30));
-    });
-  }, [partnership?.id, user?.id]);
-
-  useEffect(() => {
-    if (!partnership || !user) return;
-    const snap: PartnerSnapshot = {
-      user_id: user.id,
-      user_name: userName || user.email?.split("@")[0] || "You",
-      routine_pct: routinePct,
-      routine_done: schedDone,
-      routine_total: activeSched.length,
-      goals: (goals as GoalItem[]).map((g) => ({
-        id: g.id,
-        goal: g.goal,
-        progress: g.progress,
-        targetAmount: g.targetAmount,
-        currentAmount: g.currentAmount,
-        currency: g.currency,
-      })),
-      updated_at: new Date().toISOString(),
-    };
-    setMySnapshot(snap);
-    upsertPartnerSnapshot(user.id, partnership.id, snap);
-  }, [partnership, user, userName, routinePct, schedDone, activeSched.length, goals]);
-
-  useEffect(() => {
-    if (!partnership || !user) return;
-    const partnerId = getPartnerUserId(partnership, user.id);
-    if (!partnerId) return;
-    const interval = setInterval(async () => {
-      const snap = await fetchPartnerSnapshot(partnerId, partnership.id);
-      if (snap) setPartnerSnapshot(snap);
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [partnership, user]);
-
-  // ── Export / Import ────────────────────────────────────────
-  const exportData=()=>{
-    const d={tasks,sched,links,goals,events,timers,cds,activeCd,streakLog,streakPct,userName,lang,themeName,calColors,exportedAt:new Date().toISOString()};
-    const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`apex-hub-${todayStr}.json`;a.click();
-  };
-  const importData=()=>{
-    const inp=document.createElement("input");inp.type="file";inp.accept=".json";
-    inp.onchange=e=>{
-      const f=e.target.files[0];if(!f)return;
-      const r=new FileReader();r.onload=ev=>{
-        try{
-          const d=JSON.parse(ev.target.result);
-          if(d.tasks)setTasks(d.tasks);if(d.sched)setSched(d.sched);
-          if(d.links)setLinks(d.links);if(d.goals)setGoals(d.goals);
-          if(d.events)setEvents(d.events);if(d.timers)setTimers(d.timers);
-          if(d.cds)setCDs(d.cds);if(d.activeCd!=null)setActiveCd(d.activeCd);
-          if(d.streakLog)setStreakLog(d.streakLog);
-          if(d.streakPct!=null){setStreakPct(d.streakPct); if(!isOnline) LS.set("apx7_spct",d.streakPct);}
-          if(d.calColors)setCalColors(d.calColors);
-          if(d.userName){setUserName(d.userName); if(!isOnline) LS.set("apx7_uname",d.userName);}
-          if(d.lang)setLang(d.lang);if(d.themeName)setTheme(d.themeName);
-          alert("✦ Imported successfully.");
-        }catch{alert("Invalid JSON file.");}
-      };r.readAsText(f);
-    };inp.click();
-  };
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // CSS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const css=`
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Noto+Serif+JP:wght@300;400;600&family=Share+Tech+Mono&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0;}
-    ::-webkit-scrollbar{width:3px;}
-    ::-webkit-scrollbar-track{background:${TH.bg};}
-    ::-webkit-scrollbar-thumb{background:${TH.scrollThumb};border-radius:2px;}
-
-    .stat-card{background:${TH.surface};border:1px solid ${TH.borderGold};border-radius:2px;
-      padding:16px;position:relative;overflow:hidden;transition:all .3s;box-shadow:inset 0 1px 0 ${TH.gold}11;}
-    .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-      background:linear-gradient(90deg,transparent,${TH.gold}77,transparent);}
-    .stat-card:hover{border-color:${TH.gold}55;transform:translateY(-2px);box-shadow:0 8px 28px ${TH.gold}0d;}
-
-    .row{display:flex;align-items:center;gap:10px;padding:12px 15px;
-      border-bottom:1px solid ${TH.border};transition:background .15s;min-height:50px;}
-    .row:last-child{border-bottom:none;}
-    .row:hover{background:${TH.surfaceHover};}
-
-    .edit-btn{background:none;border:1px solid transparent;color:${TH.textMuted};cursor:pointer;
-      padding:4px 6px;border-radius:2px;transition:all .2s;flex-shrink:0;font-size:13px;line-height:1;}
-    .edit-btn:hover{border-color:${TH.goldDark};color:${TH.gold};}
-
-    .tab-btn{flex:1;padding:10px 6px;border:none;border-bottom:2px solid transparent;
-      background:transparent;color:${TH.textMuted};cursor:pointer;font-family:inherit;
-      font-size:11px;letter-spacing:3px;text-transform:uppercase;transition:all .2s;}
-    .tab-btn.active{border-bottom-color:${TH.gold};color:${TH.gold};}
-    .tab-btn:hover:not(.active){color:${TH.textDim};}
-
-    .mob-nav{flex:1;padding:13px 6px;border:none;border-top:2px solid transparent;
-      background:${TH.bg2};color:${TH.textMuted};cursor:pointer;font-family:inherit;
-      font-size:10px;letter-spacing:2px;text-transform:uppercase;
-      transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:4px;}
-    .mob-nav.active{border-top-color:${TH.gold};color:${TH.gold};}
-
-    .pbar{height:3px;background:${TH.border};border-radius:2px;overflow:hidden;}
-    .pfill{height:100%;background:linear-gradient(90deg,${TH.goldDark},${TH.goldLight});
-      transition:width .9s cubic-bezier(.4,0,.2,1);box-shadow:0 0 6px ${TH.gold}44;}
-
-    .glow-dot{width:7px;height:7px;border-radius:50%;background:${TH.gold};
-      box-shadow:0 0 10px ${TH.gold};animation:pulse 2.5s infinite;flex-shrink:0;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
-
-    .clock{font-family:'Share Tech Mono',monospace;font-size:clamp(22px,3.8vw,40px);
-      color:${TH.gold};letter-spacing:5px;text-shadow:0 0 22px ${TH.gold}44;}
-
-    .badge{font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:2px 7px;
-      border:1px solid currentColor;border-radius:1px;white-space:nowrap;}
-
-    .quote-text{font-style:italic;font-size:14px;color:${TH.goldLight};
-      letter-spacing:2px;animation:fio 7s infinite;}
-    @keyframes fio{0%,100%{opacity:0;}12%,88%{opacity:1;}}
-
-    .iodbtn{background:transparent;border:1px solid ${TH.border};color:${TH.textMuted};
-      cursor:pointer;font-family:inherit;font-size:10px;letter-spacing:2px;
-      padding:5px 11px;border-radius:1px;text-transform:uppercase;transition:all .2s;}
-    .iodbtn:hover{border-color:${TH.goldDark};color:${TH.gold};}
-
-    .gear{background:transparent;border:1px solid ${TH.border};color:${TH.textMuted};
-      cursor:pointer;width:32px;height:32px;border-radius:2px;font-size:14px;
-      display:flex;align-items:center;justify-content:center;transition:all .25s;}
-    .gear:hover{border-color:${TH.goldDark};color:${TH.gold};transform:rotate(30deg);}
-
-    .save-toast{position:fixed;bottom:84px;right:16px;background:${TH.surface};
-      border:1px solid ${TH.goldDark};padding:6px 14px;font-size:10px;letter-spacing:4px;
-      color:${TH.gold};opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;border-radius:2px;}
-    .save-toast.show{opacity:1;}
-
-    .focus-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);
-      backdrop-filter:brightness(.65);pointer-events:none;z-index:50;}
-
-    .si{opacity:0;transform:translateY(14px);animation:sian .6s forwards;}
-    @keyframes sian{to{opacity:1;transform:none;}}
-
-    .inactive-row{opacity:.3;}
-    .inactive-row .edit-btn{pointer-events:all;}
-    .inactive-row{pointer-events:none;}
-    .inactive-row .edit-btn{pointer-events:all;}
-
-    input[type=time]::-webkit-calendar-picker-indicator,
-    input[type=date]::-webkit-calendar-picker-indicator{
-      filter:${themeName==="light"?"none":"invert(.3)"};
-    }
-    @media(max-width:767px){.dk-grid{display:none!important;}.mob-content{display:flex!important;}}
-    @media(min-width:768px){.mob-content{display:none!important;}.mob-bar{display:none!important;}}
-  `;
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // PANELS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  const SchedulePanel = ({maxH=480}) => (
-    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,
-      overflow:"hidden",position:"relative",height:"100%"}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-        background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-      <PanelHeader TH={TH} title={t.routine_title} sub={t.routine_sub}
-        right={<div style={{display:"flex",gap:7,alignItems:"center"}}>
-          <button style={{background:"transparent",border:`1px solid ${TH.border}`,color:TH.textMuted,
-            cursor:"pointer",fontFamily:"inherit",fontSize:10,letterSpacing:2,padding:"3px 9px",borderRadius:1,minHeight:36}}
-            onClick={resetDay}>{t.reset}</button>
-          <span style={{fontSize:11,color:TH.goldDark,fontFamily:"'Share Tech Mono',monospace"}}>{schedDone}/{activeSched.length}</span>
-        </div>}
-      />
-      <div style={{maxHeight:maxH,overflowY:"auto"}}>
-        {activeSched.map(r=>(
-          <RoutineRow
-            key={r.id}
-            routine={r as RoutineItem}
-            expanded={!!expandedRoutines[r.id]}
-            onToggleExpand={()=>setExpandedRoutines(ex=>({...ex,[r.id]:!ex[r.id]}))}
-            onToggleDone={()=>toggleSched(r.id)}
-            onEdit={()=>setModal({type:"sched",item:r})}
-            onStartPlayer={()=>startStepPlayer(r as RoutineItem)}
-            onToggleStep={(stepId)=>toggleRoutineStep(r.id,stepId)}
-            TH={TH}
-            t={t}
-          />
-        ))}
-        {sched.filter(r=>!isActiveToday(r,todayDow)).length>0&&(
-          <div style={{borderTop:`1px dashed ${TH.border}`,padding:"5px 15px 2px"}}>
-            <p style={{fontSize:9,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase"}}>{t.inactive_today}</p>
-          </div>
-        )}
-        {sched.filter(r=>!isActiveToday(r,todayDow)).map(r=>(
-          <RoutineRow
-            key={r.id}
-            routine={r as RoutineItem}
-            inactive
-            expanded={!!expandedRoutines[r.id]}
-            onToggleExpand={()=>setExpandedRoutines(ex=>({...ex,[r.id]:!ex[r.id]}))}
-            onToggleDone={()=>{}}
-            onEdit={()=>setModal({type:"sched",item:r})}
-            onStartPlayer={()=>startStepPlayer(r as RoutineItem)}
-            onToggleStep={(stepId)=>toggleRoutineStep(r.id,stepId)}
-            TH={TH}
-            t={t}
-          />
-        ))}
-      </div>
-      <AddRow onClick={()=>setModal({type:"sched",item:null})} label={t.add_routine} TH={TH}/>
-      <div style={{padding:"9px 15px",borderTop:`1px solid ${TH.border}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:TH.textMuted,marginBottom:4}}>
-          <span style={{letterSpacing:2}}>{t.progress}</span>
-          <span style={{color:TH.goldDark,fontFamily:"'Share Tech Mono',monospace"}}>{routinePct}%</span>
-        </div>
-        <div className="pbar"><div className="pfill" style={{width:`${routinePct}%`}}/></div>
-      </div>
-    </div>
-  );
-
-  const PartnerPanelWrap = () => (
-    <PartnerPanel
-      TH={TH}
-      t={t}
-      lang={lang}
-      userId={user?.id}
-      userName={userName}
-      partnership={partnership}
-      pendingCode={pendingInviteCode}
-      partnerSnapshot={partnerSnapshot}
-      mySnapshot={mySnapshot}
-      activities={partnerActivities}
-      onGenerateCode={handleGenerateInvite}
-      onJoinCode={handleJoinPartner}
-      loading={partnerLoading}
-    />
-  );
-
+  // --- 4. サブコンポーネント (Dashboard内) ---
   const TasksPanel = () => (
-    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-      <div style={{display:"flex",borderBottom:`1px solid ${TH.border}`}}>
-        {["today","goals","chart"].map(tab=>(
-          <button key={tab} className={`tab-btn${activeTab===tab?" active":""}`} onClick={()=>setTab(tab)}>
-            {t[tab]}
-          </button>
+    <Panel TH={TH}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${TH.border}` }}>
+        {["today", "goals", "chart"].map((tab) => (
+          <button key={tab} className={`tab-btn${activeTab === tab ? " active" : ""}`} onClick={() => setTab(tab)}>{t[tab as keyof typeof t]}</button>
         ))}
       </div>
-      {activeTab==="today"&&(
-        <div>
-          {Array.from(new Set(tasks.map(t => t.category || "Focus"))).map(cat => {
-  const catTasks = tasks.filter(tk => (tk.category || "Focus") === cat);
-  const sorted = [...catTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
-  return (
-    <div key={cat} style={{ marginBottom: 15 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
-        <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
-        <button onClick={() => setTasks(ts => ts.filter(tk => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: 1 }}>DELETE ALL</button>
-      </div>
-      {sorted.map(t2 => (
-        <div key={t2.id} className="row" onClick={() => setModal({ type: "task", item: t2 })} style={{cursor: "pointer"}}>
-          <div 
-            onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} 
-            style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, 
-              background: t2.done ? `${TH.gold}1a` : "transparent",
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-          >
-            {t2.done && <span style={{ color: TH.gold, fontSize: 14 }}>✓</span>}
-          </div>
-          <span style={{ flex: 1, fontSize: 13, color: t2.done ? TH.textMuted : TH.text, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.6 : 1 }}>
-            {t2.text}
-          </span>
-          <button className="edit-btn" onClick={e => { e.stopPropagation(); setModal({ type: "task", item: t2 }); }}>✏️</button>
-        </div>
-      ))}
-    </div>
-  );
-})}
-          <AddRow onClick={()=>setModal({type:"task",item:null})} label={t.add_task} TH={TH}/>
-          {tasks.length > 0 && (
-            <button
-              onClick={()=>setModal({type:"clearAll"})}
-              style={{
-                display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-                width:"100%",padding:"10px",background:"transparent",
-                border:"1px solid #FF333328",color:"#FF7777",
-                cursor:"pointer",fontSize:11,letterSpacing:3,textTransform:"uppercase",
-                fontFamily:"inherit",
-              }}>
-              🗑 {lang==="ja"?"タスクを全て削除":"Clear All Tasks"}
-            </button>
-          )}
-          <div style={{padding:"9px 15px",borderTop:`1px solid ${TH.border}`}}>
-            {/* Streak threshold indicator */}
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:TH.textMuted,marginBottom:4}}>
-              <span style={{letterSpacing:2}}>{t.progress} (streak≥{streakPct}%)</span>
-              <span style={{color:metThreshold?TH.gold:TH.textMuted,fontFamily:"'Share Tech Mono',monospace"}}>{taskPct}%</span>
-            </div>
-            <div className="pbar">
-              <div className="pfill" style={{width:`${taskPct}%`}}/>
-            </div>
-            {/* Threshold marker */}
-            <div style={{position:"relative",height:0}}>
-              <div style={{position:"absolute",top:-3,left:`${streakPct}%`,transform:"translateX(-50%)",
-                width:1,height:9,background:TH.gold,opacity:.6}}/>
-            </div>
-            <p style={{fontSize:10,color:TH.textMuted,marginTop:6,letterSpacing:3}}>
-              {doneCount}/{tasks.length} {t.completed}
-              {metThreshold&&<span style={{color:TH.goldLight,marginLeft:10}}>🔥 {streak}</span>}
-            </p>
-          </div>
-        </div>
-      )}
-      {activeTab==="goals"&&(
-        <div>
-          <div style={{padding:"14px 15px 4px"}}>
-            {goals.map(g=>(
-              <div key={g.id} style={{marginBottom:15,display:"flex",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                    <span style={{fontSize:13,display:"flex",alignItems:"center",gap:7}}>
-                      <IconDisplay emoji={g.icon} img={g.iconImg} size={16}/>{g.goal}
-                    </span>
-                    <span style={{fontSize:10,color:TH.textMuted}}>{g.deadline}</span>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div className="pbar" style={{flex:1}}><div className="pfill" style={{width:`${g.progress}%`}}/></div>
-                    <span style={{fontSize:10,color:TH.goldDark,width:28,textAlign:"right",fontFamily:"'Share Tech Mono',monospace"}}>{g.progress}%</span>
-                  </div>
+      {activeTab === "today" && (
+        <div style={{ padding: "10px 0" }}>
+          {Array.from(new Set(tasks.map((t: any) => t.category || "Focus"))).map((cat: any) => {
+            const sorted = [...tasks.filter((tk: any) => (tk.category || "Focus") === cat)].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+            return (
+              <div key={cat} style={{ marginBottom: 15 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
+                  <span style={{ fontSize: 10, color: TH.gold, letterSpacing: 2, fontWeight: 600 }}>{cat}</span>
+                  <button onClick={() => setTasks((ts: any) => ts.filter((tk: any) => (tk.category || "Focus") !== cat))} style={{ fontSize: 9, color: '#FF7777', background: 'none', border: 'none' }}>CLEAR</button>
                 </div>
-                <button className="edit-btn" onClick={()=>setModal({type:"goal",item:g})}>✏️</button>
-              </div>
-            ))}
-          </div>
-          <AddRow onClick={()=>setModal({type:"goal",item:null})} label={t.add_goal} TH={TH}/>
-        </div>
-      )}
-      {activeTab==="chart"&&(
-        <div style={{padding:18}}>
-          <div style={{display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-              <DonutChart done={doneCount} total={tasks.length} size={128} TH={TH}/>
-              <p style={{fontSize:10,color:TH.textMuted,letterSpacing:3}}>TODAY</p>
-            </div>
-            <div style={{flex:1,minWidth:120}}>
-              {[...new Set(tasks.map(t2=>t2.category))].map(cat=>{
-                const ct=tasks.filter(t2=>t2.category===cat),dc=ct.filter(t2=>t2.done).length;
-                return(
-                  <div key={cat} style={{marginBottom:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:TH.textDim,marginBottom:3}}>
-                      <span>{cat}</span><span style={{color:TH.goldDark}}>{dc}/{ct.length}</span>
+                {sorted.map((t2: any) => (
+                  <div key={t2.id} className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div onClick={(e) => { e.stopPropagation(); toggleTask(t2.id); }} style={{ width: 22, height: 22, border: `1px solid ${t2.done ? TH.gold : TH.border}`, background: t2.done ? `${TH.gold}1a` : "transparent", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        {t2.done && "✓"}
+                      </div>
+                      <span style={{ flex: 1, fontSize: 13, textDecoration: t2.done ? "line-through" : "none", opacity: t2.done ? 0.6 : 1 }} onClick={() => setModal({ type: "task", item: t2 })}>{t2.text}</span>
+                      <button className="edit-btn" onClick={() => setModal({ type: "task", item: t2 })}>✏️</button>
                     </div>
-                    <div className="pbar"><div className="pfill" style={{width:`${ct.length?(dc/ct.length)*100:0}%`}}/></div>
+                    {t2.memo && (
+                      <div style={{ paddingLeft: 34, marginTop: 4 }}>
+                        <button onClick={() => setModal({ type: "task", item: t2 })} style={{ background: `${TH.gold}11`, border: `1px solid ${TH.goldDark}44`, color: TH.goldDark, fontSize: 10, padding: '2px 8px', borderRadius: 4 }}>📄 メモを表示</button>
+                      </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const LinksPanel = () => (
-    <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-      <PanelHeader TH={TH} title={t.url_hub} sub={t.url_sub}/>
-      {links.map(l=>(
-        <div key={l.id} className="row">
-          <a href={l.url} target="_blank" rel="noopener noreferrer"
-            style={{display:"flex",alignItems:"center",gap:11,flex:1,textDecoration:"none",color:"inherit",minWidth:0}}>
-            <IconDisplay emoji={l.icon} img={l.iconImg} size={18}/>
-            <div style={{flex:1,minWidth:0}}>
-              <p style={{fontSize:13,color:TH.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name}</p>
-              <p style={{fontSize:9,color:TH.textMuted,marginTop:1,letterSpacing:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                {l.url.replace("https://","").replace(/\/$/,"")}
-              </p>
-            </div>
-            <span className="badge" style={{color:l.color,borderColor:l.color+"44",fontSize:8,flexShrink:0}}>{l.cat}</span>
-            <span style={{fontSize:12,color:l.color,marginLeft:5,flexShrink:0}}>↗</span>
-          </a>
-          <button className="edit-btn" onClick={()=>setModal({type:"link",item:l})}>✏️</button>
-        </div>
-      ))}
-      <AddRow onClick={()=>setModal({type:"link",item:null})} label={t.add_link} TH={TH}/>
-    </div>
-  );
-
-  const EventsPanel = () => {
-    const ds = new Date(); const todStr=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,"0")}-${String(ds.getDate()).padStart(2,"0")}`;
-    const sorted = [...events].sort((a,b)=>a.date.localeCompare(b.date));
-    return(
-      <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-        <PanelHeader TH={TH} title={t.events_title} sub={t.events_sub}
-          right={<button className="edit-btn" style={{fontSize:18,color:TH.goldDark}}
-            onClick={()=>setModal({type:"event",item:null,initDate:todStr})}>＋</button>}/>
-        <div style={{padding:"12px 12px 8px"}}>
-          <EventCalendar events={events} onEditEvent={ev=>setModal({type:"event",item:ev,initDate:ev.date})}
-            onAddEvent={ds=>setModal({type:"event",item:null,initDate:ds})}
-            TH={TH} t={t} calColors={calColors} onCellColor={setCellColor}
-            vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth}
-            tasks={tasks} sched={sched}/>
-        </div>
-        <div style={{borderTop:`1px solid ${TH.border}`,maxHeight:180,overflowY:"auto"}}>
-          {sorted.length===0&&<p style={{padding:"14px",fontSize:12,color:TH.textMuted,textAlign:"center",letterSpacing:2}}>{t.add_event}</p>}
-          {sorted.map(ev=>(
-            <div key={ev.id} className="row" style={{opacity:ev.date<todStr?.5:1}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:ev.color||TH.gold,flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <p style={{fontSize:13,color:TH.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</p>
-                <p style={{fontSize:10,color:TH.textMuted,marginTop:1,fontFamily:"'Share Tech Mono',monospace"}}>{ev.date}{ev.time?` · ${ev.time}`:""}</p>
-              </div>
-              <button className="edit-btn" onClick={()=>setModal({type:"event",item:ev,initDate:ev.date})}>✏️</button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Focus + Countdown side by side
-  const FocusAndCountdown = () => (
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:20}}>
-      {/* Focus / Timers */}
-      <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-        <PanelHeader TH={TH} title={t.focus_mode} sub="Liquid Pomodoro · 5:1"/>
-        <div style={{padding:"14px 12px",display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
-            {timers.map(cfg=>(
-              <LiquidTimerCard key={cfg.id} cfg={cfg} isDefault={cfg.id==="default"}
-                onDelete={()=>deleteTimer(cfg.id)} onEdit={()=>setModal({type:"timer",item:cfg})}
-                onFocusChange={setFocus} TH={TH}
-                t={t} userId={user?.id} unlockAudio={unlockAudio}
-                playBowlSound={playBowlSound} sendTimerNotification={sendTimerNotification}/>
-            ))}
-          </div>
-          <AddRow onClick={()=>setModal({type:"timer",item:null})} label={t.add_timer} TH={TH}/>
-        </div>
-      </div>
-
-      {/* Countdowns */}
-      <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-        <PanelHeader TH={TH} title={t.countdown_title}
-          right={<button className="edit-btn" style={{fontSize:18,color:TH.goldDark}}
-            onClick={()=>setModal({type:"countdown",item:null})}>＋</button>}/>
-        {/* Big display of active countdown */}
-        <div style={{borderBottom:`1px solid ${TH.border}`,background:`radial-gradient(ellipse at center,${TH.gold}07 0%,transparent 70%)`}}>
-          <CountdownBig cd={activeCdObj} TH={TH} t={t}/>
-        </div>
-        {/* List of all countdowns */}
-        <div style={{maxHeight:220,overflowY:"auto"}}>
-          {cds.length===0&&(
-            <p style={{padding:"14px",fontSize:11,color:TH.textMuted,textAlign:"center",letterSpacing:2}}>
-              {t.no_countdown}
-            </p>
-          )}
-          {cds.map(cd=>{
-            const d=daysUntil(cd.date);
-            const isAct=activeCd===cd.id;
-            return(
-              <div key={cd.id} className="row" style={{background:isAct?`${TH.gold}0a`:undefined}}>
-                <div style={{flex:1}}>
-                  <p style={{fontSize:13,color:TH.text}}>{cd.name}</p>
-                  <p style={{fontSize:10,color:TH.textMuted,marginTop:1,fontFamily:"'Share Tech Mono',monospace"}}>
-                    {cd.date} · {d===0?t.today_word:d>0?`${d} ${t.days_left}`:`${Math.abs(d)} ${t.days_past}`}
-                  </p>
-                </div>
-                {/* Set as active */}
-                <button onClick={()=>setActiveCd(isAct?null:cd.id)}
-                  style={{background:isAct?`${TH.gold}22`:"transparent",
-                    border:`1px solid ${isAct?TH.gold:TH.border}`,
-                    color:isAct?TH.gold:TH.textMuted,cursor:"pointer",
-                    fontSize:9,letterSpacing:2,padding:"3px 8px",borderRadius:1,textTransform:"uppercase"}}>
-                  {isAct?"✓ ON":"SET"}
-                </button>
-                <button className="edit-btn" onClick={()=>setModal({type:"countdown",item:cd})}>✏️</button>
+                ))}
               </div>
             );
           })}
+          <AddRow onClick={() => setModal({ type: "task", item: null })} label={t.add_task} TH={TH} />
         </div>
-        <AddRow onClick={()=>setModal({type:"countdown",item:null})} label={t.add_countdown} TH={TH}/>
-      </div>
-    </div>
+      )}
+    </Panel>
   );
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // RENDER
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = time.toLocaleDateString("ja-JP", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const todayDow = time.getDay();
+  const dstr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, "0")}-${String(time.getDate()).padStart(2, "0")}`;
+
+  // --- 5. メイン RENDER ---
   return (
-    <div style={{minHeight:"100vh",background:TH.bg,
-      fontFamily:"'Cormorant Garamond','Noto Serif JP',serif",color:TH.text,position:"relative"}}>
-      <style>{css}</style>
-
-      {/* BG */}
-      <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,
-        backgroundImage:`radial-gradient(ellipse at 15% 15%,${TH.gold}09 0%,transparent 45%),radial-gradient(ellipse at 85% 80%,${TH.gold}06 0%,transparent 45%)`}}/>
-      <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,
-        backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 100px,${TH.gridLine} 100px,${TH.gridLine} 101px),repeating-linear-gradient(90deg,transparent,transparent 100px,${TH.gridLine} 100px,${TH.gridLine} 101px)`}}/>
-
-      {focusMode && <div className="focus-overlay"/>}
-      {stepFocusMode && <div className="focus-overlay" style={{zIndex:2999}}/>}
-
-      {stepPlayerRoutine && (
-        <RoutineStepPlayer
-          routine={stepPlayerRoutine}
-          onCompleteStep={completePlayerStep}
-          onClose={()=>{ setStepPlayerRoutine(null); setStepFocusMode(false); }}
-          TH={TH}
-          t={t}
-        />
-      )}
-      <div className={`save-toast${saveFlash?" show":""}`}>✦ SAVED</div>
-
-      {/* SETTINGS */}
-      <SettingsPanel open={settingsOpen} onClose={()=>setSettings(false)}
-        lang={lang} setLang={setLang} themeName={themeName} setTheme={setTheme}
-        userName={userName} setUserName={setUserName}
-        streakPct={streakPct} setStreakPct={setStreakPct}
-        t={t} TH={TH} user={user}/>
-
-      {/* MODALS */}
-      {modal?.type==="task"           && <TaskModal          task={modal.item}  onSave={d=>saveTask(modal.item,d)}   onDelete={deleteTask}   onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="sched"          && <ScheduleModal       item={modal.item}  onSave={d=>saveSched(modal.item,d)}  onDelete={deleteSched}  onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="link"           && <LinkModal           link={modal.item}  onSave={d=>saveLink(modal.item,d)}   onDelete={deleteLink}   onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="goal"           && <GoalModal           goal={modal.item}  onSave={d=>saveGoal(modal.item,d)}   onDelete={deleteGoal}   onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="event"          && <EventModal          ev={modal.item}    initDate={modal.initDate} onSave={d=>saveEvent(modal.item,d)} onDelete={deleteEvent} onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="timer"          && <TimerModal          timer={modal.item} onSave={d=>saveTimer(modal.item,d)} onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="countdown"      && <CountdownModal      cd={modal.item}    onSave={d=>saveCd(modal.item,d)} onDelete={deleteCd} onSetActive={setActiveCd} onClose={()=>setModal(null)} t={t} TH={TH}/>}
-      {modal?.type==="streakSettings" && <StreakSettingsModal streakPct={streakPct} onSave={v=>{setStreakPct(v); if(!isOnline) LS.set("apx7_spct",v);}} onClose={()=>setModal(null)} TH={TH} t={t}/>}
-      {modal?.type==="clearAll" && (
-        <ModalBackdrop onClose={()=>setModal(null)} TH={TH}>
-          <ModalHeader title={lang==="ja"?"タスクの削除":"Clear All Tasks"} onClose={()=>setModal(null)} TH={TH}/>
-          <p style={{fontSize:14,color:TH.textDim,marginBottom:28,lineHeight:1.8,textAlign:"center"}}>
-            {lang==="ja"
-              ? "全てのタスクを削除します。この操作は元に戻せません。"
-              : "This will delete all tasks. This cannot be undone."}
-          </p>
-          <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-            <button onClick={()=>setModal(null)} style={{
-              background:"transparent",border:`1px solid ${TH.border}`,color:TH.textDim,
-              cursor:"pointer",fontFamily:"inherit",fontSize:12,letterSpacing:3,
-              padding:"11px 28px",borderRadius:2,textTransform:"uppercase",
-            }}>
-              {lang==="ja"?"戻る":"Cancel"}
-            </button>
-            <button onClick={()=>{setTasks([]);setModal(null);}} style={{
-              background:"#FF333322",border:"1px solid #FF555566",color:"#FF9999",
-              cursor:"pointer",fontFamily:"inherit",fontSize:12,letterSpacing:3,
-              padding:"11px 28px",borderRadius:2,textTransform:"uppercase",fontWeight:600,
-            }}>
-              {lang==="ja"?"削除する":"Delete All"}
-            </button>
-          </div>
-        </ModalBackdrop>
-      )}
-
-      <div style={{position:"relative",zIndex:focusMode?51:1,maxWidth:1340,margin:"0 auto",
-        padding:isMobile?"18px 14px 90px":"26px 22px 34px"}}>
-
+    <div style={{ minHeight: "100vh", background: TH.bg, color: TH.text, position: "relative", fontFamily: "serif" }}>
+      <style>{`.tab-btn{flex:1;padding:12px;background:none;border:none;color:#888;cursor:pointer;font-size:11px;letter-spacing:2px;}.tab-btn.active{color:${TH.gold};border-bottom:2px solid ${TH.gold};}.row{display:flex;padding:12px 15px;border-bottom:1px solid ${TH.border};align-items:center;}.edit-btn{background:none;border:none;color:#555;cursor:pointer;}`}</style>
+      
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px" }}>
         {/* HEADER */}
-        <div className="si" style={{animationDelay:"0s",marginBottom:22}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
-            <div>
-              <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:5}}>
-                <div className="glow-dot"/>
-                <span style={{fontSize:10,letterSpacing:5,color:TH.goldDark,textTransform:"uppercase"}}>High Performance OS</span>
-              </div>
-              <h1 style={{fontSize:"clamp(22px,3.8vw,46px)",fontWeight:300,letterSpacing:".12em",color:TH.text,lineHeight:1.05}}>
-                <span style={{color:TH.gold,fontWeight:600,textShadow:`0 0 30px ${TH.gold}44`}}>APEX</span> HUB
-              </h1>
-              <p style={{fontSize:13,color:TH.goldLight,letterSpacing:2,marginTop:5,fontStyle:"italic"}}>{greeting()}</p>
-              <p style={{fontSize:10,color:TH.textMuted,letterSpacing:4,marginTop:3}}>{t.tagline}</p>
-            </div>
-            <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:7}}>
-              <div style={{display:"flex",alignItems:"center",gap:7}}>
-                {/* Sync status badge */}
-                {syncStatus !== "idle" && (
-                  <div style={{
-                    display:"flex",alignItems:"center",gap:5,
-                    padding:"4px 10px",borderRadius:2,fontSize:10,letterSpacing:2,
-                    border:`1px solid ${syncStatus==="error"?"#FF444466":syncStatus==="syncing"?TH.borderGold:TH.goldDark+"66"}`,
-                    color: syncStatus==="error"?"#FF7777":syncStatus==="syncing"?TH.textDim:TH.gold,
-                    background: syncStatus==="error"?"#FF222211":"transparent",
-                    transition:"all .3s",
-                  }}>
-                    {syncStatus==="syncing" && <span style={{animation:"pulse 1s infinite"}}>⟳</span>}
-                    {syncStatus==="saved"   && "✦"}
-                    {syncStatus==="error"   && "✕"}
-                    <span>
-                      {syncStatus==="syncing" ? (lang==="ja"?"同期中...":"Syncing...")
-                      :syncStatus==="saved"   ? (lang==="ja"?"保存完了":"Saved")
-                      :                         (lang==="ja"?"同期エラー":"Sync error")}
-                    </span>
-                  </div>
-                )}
-                {/* Profile avatar or gear */}
-                {user?.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url} alt=""
-                    onClick={()=>setSettings(true)}
-                    style={{width:32,height:32,borderRadius:"50%",cursor:"pointer",
-                      border:`2px solid ${TH.goldDark}`,
-                      boxShadow:`0 0 8px ${TH.gold}44`,
-                      transition:"box-shadow .2s"}}
-                    onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 14px ${TH.gold}88`}
-                    onMouseLeave={e=>e.currentTarget.style.boxShadow=`0 0 8px ${TH.gold}44`}
-                    title={user.user_metadata?.full_name || user.email}
-                  />
-                ) : (
-                  <button className="gear" onClick={()=>setSettings(true)}>⚙️</button>
-                )}
-                <button className="iodbtn" onClick={exportData}>{t.export_btn}</button>
-                <button className="iodbtn" onClick={importData}>{t.import_btn}</button>
-              </div>
-              <div className="clock">{timeStr}</div>
-              <p style={{fontSize:10,color:TH.textMuted,letterSpacing:1}}>{dateStr}</p>
-              {/* Active countdown on header */}
-              {activeCdObj&&(()=>{
-                const d=daysUntil(activeCdObj.date);
-                const c=d===0?TH.goldLight:d<0?"#FF7777":TH.gold;
-                return(
-                  <div style={{display:"flex",alignItems:"center",gap:8,
-                    background:`${TH.gold}0f`,border:`1px solid ${TH.goldDark}44`,
-                    padding:"5px 12px",borderRadius:2}}>
-                    <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:20,fontWeight:700,color:c}}>
-                      {d===0?t.today_word:Math.abs(d)}
-                    </span>
-                    <div>
-                      <p style={{fontSize:9,color:TH.textMuted,letterSpacing:2,textTransform:"uppercase"}}>
-                        {d===0?t.today_word:d>0?t.days_left:t.days_past}
-                      </p>
-                      <p style={{fontSize:9,color:TH.gold,letterSpacing:1}}>{activeCdObj.name}</p>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
+          <div>
+            <h1 style={{ fontSize: 32, letterSpacing: 8, color: TH.gold }}>APEX HUB</h1>
+            <p style={{ color: TH.goldLight, fontSize: 12 }}>{userName ? `WELCOME, ${userName}` : t.tagline}</p>
           </div>
-          <div style={{marginTop:18,height:1,
-            background:`linear-gradient(90deg,transparent,${TH.goldDark}88,${TH.gold},${TH.goldLight},${TH.gold},${TH.goldDark}88,transparent)`}}/>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 24, fontFamily: "monospace" }}>{timeStr}</div>
+            <p style={{ fontSize: 10, color: TH.textMuted }}>{dateStr}</p>
+            <button onClick={() => setSettings(true)} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, padding: "5px 10px", marginTop: 10, cursor: "pointer" }}>SETTINGS</button>
+          </div>
         </div>
 
-        {/* QUOTE */}
-        <div className="si" style={{animationDelay:".08s",marginBottom:18,textAlign:"center"}}>
-          <p className="quote-text" key={`${quoteIdx}-${lang}`}>「 {QUOTES[quoteIdx]} 」</p>
-        </div>
-
-        {/* STATS */}
-        <div className="si" style={{animationDelay:".13s",marginBottom:22,
-          display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:12}}>
-
-          {/* Streak — click to edit threshold */}
-          <div className="stat-card" onClick={()=>setModal({type:"streakSettings"})}
-            style={{
-              cursor:"pointer",
-              background:metThreshold?`radial-gradient(ellipse at center,${TH.gold}18 0%,${TH.surface} 70%)`:TH.surface,
-              border:`1px solid ${metThreshold?TH.gold:TH.borderGold}`,
-              display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-            }}>
-            <div style={{fontSize:metThreshold?34:26,lineHeight:1}}>🔥</div>
-            <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:30,fontWeight:700,
-              color:metThreshold?TH.goldLight:TH.gold,lineHeight:1}}>{streak}</div>
-            <div style={{fontSize:9,color:TH.textMuted,letterSpacing:3,textTransform:"uppercase",textAlign:"center"}}>
-              {metThreshold?t.perfect_day:t.streak_label}
-            </div>
-            <div style={{fontSize:9,color:TH.textMuted,marginTop:2}}>≥{streakPct}% routine · ✏️</div>
-          </div>
-
-          {/* Task Rate + Routine Rate — side by side in one card */}
-          <div className="stat-card" style={{gridColumn:"span 2"}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,height:"100%"}}>
-              {/* Task */}
-              <div style={{paddingRight:12,borderRight:`1px solid ${TH.border}`}}>
-                <div style={{fontSize:9,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase",marginBottom:6}}>{t.task_rate}</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:3,marginBottom:6}}>
-                  <span style={{fontSize:28,fontWeight:600,color:TH.gold,lineHeight:1,fontFamily:"'Share Tech Mono',monospace"}}>{taskPct}</span>
-                  <span style={{fontSize:13,color:TH.goldDark}}>%</span>
-                  <span style={{fontSize:10,color:TH.textMuted,marginLeft:4}}>{doneCount}/{tasks.length}</span>
+        {/* MAIN CONTENT */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <Panel TH={TH}>
+              <PanelHeader title={t.routine_title} sub={t.routine_sub} TH={TH} />
+              {sched.filter((r: any) => isActiveToday(r, todayDow)).map((r: any) => (
+                <div key={r.id} className="row">
+                  <div onClick={() => toggleSched(r.id)} style={{ width: 20, height: 20, border: `1px solid ${r.done ? TH.gold : TH.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{r.done && "✓"}</div>
+                  <span style={{ flex: 1, marginLeft: 10, fontSize: 13, textDecoration: r.done ? "line-through" : "none" }}>{r.task}</span>
                 </div>
-                <div className="pbar"><div className="pfill" style={{width:`${taskPct}%`}}/></div>
+              ))}
+              <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
+            </Panel>
+            <TasksPanel />
+          </div>
+          <div>
+            <Panel TH={TH}>
+              <PanelHeader title={t.events_title} TH={TH} />
+              <div style={{ padding: 15 }}>
+                <EventCalendar events={events} TH={TH} t={t} calColors={calColors} onCellColor={setCellColor} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} tasks={tasks} sched={sched} onEditEvent={() => {}} onAddEvent={(d: string) => setModal({ type: "event", initDate: d })} />
               </div>
-              {/* Routine */}
-              <div style={{paddingLeft:12}}>
-                <div style={{fontSize:9,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase",marginBottom:6}}>{t.routine_lbl}</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:3,marginBottom:6}}>
-                  <span style={{fontSize:28,fontWeight:600,color:metThreshold?TH.goldLight:TH.gold,lineHeight:1,fontFamily:"'Share Tech Mono',monospace"}}>
-                    {routinePct}
-                  </span>
-                  <span style={{fontSize:13,color:TH.goldDark}}>%</span>
-                  <span style={{fontSize:10,color:TH.textMuted,marginLeft:4}}>{schedDone}/{activeSched.length}</span>
-                </div>
-                <div className="pbar"><div className="pfill" style={{width:`${routinePct}%`}}/></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Goals — total / achieved */}
-          {(()=>{
-            const achieved = goals.filter(g => g.progress >= 100).length;
-            return (
-              <div className="stat-card">
-                <div style={{fontSize:9,letterSpacing:3,color:TH.textMuted,textTransform:"uppercase",marginBottom:7}}>{t.active_goals}</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-                  <span style={{fontSize:28,fontWeight:600,color:TH.gold,lineHeight:1,fontFamily:"'Share Tech Mono',monospace"}}>{goals.length}</span>
-                  <span style={{fontSize:11,color:TH.textMuted}}>total</span>
-                </div>
-                <div style={{fontSize:10,color:TH.goldDark,marginTop:4,letterSpacing:1}}>
-                  ✓ {achieved} achieved
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* PARTNER SYNC — responsive full-width panel */}
-        <div className="si mb-5 sm:mb-6" style={{animationDelay:".17s"}}>
-          <div className="min-h-[320px] sm:min-h-[360px]">
-            <PartnerPanelWrap/>
+            </Panel>
           </div>
         </div>
-
-        {/* FOCUS + COUNTDOWN — always shown, 2 columns, NO dk-grid class */}
-        <div className="si" style={{animationDelay:".2s",marginBottom:22,
-          display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:20}}>
-
-          {/* Focus / Timers — collapsible */}
-          <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-            <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              padding:"12px 15px 10px",borderBottom:showPomo?`1px solid ${TH.border}`:"none",cursor:"pointer"}}
-              onClick={()=>setPomo(p=>!p)}>
-              <div>
-                <h2 style={{fontSize:12,letterSpacing:4,color:TH.gold,textTransform:"uppercase",fontWeight:400}}>{t.focus_mode}</h2>
-                <p style={{fontSize:10,color:TH.textMuted,marginTop:2,letterSpacing:1}}>Liquid Pomodoro · 5:1</p>
-              </div>
-              <span style={{fontSize:18,color:TH.goldDark,transform:showPomo?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
-            </div>
-            {showPomo && (
-              <div style={{padding:"14px 12px",display:"flex",flexDirection:"column",gap:12}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
-                  {timers.map(cfg=>(
-                    <LiquidTimerCard key={cfg.id} cfg={cfg} isDefault={cfg.id==="default"}
-                      onDelete={()=>deleteTimer(cfg.id)} onEdit={()=>setModal({type:"timer",item:cfg})}
-                      onFocusChange={setFocus} TH={TH}
-                      t={t} userId={user?.id} unlockAudio={unlockAudio}
-                      playBowlSound={playBowlSound} sendTimerNotification={sendTimerNotification}/>
-                  ))}
-                </div>
-                <AddRow onClick={()=>setModal({type:"timer",item:null})} label={t.add_timer} TH={TH}/>
-              </div>
-            )}
-          </div>
-
-          {/* Countdowns — always fully visible */}
-          <div style={{background:TH.surface,border:`1px solid ${TH.borderGold}`,borderRadius:3,overflow:"hidden",position:"relative"}}>
-            <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${TH.gold}44,transparent)`,zIndex:1}}/>
-            <PanelHeader TH={TH} title={t.countdown_title}
-              right={<button style={{background:"none",border:"none",fontSize:18,color:TH.goldDark,cursor:"pointer"}}
-                onClick={()=>setModal({type:"countdown",item:null})}>＋</button>}/>
-            {/* Big display of active countdown */}
-            <div style={{borderBottom:`1px solid ${TH.border}`,
-              background:`radial-gradient(ellipse at center,${TH.gold}07 0%,transparent 70%)`}}>
-              <CountdownBig cd={activeCdObj} TH={TH} t={t}/>
-            </div>
-            {/* List */}
-            <div style={{maxHeight:200,overflowY:"auto"}}>
-              {cds.length===0 && (
-                <p style={{padding:"14px",fontSize:11,color:TH.textMuted,textAlign:"center",letterSpacing:2}}>
-                  {t.no_countdown}
-                </p>
-              )}
-              {cds.map(cd=>{
-                const d=daysUntil(cd.date), isAct=activeCd===cd.id;
-                return(
-                  <div key={cd.id} className="row" style={{background:isAct?`${TH.gold}0a`:undefined}}>
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,color:TH.text}}>{cd.name}</p>
-                      <p style={{fontSize:10,color:TH.textMuted,marginTop:1,fontFamily:"'Share Tech Mono',monospace"}}>
-                        {cd.date} · {d===0?t.today_word:d>0?`${d} ${t.days_left}`:`${Math.abs(d)} ${t.days_past}`}
-                      </p>
-                    </div>
-                    <button onClick={()=>setActiveCd(isAct?null:cd.id)}
-                      style={{background:isAct?`${TH.gold}22`:"transparent",
-                        border:`1px solid ${isAct?TH.gold:TH.border}`,
-                        color:isAct?TH.gold:TH.textMuted,cursor:"pointer",
-                        fontSize:9,letterSpacing:2,padding:"3px 8px",borderRadius:1,textTransform:"uppercase"}}>
-                      {isAct?"✓ ON":"SET"}
-                    </button>
-                    <button className="edit-btn" onClick={()=>setModal({type:"countdown",item:cd})}>✏️</button>
-                  </div>
-                );
-              })}
-            </div>
-            <AddRow onClick={()=>setModal({type:"countdown",item:null})} label={t.add_countdown} TH={TH}/>
-          </div>
-        </div>
-
-        {/* DESKTOP GRID */}
-        <div className="dk-grid si" style={{animationDelay:".26s",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          <SchedulePanel maxH={500}/>
-          <div style={{display:"flex",flexDirection:"column",gap:18}}>
-            <TasksPanel/>
-            <LinksPanel/>
-          </div>
-        </div>
-        <div className="dk-grid si" style={{animationDelay:".32s",marginTop:20}}>
-          <EventsPanel/>
-        </div>
-
-        {/* MOBILE */}
-        <div className="mob-content" style={{flexDirection:"column",gap:0}}>
-          {mobSec==="schedule"&&<SchedulePanel maxH={99999}/>}
-          {mobSec==="partner"&&<div className="min-h-[70vh]"><PartnerPanelWrap/></div>}
-          {mobSec==="tasks"&&<div style={{display:"flex",flexDirection:"column",gap:16}}><TasksPanel/></div>}
-          {mobSec==="links"&&<LinksPanel/>}
-          {mobSec==="events"&&<EventsPanel/>}
-        </div>
-
-        {/* FOOTER */}
-        {!isMobile&&(
-          <div style={{marginTop:26,textAlign:"center"}}>
-            <div style={{height:1,background:`linear-gradient(90deg,transparent,${TH.goldDark}55,${TH.gold}88,${TH.goldDark}55,transparent)`,marginBottom:12}}/>
-            <p style={{fontSize:10,color:TH.textMuted,letterSpacing:5,textTransform:"uppercase"}}>{t.footer}</p>
-          </div>
-        )}
       </div>
 
+      {/* MODALS & SETTINGS */}
+      {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettings(false)} lang={lang} setLang={setLang} themeName={themeName} setTheme={setTheme} userName={userName} setUserName={setUserName} streakPct={streakPct} setStreakPct={setStreakPct} t={t} TH={TH} user={user} />}
+      {modal?.type === "task" && <TaskModal task={modal.item} onSave={(d: any) => saveTask(modal.item, d)} onDelete={(id: string) => setTasks((ts: any) => ts.filter((t: any) => t.id !== id))} onClose={() => setModal(null)} t={t} TH={TH} />}
+
       {/* MOBILE NAV */}
-      <nav className="mob-bar" style={{position:"fixed",bottom:0,left:0,right:0,display:"flex",
-        borderTop:`1px solid ${TH.goldDark}44`,background:TH.bg2,zIndex:100,
-        paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
-        {[
-          {key:"schedule",icon:"🗓",label:t.mob_routine},
-          {key:"partner", icon:"🤝",label:t.mob_partner},
-          {key:"tasks",   icon:"✅",label:t.mob_tasks},
-          {key:"links",   icon:"🔗",label:t.mob_links},
-          {key:"events",  icon:"📅",label:t.mob_events},
-        ].map(({key,icon,label})=>(
-          <button key={key} className={`mob-nav${mobSec===key?" active":""}`} onClick={()=>setMob(key)}>
-            <span style={{fontSize:20}}>{icon}</span>
-            <span>{label}</span>
-          </button>
+      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: isMobile ? "flex" : "none", background: TH.bg2, borderTop: `1px solid ${TH.border}`, justifyContent: "space-around", padding: 10 }}>
+        {["schedule", "tasks", "links"].map(key => (
+          <button key={key} onClick={() => setMob(key)} style={{ background: "none", border: "none", color: mobSec === key ? TH.gold : "#555" }}>{key.toUpperCase()}</button>
         ))}
-        <button className="mob-nav" onClick={()=>setSettings(true)}>
-          <span style={{fontSize:20}}>⚙️</span>
-          <span>{t.settings}</span>
-        </button>
       </nav>
     </div>
   );
-} 
+}
