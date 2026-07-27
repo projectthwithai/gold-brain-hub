@@ -4,39 +4,31 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getSupabase, isSupabaseConfigured, onAuthStateChange, fetchAllData, upsertData, signInWithGoogle } from "../lib/supabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 1. CONSTANTS & HELPER (LSの定義を最上部へ)
+// 1. 定数・設定（帝国の基盤）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const THEMES: any = {
   dark: { bg:"#050505", bg2:"#0A0A0A", surface:"#0d0d0d", surfaceHover:"#131313", border:"#2a2a2a", borderGold:"#8A683066", text:"#F0EAD8", textDim:"#C8C0B0", textMuted:"#888", gold:"#C9A84C", goldLight:"#F0D878", goldDark:"#8A6830", inputBg:"#0f0f0f" },
 };
-
 const DICT: any = {
-  ja: { tagline:"規律 · 集中 · 卓越", routine_title:"ルーティン", events_title:"カレンダー", progress:"進捗", completed:"完了", settings:"設定", mob_routine:"日課", mob_partner:"相棒", mob_tasks:"タスク", mob_links:"リンク", mob_events:"予定", url_hub:"帝国の門" },
+  ja: { tagline:"規律 · 集中 · 卓越", routine_title:"ルーティン", events_title:"カレンダー", progress:"進捗", completed:"完了", settings:"設定", mob_routine:"日課", mob_partner:"相棒", mob_tasks:"タスク", mob_links:"リンク", mob_events:"記録", url_hub:"帝国の門" },
 };
-
-const LS = {
-  get: (k: string, fb: any) => {
-    if (typeof window === "undefined") return fb;
-    try {
-      const v = localStorage.getItem(k);
-      return v ? JSON.parse(v) : fb;
-    } catch { return fb; }
-  },
-  set: (k: string, v: any) => {
-    if (typeof window !== "undefined") {
-      try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
-    }
-  }
-};
-
 const DEF_TASKS = [{ id: "1", text: "17歳の野望を開始せよ", done: false, category: "Vision", memo: "クリックして編集" }];
 const DEF_SCHEDULE = [{ id: "s1", time: "05:00", endTime: "09:00", task: "Deep Work", done: false, freq: "daily", options: ["数学", "英語", "ビジネス"] }];
-const DEF_LINKS = [{ id: "l1", name: "Math Lab", url: "#", icon: "📐", color: "#C9A84C", cat: "Lab" }];
+const DEF_LINKS = [
+  { id: "l1", name: "Math Lab", url: "https://math-lab-xxx.vercel.app", icon: "📐", color: "#C9A84C", cat: "Lab" },
+  { id: "l2", name: "English Lab", url: "https://english-lab-xxx.vercel.app", icon: "🇬🇧", color: "#4A9EFF", cat: "Lab" },
+  { id: "l3", name: "Japanese Lab", url: "https://japanese-lab-xxx.vercel.app", icon: "🇯🇵", color: "#FF6B4A", cat: "Lab" }
+];
+
+const LS = {
+  get: (k: string, fb: any) => { if (typeof window === "undefined") return fb; try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
+  set: (k: string, v: any) => { if (typeof window !== "undefined") { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } }
+};
 
 const isActiveToday = (item: any, dow: number) => true;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 2. SUB-COMPONENTS (Dashboardの外に配置：初期化エラーを防止)
+// 2. 独立コンポーネント (Dashboardの外に定義：これがエラーを防ぐ鍵)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const Panel = ({ children, TH, style = {} }: any) => (
@@ -60,7 +52,7 @@ const AddRow = ({ onClick, label }: any) => (
 const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
   const handleToggle = () => { if (routine.done) routine.selectedOption = null; onToggleDone(); };
   return (
-    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '14px 18px', borderBottom: `1px solid ${TH.border}` }}>
+    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 15px', borderBottom: `1px solid ${TH.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {(routine.done || !routine.options?.length) && (
           <div onClick={handleToggle} style={{ width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>{routine.done && "✓"}</div>
@@ -74,7 +66,7 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
           </div>
           <div style={{ fontSize: 10, color: TH.textMuted }}>{routine.time} {routine.endTime ? `〜 ${routine.endTime}` : ""}</div>
         </div>
-        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer"}}>✏️</button>
+        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer", opacity:0.5}}>✏️</button>
       </div>
       {!routine.done && routine.options?.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 34 }}>
@@ -129,12 +121,12 @@ export default function Dashboard() {
   const [activeMode, setActiveMode] = useState(() => LS.get("apx7_mode", "monk"));
   const [tasks, setTasks] = useState<any[]>(() => LS.get("apx7_tasks", DEF_TASKS));
   const [sched, setSched] = useState<any[]>(() => LS.get("apx7_sched", DEF_SCHEDULE));
-  const [links] = useState(DEF_LINKS);
+  const [links, setLinks] = useState<any[]>(() => LS.get("apx7_links", DEF_LINKS));
   const [activeTab, setTab] = useState("today");
   const [mobSec, setMob] = useState("schedule");
   const [isMobile, setMobile] = useState(false);
-  const [settingsOpen, setSettings] = useState(false);
   const [modal, setModal] = useState<any>(null);
+  const [settingsOpen, setSettings] = useState(false);
 
   const TH = THEMES.dark;
   const t = DICT.ja;
@@ -157,6 +149,7 @@ export default function Dashboard() {
       const data = await fetchAllData(user.id);
       if (data.tasks) setTasks(data.tasks);
       if (data.sched) setSched(data.sched);
+      if (data.links) setLinks(data.links);
     })();
   }, [isOnline, user?.id]);
 
@@ -174,6 +167,10 @@ export default function Dashboard() {
     else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
   };
   const toggleSched = (id: string) => setSched(prev => prev.map(rc => rc.id === id ? { ...rc, done: !rc.done } : rc));
+  const saveSched = (item: any, d: any) => {
+    if (!item) setSched(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
+    else setSched(prev => prev.map(rc => rc.id === item.id ? { ...rc, ...d } : rc));
+  };
 
   const displayTasks = tasks.filter(tk => !tk.done || (tk.updated_at || "").split('T')[0] === currentDayStr);
 
@@ -200,7 +197,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:20, color:TH.goldLight, fontFamily:"monospace"}}>{time.toLocaleTimeString()}</div>
+            <div style={{fontSize:18, color:TH.goldLight, fontFamily:"monospace"}}>{time.toLocaleTimeString()}</div>
             <button onClick={() => setSettings(true)} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, padding: "5px 10px", marginTop: 10, cursor:"pointer", fontSize:10 }}>SETTINGS</button>
           </div>
         </div>
@@ -208,6 +205,7 @@ export default function Dashboard() {
         {/* MAIN AREA */}
         <div style={{ marginTop: 10 }}>
           {!isMobile ? (
+            /* Desktop Layout */
             <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 25 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
                 {activeTab === "today" && (
@@ -216,19 +214,37 @@ export default function Dashboard() {
                     {sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => (
                       <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} />
                     ))}
-                    <AddRow onClick={() => setModal({ type: "sched", item: null })} label="+ Add Routine" TH={TH} />
+                    <AddRow onClick={() => setModal({type:"sched", item:null})} label="+ Add Routine" TH={TH} />
                   </Panel>
                 )}
-                {activeTab === "partner" && <Panel TH={TH}><PanelHeader title="PARTNER" TH={TH} /><div style={{padding:20}}>同期中...</div></Panel>}
+                {activeTab === "partner" && <Panel TH={TH}><PanelHeader title="PARTNER" TH={TH} /><div style={{padding:20}}>同期機能 稼働中...</div></Panel>}
+                {activeTab === "links" && (
+                    <Panel TH={TH}>
+                        <PanelHeader title="URL HUB" TH={TH} />
+                        {links.map(l => (
+                        <div key={l.id} className="row" style={{ display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
+                            <span style={{ marginRight: 10 }}>{l.icon}</span>
+                            <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: "none", fontSize: 13 }}>{l.name}</a>
+                            <span style={{fontSize:10, color:TH.gold}}>↗</span>
+                        </div>
+                        ))}
+                    </Panel>
+                )}
+                {activeTab === "chart" && <Panel TH={TH}><PanelHeader title="RECORDS" TH={TH} /><div style={{padding:20}}>研究所データ 解析中...</div></Panel>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
                 <Panel TH={TH}>
                   <PanelHeader title="TASKS" TH={TH} />
-                  {displayTasks.map(tk => (
-                    <div key={tk.id} className="row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
-                      <div onClick={() => toggleTask(tk.id)} style={{ width: 20, height: 20, border: `1px solid ${tk.done ? TH.gold : TH.border}`, background: tk.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{tk.done && "✓"}</div>
-                      <span style={{ flex: 1, fontSize: 13, textDecoration: tk.done ? "line-through" : "none", opacity: tk.done ? 0.6 : 1 }} onClick={()=>setModal({type:"task", item:tk})}>{tk.text}</span>
-                      {tk.memo && <span style={{ fontSize: 9, color: TH.goldDark }}>📄</span>}
+                  {Array.from(new Set(displayTasks.map(tk => tk.category || "Focus"))).map(cat => (
+                    <div key={cat} style={{marginBottom:15}}>
+                      <div style={{padding:"4px 15px", background:"#0a0a0a", fontSize:9, color:TH.gold, borderBottom:`1px solid ${TH.border}`}}>{cat.toUpperCase()}</div>
+                      {displayTasks.filter(tk => (tk.category || "Focus") === cat).sort((a,b)=> (a.done === b.done ? 0 : a.done ? 1 : -1)).map(tk => (
+                        <div key={tk.id} className="row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
+                          <div onClick={() => toggleTask(tk.id)} style={{ width: 20, height: 20, border: `1px solid ${tk.done ? TH.gold : TH.border}`, background: tk.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{tk.done && "✓"}</div>
+                          <span style={{ flex: 1, fontSize: 13, textDecoration: tk.done ? "line-through" : "none", opacity: tk.done ? 0.5 : 1 }} onClick={()=>setModal({type:"task", item:tk})}>{tk.text}</span>
+                          {tk.memo && <span onClick={() => setModal({type:"task", item:tk})} style={{ fontSize: 9, color: TH.goldDark, cursor: "pointer" }}>📄 MEMO</span>}
+                        </div>
+                      ))}
                     </div>
                   ))}
                   <AddRow onClick={() => setModal({ type: "task", item: null })} label="+ Add Task" TH={TH} />
@@ -237,38 +253,81 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
+            /* Mobile Layout */
             <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 80 }}>
-              {mobSec === "schedule" && <Panel TH={TH}><PanelHeader title="ROUTINES" TH={TH} />{sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} />)}</Panel>}
-              {mobSec === "tasks" && <Panel TH={TH}><PanelHeader title="TASKS" TH={TH} />{displayTasks.map(tk => <div key={tk.id} className="row"><span>{tk.text}</span></div>)}</Panel>}
+              {mobSec === "schedule" && <Panel TH={TH}><PanelHeader title="ROUTINES" TH={TH} />{sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} />)}<AddRow onClick={() => setModal({type:"sched", item:null})} label="+ Add Routine" TH={TH} /></Panel>}
+              {mobSec === "tasks" && <Panel TH={TH}><PanelHeader title="TASKS" TH={TH} />{displayTasks.map(tk => <div key={tk.id} className="row" onClick={()=>toggleTask(tk.id)}><span>{tk.done ? "✓" : "□"} {tk.text}</span></div>)}<AddRow onClick={() => setModal({ type: "task", item: null })} label="+ Add Task" TH={TH} /></Panel>}
               {mobSec === "partner" && <Panel TH={TH}><PanelHeader title="PARTNER" TH={TH} /><div style={{padding:20}}>同期中...</div></Panel>}
+              {mobSec === "links" && (
+                   <Panel TH={TH}>
+                   <PanelHeader title="URL HUB" TH={TH} />
+                   {links.map(l => (
+                   <div key={l.id} className="row" style={{ display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
+                       <span style={{marginRight:10}}>{l.icon}</span>
+                       <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: "none", fontSize: 13 }}>{l.name}</a>
+                   </div>
+                   ))}
+               </Panel>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* MODALS (Simplified for Build) */}
+      {/* OVERLAYS & MODALS */}
       {settingsOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 1500, display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ width: "300px", background: "#111", padding: 20 }}>
-            <button onClick={() => setSettings(false)}>CLOSE</button>
-            <button onClick={() => signInWithGoogle()}>LOGIN</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1500, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ width: "min(350px, 90vw)", background: TH.bg2, padding: 25, borderLeft: `1px solid ${TH.border}`, display:"flex", flexDirection:"column", gap:20 }}>
+             <h2 style={{ color: TH.gold, letterSpacing:4 }}>SETTINGS</h2>
+             <div><label style={{fontSize:11, color:TH.textMuted}}>USER</label><p style={{color:TH.text, fontSize:14}}>{user ? user.email : "Not logged in"}</p></div>
+             <button onClick={() => signInWithGoogle()} style={{ width: "100%", padding: 12, background: "#fff", color: "#000", borderRadius: 4, fontWeight:"bold", cursor:"pointer" }}>GOOGLE LOGIN</button>
+             <button onClick={() => getSupabase().auth.signOut()} style={{ width: "100%", padding: 10, background: "none", border: `1px solid ${TH.border}`, color: "#999", cursor:"pointer" }}>LOGOUT</button>
+             <button onClick={() => setSettings(false)} style={{ width: "100%", marginTop: "auto", padding: 12, background: TH.goldDark, color: "#fff", border: "none", cursor:"pointer" }}>CLOSE</button>
           </div>
         </div>
       )}
       
       {modal?.type === "task" && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#111", padding: 20, borderRadius: 8, width: "300px" }}>
-            <input value={modal.item.text} onChange={e => saveTask(modal.item, { text: e.target.value })} style={{width:"100%", marginBottom:10}} />
-            <button onClick={() => setModal(null)}>SAVE</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 400, border: `1px solid ${TH.gold}` }}>
+            <h3 style={{ color: TH.gold, marginBottom: 15 }}>TASK DETAILS</h3>
+            <input style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.text || ""} onChange={e => saveTask(modal.item, { text: e.target.value })} placeholder="Task name..." />
+            <textarea style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, minHeight: 100 }} value={modal.item?.memo || ""} onChange={e => saveTask(modal.item, { memo: e.target.value })} placeholder="Add memo..." />
+            <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: TH.gold, border: "none", fontWeight: "bold", cursor:"pointer" }}>SAVE</button>
+              {modal.item && <button onClick={() => { setTasks(prev => prev.filter(tk => tk.id !== modal.item.id)); setModal(null); }} style={{ padding: 10, color: "red", background: "none", border: "1px solid red", cursor:"pointer" }}>DEL</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "sched" && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 400, border: `1px solid ${TH.gold}` }}>
+            <h3 style={{ color: TH.gold, marginBottom: 15 }}>ROUTINE SETTING</h3>
+            <input type="time" style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.time || "08:00"} onChange={e => saveSched(modal.item, { time: e.target.value })} />
+            <input style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.task || ""} onChange={e => saveSched(modal.item, { task: e.target.value })} placeholder="Routine name..." />
+            <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setModal(null)} style={{ flex:1, padding: 10, background: TH.gold, border: "none", fontWeight: "bold", cursor:"pointer" }}>SAVE</button>
+                {modal.item && <button onClick={() => { setSched(prev => prev.filter(rc => rc.id !== modal.item.id)); setModal(null); }} style={{ padding: 10, color: "red", background: "none", border: "1px solid red", cursor:"pointer" }}>DEL</button>}
+            </div>
           </div>
         </div>
       )}
 
       {/* BOTTOM NAV */}
       <nav className="mob-bar" style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: isMobile ? "flex" : "none", background: TH.bg2, borderTop: `1px solid ${TH.border}`, justifyContent: "space-around", padding: 10, zIndex: 1000 }}>
-        {["schedule", "partner", "tasks", "links"].map(k => (
-          <button key={k} onClick={() => isMobile ? setMob(k) : setTab(k)} style={{ background: "none", border: "none", color: (isMobile ? mobSec : activeTab) === k ? TH.gold : "#555", fontSize: 9 }}>{k.toUpperCase()}</button>
+        {[
+          {key:"schedule", icon:"🗓", label: "日課"},
+          {key:"partner",  icon:"🤝", label: "相棒"},
+          {key:"tasks",    icon:"✅", label: "タスク"},
+          {key:"links",    icon:"🔗", label: "リンク"},
+          {key:"chart",    icon:"📊", label: "記録"}
+        ].map(k => (
+          <button key={k.key} onClick={() => isMobile ? setMob(k.key) : setTab(k.key === "chart" ? "chart" : k.key === "schedule" ? "today" : k.key)} style={{ background: "none", border: "none", color: (isMobile ? mobSec : activeTab) === (k.key === "chart" ? "chart" : k.key === "schedule" ? "today" : k.key) ? TH.gold : "#555", fontSize: 9, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+            <span style={{fontSize:16}}>{k.icon}</span>
+            <span>{k.label}</span>
+          </button>
         ))}
       </nav>
     </div>
