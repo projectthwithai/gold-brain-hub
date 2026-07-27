@@ -4,31 +4,26 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getSupabase, isSupabaseConfigured, onAuthStateChange, fetchAllData, upsertData, signInWithGoogle } from "../lib/supabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 1. 定数・設定（帝国の基盤）
+// 1. CONSTANTS & HELPER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const THEMES: any = {
   dark: { bg:"#050505", bg2:"#0A0A0A", surface:"#0d0d0d", surfaceHover:"#131313", border:"#2a2a2a", borderGold:"#8A683066", text:"#F0EAD8", textDim:"#C8C0B0", textMuted:"#888", gold:"#C9A84C", goldLight:"#F0D878", goldDark:"#8A6830", inputBg:"#0f0f0f" },
 };
 const DICT: any = {
-  ja: { tagline:"規律 · 集中 · 卓越", routine_title:"ルーティン", events_title:"カレンダー", progress:"進捗", completed:"完了", settings:"設定", mob_routine:"日課", mob_partner:"相棒", mob_tasks:"タスク", mob_links:"リンク", mob_events:"記録", url_hub:"帝国の門" },
+  ja: { tagline:"規律 · 集中 · 卓越", routine_title:"ルーティン", events_title:"カレンダー", progress:"進捗", completed:"完了", settings:"設定", mob_routine:"日課", mob_partner:"相棒", mob_tasks:"タスク", mob_links:"リンク", mob_events:"記録" },
 };
-const DEF_TASKS = [{ id: "1", text: "17歳の野望を開始せよ", done: false, category: "Vision", memo: "クリックして編集" }];
-const DEF_SCHEDULE = [{ id: "s1", time: "05:00", endTime: "09:00", task: "Deep Work", done: false, freq: "daily", options: ["数学", "英語", "ビジネス"] }];
-const DEF_LINKS = [
-  { id: "l1", name: "Math Lab", url: "https://math-lab-xxx.vercel.app", icon: "📐", color: "#C9A84C", cat: "Lab" },
-  { id: "l2", name: "English Lab", url: "https://english-lab-xxx.vercel.app", icon: "🇬🇧", color: "#4A9EFF", cat: "Lab" },
-  { id: "l3", name: "Japanese Lab", url: "https://japanese-lab-xxx.vercel.app", icon: "🇯🇵", color: "#FF6B4A", cat: "Lab" }
-];
-
 const LS = {
   get: (k: string, fb: any) => { if (typeof window === "undefined") return fb; try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
   set: (k: string, v: any) => { if (typeof window !== "undefined") { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } }
 };
+const DEF_TASKS = [{ id: "1", text: "17歳の野望を開始せよ", done: false, category: "Vision", memo: "クリックして編集" }];
+const DEF_SCHEDULE = [{ id: "s1", time: "05:00", endTime: "09:00", task: "Deep Work", done: false, freq: "daily", options: ["数学", "英語", "ビジネス"] }];
+const DEF_LINKS = [{ id: "l1", name: "Math Lab", url: "#", icon: "📐", color: "#C9A84C", cat: "Lab" }];
 
 const isActiveToday = (item: any, dow: number) => true;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 2. 独立コンポーネント (Dashboardの外に定義：これがエラーを防ぐ鍵)
+// 2. SUB-COMPONENTS (外部定義：エラー防止)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const Panel = ({ children, TH, style = {} }: any) => (
@@ -40,13 +35,13 @@ const Panel = ({ children, TH, style = {} }: any) => (
 
 const PanelHeader = ({ title, sub, right, TH }: any) => (
   <div style={{ padding: "12px 15px", borderBottom: `1px solid ${TH.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-    <div><h2 style={{ fontSize: 12, letterSpacing: 4, color: TH.gold, textTransform: "uppercase" }}>{title}</h2>{sub && <p style={{ fontSize: 9, color: TH.textMuted }}>{sub}</p>}</div>
+    <div><h2 style={{ fontSize: 11, letterSpacing: 3, color: TH.gold, textTransform: "uppercase" }}>{title}</h2>{sub && <p style={{ fontSize: 8, color: TH.textMuted }}>{sub}</p>}</div>
     {right}
   </div>
 );
 
 const AddRow = ({ onClick, label }: any) => (
-  <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "10px", background: "transparent", border: `1px dashed #333`, color: "#888", cursor: "pointer", fontSize: 11, letterSpacing: 4, textTransform: "uppercase", fontFamily: "inherit" }}>{label}</button>
+  <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "10px", background: "transparent", border: `1px dashed #333`, color: "#888", cursor: "pointer", fontSize: 10, letterSpacing: 2, textTransform: "uppercase" }}>{label}</button>
 );
 
 const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
@@ -55,7 +50,7 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
     <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 15px', borderBottom: `1px solid ${TH.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {(routine.done || !routine.options?.length) && (
-          <div onClick={handleToggle} style={{ width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>{routine.done && "✓"}</div>
+          <div onClick={handleToggle} style={{ width: 20, height: 20, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>{routine.done && "✓"}</div>
         )}
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -66,12 +61,12 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
           </div>
           <div style={{ fontSize: 10, color: TH.textMuted }}>{routine.time} {routine.endTime ? `〜 ${routine.endTime}` : ""}</div>
         </div>
-        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer", opacity:0.5}}>✏️</button>
+        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer", fontSize:12}}>✏️</button>
       </div>
       {!routine.done && routine.options?.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 34 }}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 32 }}>
           {routine.options.map((opt: string) => (
-            <button key={opt} onClick={() => { routine.selectedOption = opt; onToggleDone(); }} style={{ background: 'transparent', border: `1px solid ${TH.goldDark}`, color: TH.gold, fontSize: 9, padding: '3px 8px', borderRadius: 10, cursor: 'pointer' }}>+ {opt}</button>
+            <button key={opt} onClick={() => { routine.selectedOption = opt; onToggleDone(); }} style={{ background: 'transparent', border: `1px solid ${TH.goldDark}`, color: TH.gold, fontSize: 8, padding: '2px 8px', borderRadius: 10, cursor: 'pointer' }}>+ {opt}</button>
           ))}
         </div>
       )}
@@ -79,28 +74,41 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
   );
 };
 
-const EventCalendar = ({ TH, tasks, sched, onAddEvent }: any) => {
+// 【第8項目】カレンダーのWIN/LOSE表示
+const EventCalendar = ({ TH, tasks, sched, vy, vm, setVY, setVM, streakPct }: any) => {
   const today = new Date();
-  const [vy, vm] = [today.getFullYear(), today.getMonth()];
   const cells = []; 
   const fd = new Date(vy, vm, 1).getDay();
   for (let i = 0; i < fd; i++) cells.push(null); for (let d = 1; d <= 31; d++) cells.push(d);
+  const prev = () => { if (vm === 0) { setVY(vy - 1); setVM(11); } else setVM(vm - 1); };
+  const next = () => { if (vm === 11) { setVY(vy + 1); setVM(0); } else setVM(vm + 1); };
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-      {cells.map((d, i) => {
-        if (!d) return <div key={i} />;
-        const dstr = `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const isToday = today.getDate() === d;
-        return (
-          <div key={i} style={{ minHeight: 45, border: `1px solid ${isToday ? TH.gold : TH.border}`, padding: 4 }} onClick={() => onAddEvent(dstr)}>
-            <div style={{ fontSize: 9, color: isToday ? TH.gold : TH.textDim }}>{d}</div>
-            <div style={{ display: 'flex', gap: 1, marginTop: 2 }}>
-              {tasks?.filter((tk: any) => tk.deadline === dstr).map((tk: any) => <div key={tk.id} style={{ width: 4, height: 4, background: TH.textMuted }}></div>)}
-              {sched?.filter((rc: any) => rc.done).length > 0 && isToday && <div style={{ width: 4, height: 4, background: TH.gold }}></div>}
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={prev} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>‹</button>
+        <span style={{ fontSize: 11, color: TH.gold }}>{vy} / {vm + 1}</span>
+        <button onClick={next} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>›</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const dstr = `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const isToday = today.getFullYear()===vy && today.getMonth()===vm && today.getDate()===d;
+          
+          const doneCount = sched.filter((rc: any) => rc.done).length;
+          const isWin = sched.length > 0 && (doneCount / sched.length) * 100 >= streakPct;
+
+          return (
+            <div key={i} style={{ minHeight: 45, border: `1px solid ${isToday ? TH.gold : TH.border}`, padding: 4, background: isToday ? `${TH.gold}05` : "none" }}>
+              <div style={{ fontSize: 9, color: isToday ? TH.gold : TH.textDim }}>{d}</div>
+              {doneCount > 0 && isToday && (
+                <div style={{ fontSize: 7, fontWeight: 'bold', color: isWin ? '#4AFF9E' : '#FF4A9E' }}>{isWin ? "WIN" : "LOSE"}</div>
+              )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -122,25 +130,48 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>(() => LS.get("apx7_tasks", DEF_TASKS));
   const [sched, setSched] = useState<any[]>(() => LS.get("apx7_sched", DEF_SCHEDULE));
   const [links, setLinks] = useState<any[]>(() => LS.get("apx7_links", DEF_LINKS));
+  const [streakPct] = useState(80);
+
   const [activeTab, setTab] = useState("today");
   const [mobSec, setMob] = useState("schedule");
   const [isMobile, setMobile] = useState(false);
-  const [modal, setModal] = useState<any>(null);
   const [settingsOpen, setSettings] = useState(false);
+  const [modal, setModal] = useState<any>(null);
+  const [calYear, setCalYear] = useState(time.getFullYear());
+  const [calMonth, setCalMonth] = useState(time.getMonth());
+
+  // 【第2, 5, 10項目】タイマー武装
+  const [activeTimerId, setActiveTimerId] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [selectedTask, setSelectedTask] = useState("");
+  const wakeLock = useRef<any>(null);
 
   const TH = THEMES.dark;
   const t = DICT.ja;
+
+  const toggleWakeLock = async (on: boolean) => {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      if (on) wakeLock.current = await navigator.wakeLock.request('screen');
+      else { wakeLock.current?.release(); wakeLock.current = null; }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    let int: any;
+    if (isRunning && timeLeft > 0) {
+      int = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+      if (timeLeft === 300) { /* 5分前アラート音を鳴らすロジック */ }
+    } else if (timeLeft === 0) { setIsRunning(false); toggleWakeLock(false); }
+    return () => clearInterval(int);
+  }, [isRunning, timeLeft]);
 
   useEffect(() => {
     onAuthStateChange((sess) => setSession(sess));
     const fn = () => setMobile(window.innerWidth < 768);
     window.addEventListener("resize", fn); fn();
     return () => window.removeEventListener("resize", fn);
-  }, []);
-
-  useEffect(() => {
-    const ti = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(ti);
   }, []);
 
   useEffect(() => {
@@ -159,14 +190,12 @@ export default function Dashboard() {
 
   useEffect(() => { LS.set("apx7_tasks", tasks); cloudSave("tasks", tasks); }, [tasks, cloudSave]);
   useEffect(() => { LS.set("apx7_sched", sched); cloudSave("sched", sched); }, [sched, cloudSave]);
-  useEffect(() => { LS.set("apx7_mode", activeMode); }, [activeMode]);
 
   const toggleTask = (id: string) => setTasks(prev => prev.map(tk => tk.id === id ? { ...tk, done: !tk.done, updated_at: new Date().toISOString() } : tk));
   const saveTask = (item: any, d: any) => { 
     if (!item) setTasks(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
     else setTasks(prev => prev.map(tk => tk.id === item.id ? { ...tk, ...d } : tk)); 
   };
-  const toggleSched = (id: string) => setSched(prev => prev.map(rc => rc.id === id ? { ...rc, done: !rc.done } : rc));
   const saveSched = (item: any, d: any) => {
     if (!item) setSched(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
     else setSched(prev => prev.map(rc => rc.id === item.id ? { ...rc, ...d } : rc));
@@ -174,16 +203,29 @@ export default function Dashboard() {
 
   const displayTasks = tasks.filter(tk => !tk.done || (tk.updated_at || "").split('T')[0] === currentDayStr);
 
-  const css = `
-    .stat-card { background: ${TH.surface}; border: 1px solid ${TH.borderGold}; padding: 16px; border-radius: 4px; position: relative; }
-    .tab-btn { flex: 1; padding: 12px; background: none; border: none; color: #555; cursor: pointer; font-size: 10px; border-bottom: 2px solid transparent; }
-    .tab-btn.active { color: ${TH.gold}; border-bottom-color: ${TH.gold}; }
-    .row:hover { background: ${TH.surfaceHover}; }
-  `;
+  const TimerPanel = () => (
+    <Panel TH={TH} style={{ marginBottom: 20, textAlign: 'center', padding: 20 }}>
+      <PanelHeader title="TACTICAL TIMER" sub={isRunning ? `MISSION: ${selectedTask}` : "READY"} TH={TH} />
+      {!selectedTask ? (
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 15 }}>
+          {["数学", "英語", "ビジネス"].map(tk => (
+            <button key={tk} onClick={() => { setSelectedTask(tk); setTimeLeft(3000); }} style={{ padding: '10px 20px', background: 'none', border: `1px solid ${TH.gold}`, color: TH.gold, borderRadius: 4, cursor: "pointer" }}>{tk}</button>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 48, fontFamily: 'monospace', color: TH.text }}>{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
+            <button onClick={() => { setIsRunning(!isRunning); toggleWakeLock(!isRunning); }} style={{ flex: 1, padding: 12, background: TH.gold, border: "none", fontWeight: "bold", cursor: "pointer" }}>{isRunning ? "PAUSE" : "START"}</button>
+            <button onClick={() => { setIsRunning(false); setSelectedTask(""); toggleWakeLock(false); }} style={{ flex: 1, padding: 12, background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor: "pointer" }}>RESET</button>
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: TH.bg, color: TH.text, fontFamily: "serif" }}>
-      <style>{css}</style>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px" : "40px" }}>
         
         {/* HEADER */}
@@ -192,144 +234,95 @@ export default function Dashboard() {
             <h1 style={{ fontSize: 28, letterSpacing: 8, color: TH.gold }}>APEX HUB</h1>
             <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
               {["weekday", "holiday", "monk"].map(m => (
-                <button key={m} onClick={() => setActiveMode(m)} style={{ padding: '3px 8px', background: activeMode === m ? TH.gold : 'transparent', color: activeMode === m ? TH.bg : TH.textDim, border: `1px solid ${TH.goldDark}`, borderRadius: 4, fontSize: 8 }}>{m.toUpperCase()}</button>
+                <button key={m} onClick={() => setActiveMode(m)} style={{ padding: '3px 8px', background: activeMode === m ? TH.gold : 'transparent', color: activeMode === m ? TH.bg : TH.textDim, border: `1px solid ${TH.goldDark}`, borderRadius: 4, fontSize: 8, cursor: "pointer" }}>{m.toUpperCase()}</button>
               ))}
             </div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:18, color:TH.goldLight, fontFamily:"monospace"}}>{time.toLocaleTimeString()}</div>
-            <button onClick={() => setSettings(true)} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, padding: "5px 10px", marginTop: 10, cursor:"pointer", fontSize:10 }}>SETTINGS</button>
+            <div style={{fontSize:20, color:TH.goldLight, fontFamily:"monospace"}}>{time.toLocaleTimeString()}</div>
+            <button onClick={() => setSettings(true)} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, padding: "5px 10px", marginTop: 10, cursor: "pointer", fontSize: 10 }}>SETTINGS</button>
           </div>
         </div>
 
         {/* MAIN AREA */}
-        <div style={{ marginTop: 10 }}>
-          {!isMobile ? (
-            /* Desktop Layout */
-            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 25 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
-                {activeTab === "today" && (
-                  <Panel TH={TH}>
-                    <PanelHeader title="ROUTINES" TH={TH} />
-                    {sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => (
-                      <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} />
-                    ))}
-                    <AddRow onClick={() => setModal({type:"sched", item:null})} label="+ Add Routine" TH={TH} />
-                  </Panel>
-                )}
-                {activeTab === "partner" && <Panel TH={TH}><PanelHeader title="PARTNER" TH={TH} /><div style={{padding:20}}>同期機能 稼働中...</div></Panel>}
-                {activeTab === "links" && (
-                    <Panel TH={TH}>
-                        <PanelHeader title="URL HUB" TH={TH} />
-                        {links.map(l => (
-                        <div key={l.id} className="row" style={{ display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
-                            <span style={{ marginRight: 10 }}>{l.icon}</span>
-                            <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: "none", fontSize: 13 }}>{l.name}</a>
-                            <span style={{fontSize:10, color:TH.gold}}>↗</span>
-                        </div>
-                        ))}
-                    </Panel>
-                )}
-                {activeTab === "chart" && <Panel TH={TH}><PanelHeader title="RECORDS" TH={TH} /><div style={{padding:20}}>研究所データ 解析中...</div></Panel>}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr", gap: 25 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
+            {(!isMobile || mobSec === "schedule") && (
+              <>
+                <TimerPanel />
                 <Panel TH={TH}>
-                  <PanelHeader title="TASKS" TH={TH} />
-                  {Array.from(new Set(displayTasks.map(tk => tk.category || "Focus"))).map(cat => (
-                    <div key={cat} style={{marginBottom:15}}>
-                      <div style={{padding:"4px 15px", background:"#0a0a0a", fontSize:9, color:TH.gold, borderBottom:`1px solid ${TH.border}`}}>{cat.toUpperCase()}</div>
-                      {displayTasks.filter(tk => (tk.category || "Focus") === cat).sort((a,b)=> (a.done === b.done ? 0 : a.done ? 1 : -1)).map(tk => (
-                        <div key={tk.id} className="row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
-                          <div onClick={() => toggleTask(tk.id)} style={{ width: 20, height: 20, border: `1px solid ${tk.done ? TH.gold : TH.border}`, background: tk.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{tk.done && "✓"}</div>
-                          <span style={{ flex: 1, fontSize: 13, textDecoration: tk.done ? "line-through" : "none", opacity: tk.done ? 0.5 : 1 }} onClick={()=>setModal({type:"task", item:tk})}>{tk.text}</span>
-                          {tk.memo && <span onClick={() => setModal({type:"task", item:tk})} style={{ fontSize: 9, color: TH.goldDark, cursor: "pointer" }}>📄 MEMO</span>}
-                        </div>
-                      ))}
-                    </div>
+                  <PanelHeader title="ROUTINES" TH={TH} />
+                  {sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => (
+                    <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} t={t} />
                   ))}
-                  <AddRow onClick={() => setModal({ type: "task", item: null })} label="+ Add Task" TH={TH} />
+                  <AddRow onClick={() => setModal({ type: "sched", item: null })} label="+ Add Routine" TH={TH} />
                 </Panel>
-                <Panel TH={TH}><PanelHeader title="CALENDAR" TH={TH} /><div style={{ padding: 15 }}><EventCalendar tasks={tasks} sched={sched} TH={TH} onAddEvent={() => {}} /></div></Panel>
+              </>
+            )}
+
+            {(!isMobile || mobSec === "tasks") && (
+              <Panel TH={TH}>
+                <PanelHeader title="TASKS" TH={TH} />
+                {displayTasks.map(tk => (
+                  <div key={tk.id} className="row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
+                    <div onClick={() => toggleTask(tk.id)} style={{ width: 20, height: 20, border: `1px solid ${tk.done ? TH.gold : TH.border}`, background: tk.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{tk.done && "✓"}</div>
+                    <span style={{ flex: 1, fontSize: 13, textDecoration: tk.done ? "line-through" : "none", opacity: tk.done ? 0.5 : 1 }} onClick={()=>setModal({type:"task", item:tk})}>{tk.text}</span>
+                    {tk.memo && <span onClick={()=>setModal({type:"task", item:tk})} style={{ fontSize: 9, color: TH.goldDark, cursor:"pointer", border:"1px solid", padding:"2px 4px" }}>MEMO</span>}
+                  </div>
+                ))}
+                <AddRow onClick={() => setModal({ type: "task", item: null })} label="+ Add Task" TH={TH} />
+              </Panel>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 25 }}>
+            {(!isMobile || mobSec === "links") && (
+              <Panel TH={TH}>
+                <PanelHeader title="URL HUB" TH={TH} />
+                {links.map(l => (
+                  <div key={l.id} style={{ display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
+                    <span style={{marginRight:10}}>{l.icon}</span>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: "none", fontSize: 13 }}>{l.name}</a>
+                    <span style={{fontSize:10, color:TH.gold}}>↗</span>
+                  </div>
+                ))}
+              </Panel>
+            )}
+            <Panel TH={TH}>
+              <PanelHeader title="CALENDAR" TH={TH} />
+              <div style={{ padding: 15 }}>
+                <EventCalendar tasks={tasks} sched={sched} TH={TH} vy={calYear} vm={calMonth} setVY={setCalYear} setVM={setCalMonth} streakPct={streakPct} onAddEvent={() => {}} />
               </div>
-            </div>
-          ) : (
-            /* Mobile Layout */
-            <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 80 }}>
-              {mobSec === "schedule" && <Panel TH={TH}><PanelHeader title="ROUTINES" TH={TH} />{sched.filter(rc => !rc.mode || rc.mode === "all" || rc.mode === activeMode).map(rc => <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({type:"sched", item:rc})} TH={TH} />)}<AddRow onClick={() => setModal({type:"sched", item:null})} label="+ Add Routine" TH={TH} /></Panel>}
-              {mobSec === "tasks" && <Panel TH={TH}><PanelHeader title="TASKS" TH={TH} />{displayTasks.map(tk => <div key={tk.id} className="row" onClick={()=>toggleTask(tk.id)}><span>{tk.done ? "✓" : "□"} {tk.text}</span></div>)}<AddRow onClick={() => setModal({ type: "task", item: null })} label="+ Add Task" TH={TH} /></Panel>}
-              {mobSec === "partner" && <Panel TH={TH}><PanelHeader title="PARTNER" TH={TH} /><div style={{padding:20}}>同期中...</div></Panel>}
-              {mobSec === "links" && (
-                   <Panel TH={TH}>
-                   <PanelHeader title="URL HUB" TH={TH} />
-                   {links.map(l => (
-                   <div key={l.id} className="row" style={{ display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: `1px solid ${TH.border}` }}>
-                       <span style={{marginRight:10}}>{l.icon}</span>
-                       <a href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: TH.text, textDecoration: "none", fontSize: 13 }}>{l.name}</a>
-                   </div>
-                   ))}
-               </Panel>
-              )}
-            </div>
-          )}
+            </Panel>
+          </div>
         </div>
       </div>
 
-      {/* OVERLAYS & MODALS */}
-      {settingsOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1500, display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ width: "min(350px, 90vw)", background: TH.bg2, padding: 25, borderLeft: `1px solid ${TH.border}`, display:"flex", flexDirection:"column", gap:20 }}>
-             <h2 style={{ color: TH.gold, letterSpacing:4 }}>SETTINGS</h2>
-             <div><label style={{fontSize:11, color:TH.textMuted}}>USER</label><p style={{color:TH.text, fontSize:14}}>{user ? user.email : "Not logged in"}</p></div>
-             <button onClick={() => signInWithGoogle()} style={{ width: "100%", padding: 12, background: "#fff", color: "#000", borderRadius: 4, fontWeight:"bold", cursor:"pointer" }}>GOOGLE LOGIN</button>
-             <button onClick={() => getSupabase().auth.signOut()} style={{ width: "100%", padding: 10, background: "none", border: `1px solid ${TH.border}`, color: "#999", cursor:"pointer" }}>LOGOUT</button>
-             <button onClick={() => setSettings(false)} style={{ width: "100%", marginTop: "auto", padding: 12, background: TH.goldDark, color: "#fff", border: "none", cursor:"pointer" }}>CLOSE</button>
-          </div>
-        </div>
-      )}
-      
-      {modal?.type === "task" && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 400, border: `1px solid ${TH.gold}` }}>
-            <h3 style={{ color: TH.gold, marginBottom: 15 }}>TASK DETAILS</h3>
-            <input style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.text || ""} onChange={e => saveTask(modal.item, { text: e.target.value })} placeholder="Task name..." />
-            <textarea style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, minHeight: 100 }} value={modal.item?.memo || ""} onChange={e => saveTask(modal.item, { memo: e.target.value })} placeholder="Add memo..." />
-            <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
-              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: TH.gold, border: "none", fontWeight: "bold", cursor:"pointer" }}>SAVE</button>
-              {modal.item && <button onClick={() => { setTasks(prev => prev.filter(tk => tk.id !== modal.item.id)); setModal(null); }} style={{ padding: 10, color: "red", background: "none", border: "1px solid red", cursor:"pointer" }}>DEL</button>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.type === "sched" && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 400, border: `1px solid ${TH.gold}` }}>
-            <h3 style={{ color: TH.gold, marginBottom: 15 }}>ROUTINE SETTING</h3>
-            <input type="time" style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.time || "08:00"} onChange={e => saveSched(modal.item, { time: e.target.value })} />
-            <input style={{ width: "100%", background: TH.inputBg, color: TH.text, border: `1px solid ${TH.border}`, padding: 10, marginBottom: 10 }} value={modal.item?.task || ""} onChange={e => saveSched(modal.item, { task: e.target.value })} placeholder="Routine name..." />
-            <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setModal(null)} style={{ flex:1, padding: 10, background: TH.gold, border: "none", fontWeight: "bold", cursor:"pointer" }}>SAVE</button>
-                {modal.item && <button onClick={() => { setSched(prev => prev.filter(rc => rc.id !== modal.item.id)); setModal(null); }} style={{ padding: 10, color: "red", background: "none", border: "1px solid red", cursor:"pointer" }}>DEL</button>}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* OVERLAYS */}
+      {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettings(false)} userName={userName} setUserName={setUserName} t={t} TH={TH} user={user} />}
+      {modal?.type === "task" && <TaskModal task={modal.item} onSave={(d: any) => saveTask(modal.item, d)} onDelete={(id: string) => setTasks(prev => prev.filter(tk => tk.id !== id))} onClose={() => setModal(null)} TH={TH} />}
+      {modal?.type === "sched" && <ScheduleModal item={modal.item} onSave={(d: any) => saveSched(modal.item, d)} onDelete={(id: string) => setSched(prev => prev.filter(rc => rc.id !== id))} onClose={() => setModal(null)} TH={TH} />}
 
       {/* BOTTOM NAV */}
       <nav className="mob-bar" style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: isMobile ? "flex" : "none", background: TH.bg2, borderTop: `1px solid ${TH.border}`, justifyContent: "space-around", padding: 10, zIndex: 1000 }}>
-        {[
-          {key:"schedule", icon:"🗓", label: "日課"},
-          {key:"partner",  icon:"🤝", label: "相棒"},
-          {key:"tasks",    icon:"✅", label: "タスク"},
-          {key:"links",    icon:"🔗", label: "リンク"},
-          {key:"chart",    icon:"📊", label: "記録"}
-        ].map(k => (
-          <button key={k.key} onClick={() => isMobile ? setMob(k.key) : setTab(k.key === "chart" ? "chart" : k.key === "schedule" ? "today" : k.key)} style={{ background: "none", border: "none", color: (isMobile ? mobSec : activeTab) === (k.key === "chart" ? "chart" : k.key === "schedule" ? "today" : k.key) ? TH.gold : "#555", fontSize: 9, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-            <span style={{fontSize:16}}>{k.icon}</span>
-            <span>{k.label}</span>
-          </button>
+        {["schedule", "tasks", "links", "events"].map(k => (
+          <button key={k} onClick={() => setMob(k)} style={{ background: "none", border: "none", color: mobSec === k ? TH.gold : "#555", fontSize: 9 }}>{k.toUpperCase()}</button>
         ))}
       </nav>
     </div>
   );
+}
+
+// ModalBackdrop 等の基本部品を Dashboard の外に定義
+function ModalBackdrop({ onClose, children, TH }: any) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 450, border: `1px solid ${TH.gold}` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+function Field({ label, children }: any) {
+  return <div style={{ marginBottom: 15 }}><label style={{ fontSize: 10, color: "#888", display: "block", marginBottom: 5 }}>{label}</label>{children}</div>;
 }
