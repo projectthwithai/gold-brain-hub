@@ -749,63 +749,6 @@ function TaskModal({task,onSave,onDelete,onClose,t,TH}: any){
   );
 }
 
-function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
-  const [time, setTime] = useState(item?.time || "08:00");
-  const [endTime, setEndTime] = useState(item?.endTime || ""); 
-  const [task, setTask] = useState(item?.task || "");
-  const [icon, setIcon] = useState(item?.icon || "📌");
-  const [iconImg, setIconImg] = useState(item?.iconImg || null);
-  const [freq, setFreq] = useState(item?.freq || "daily");
-  const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
-  const [steps, setSteps] = useState<RoutineStep[]>(item?.steps || []);
-  const [isShared, setIsShared] = useState(item?.isShared || false);
-  const [options, setOptions] = useState<string[]>(item?.options || [""]);
-  const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
-  const [stepDraft, setStepDraft] = useState("");
-  
-  const IS = mkIS(TH);
-  const toggleDay = (d: number) => setDays((ds: any) => ds.includes(d) ? ds.filter((x: any) => x !== d) : [...ds, d].sort());
-  const updateOption = (i: number, v: string) => { const n = [...options]; n[i] = v; setOptions(n); };
-  const addOpt = () => setOptions([...options, ""]);
-  const remOpt = (i: number) => setOptions(options.filter((_, idx) => idx !== i));
-  const addStep = () => { if(!stepDraft.trim()) return; setSteps(ss => [...ss, {id: String(Date.now()), title: stepDraft.trim(), order: ss.length, isCompleted: false}]); setStepDraft(""); };
-  const removeStep = (id: string) => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
-
-  return (
-    <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
-      <ModalHeader title={item ? "EDIT ROUTINE" : "ADD ROUTINE"} onClose={onClose} TH={TH}/>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>開始時刻</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)}/></div>
-        <div style={{ flex: 1 }}><label style={mkLS(TH)}>終了時刻 (任意)</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
-      </div>
-      <Field label="ルーティン名"><input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="例：Deep Work"/></Field>
-      <Field label="選択肢 (どれか一つ選んで完了にする)">
-        {options.map((opt, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input style={{ ...IS, flex: 1 }} value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`選択肢 ${i+1}`} />
-            <button type="button" onClick={() => remOpt(i)} style={{ color: '#ff7777', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-          </div>
-        ))}
-        <button type="button" onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ 選択肢を追加</button>
-      </Field>
-      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span></label>
-        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span></label>
-      </div>
-      <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
-        {item && <GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
-        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
-        <GBtn onClick={()=>{
-          if(!task.trim() || !time) return;
-          onSave({ time, endTime: endTime || null, task: task.trim(), icon, iconImg, freq, days, steps, isShared, showOnCalendar, options: options.filter(o => o.trim() !== "") });
-          onClose();
-        }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
-      </div>
-    </ModalBackdrop>
-  );
-}
-
 function LinkModal({link,onSave,onDelete,onClose,t,TH}: any){
   const[name,setName]=useState(link?.name||"");
   const[url,setUrl]=useState(link?.url||"https://");
@@ -996,16 +939,22 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
   const [endTime, setEndTime] = useState(item?.endTime || ""); 
   const [task, setTask] = useState(item?.task || "");
   const [icon, setIcon] = useState(item?.icon || "📌");
+  const [iconImg, setIconImg] = useState(item?.iconImg || null);
   const [freq, setFreq] = useState(item?.freq || "daily");
   const [days, setDays] = useState(item?.days || [0,1,2,3,4,5,6]);
+  const [steps, setSteps] = useState(item?.steps || []);
+  const [isShared, setIsShared] = useState(item?.isShared || false);
   const [options, setOptions] = useState<string[]>(item?.options || [""]);
   const [showOnCalendar, setShowOnCalendar] = useState(item?.showOnCalendar ?? true);
+  const [stepDraft, setStepDraft] = useState("");
   
   const IS = mkIS(TH);
   const toggleDay = (d: number) => setDays((ds: any) => ds.includes(d) ? ds.filter((x: any) => x !== d) : [...ds, d].sort());
   const updateOption = (i: number, v: string) => { const n = [...options]; n[i] = v; setOptions(n); };
   const addOpt = () => setOptions([...options, ""]);
   const remOpt = (i: number) => setOptions(options.filter((_, idx) => idx !== i));
+  const addStep = () => { if(!stepDraft.trim()) return; setSteps(ss => [...ss, {id: String(Date.now()), title: stepDraft.trim(), order: ss.length, isCompleted: false}]); setStepDraft(""); };
+  const removeStep = (id: string) => setSteps(ss => ss.filter(s => s.id !== id).map((s, i) => ({...s, order: i})));
 
   return (
     <ModalBackdrop onClose={onClose} TH={TH} maxWidth={520}>
@@ -1024,12 +973,19 @@ function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
         ))}
         <button type="button" onClick={addOpt} style={{ width: '100%', padding: 8, background: 'none', border: `1px dashed ${TH.gold}`, color: TH.gold, fontSize: 10, cursor: 'pointer' }}>+ 選択肢を追加</button>
       </Field>
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        {item && <GBtn variant="danger" onClick={() => { onDelete(item.id); onClose(); }} TH={TH}>削除</GBtn>}
-        <GBtn onClick={() => { 
-          onSave({ time, endTime, task, icon, freq, days, showOnCalendar, options: options.filter(o => o.trim() !== "") }); 
-          onClose(); 
-        }} TH={TH}>保存</GBtn>
+      <Field label={t.icon_lbl}><IconPicker icon={icon} iconImg={iconImg} onIcon={setIcon} onImg={setIconImg} presetIcons={SCHED_ICONS} TH={TH}/></Field>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={isShared} onChange={e=>setIsShared(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>{t.share_routine}</span></label>
+        <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}><input type="checkbox" checked={showOnCalendar} onChange={e=>setShowOnCalendar(e.target.checked)} style={{width:18, height:18, accentColor:TH.gold}}/><span style={{fontSize:13, color:TH.textDim}}>カレンダーに表示する</span></label>
+      </div>
+      <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
+        {item && <GBtn variant="danger" onClick={()=>{onDelete(item.id);onClose();}} TH={TH}>{t.delete_btn}</GBtn>}
+        <GBtn variant="ghost" onClick={onClose} TH={TH}>{t.cancel_btn}</GBtn>
+        <GBtn onClick={()=>{
+          if(!task.trim() || !time) return;
+          onSave({ time, endTime: endTime || null, task: task.trim(), icon, iconImg, freq, days, steps, isShared, showOnCalendar, options: options.filter(o => o.trim() !== "") });
+          onClose();
+        }} TH={TH}>{item ? t.save_btn : t.modal_add_sched}</GBtn>
       </div>
     </ModalBackdrop>
   );
