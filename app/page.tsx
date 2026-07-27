@@ -179,6 +179,26 @@ export default function Dashboard() {
   const [mobSec, setMob] = useState("schedule");
   const [isMobile, setMobile] = useState(false);
   const [modal, setModal] = useState<any>(null);
+  // --- タイマー関連のState ---
+  const [timerItems, setTimerItems] = useState<any[]>(() => LS.get("apx7_timers", [
+    { id: "t1", name: "学習", tasks: ["数学", "英語", "物理"], seconds: 1500 },
+    { id: "t2", name: "Deep Work", tasks: ["GBH開発", "Lab開発"], seconds: 3000 }
+  ]));
+  const [activeTimerId, setActiveTimerId] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(""); // ★第2項：選んだ作業名
+
+  // タイマーのカウントダウン処理
+  useEffect(() => {
+    let interval: any;
+    if (isRunning && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    } else if (timeLeft === 0) {
+      setIsRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, timeLeft]);
   const [settingsOpen, setSettings] = useState(false);
 
   const TH = THEMES.dark;
@@ -200,6 +220,57 @@ export default function Dashboard() {
       if (data.links) setLinks(data.links);
     })();
   }, [isOnline, user?.id]);
+
+  const TimerPanel = () => {
+    const currentTimer = timerItems.find(t => t.id === activeTimerId);
+
+    return (
+      <Panel TH={TH}>
+        <PanelHeader title="TACTICAL TIMER" sub={isRunning ? `Focusing on: ${selectedTask}` : "準備を整えよ"} TH={TH} />
+        <div style={{ padding: 26, textAlign: 'center' }}>
+          {!activeTimerId ? (
+            /* タイマー選択画面 */
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {timerItems.map(t => (
+                <button key={t.id} onClick={() => { setActiveTimerId(t.id); setTimeLeft(t.seconds); }} style={{ padding: 20, background: TH.bg2, border: `1px solid ${TH.border}`, color: TH.gold, borderRadius: 4, cursor: 'pointer' }}>
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          ) : !isRunning && !selectedTask ? (
+            /* ★第2項：作業選択画面 */
+            <div>
+              <p style={{ fontSize: 12, color: TH.textDim, marginBottom: 15 }}>何に従事するか選べ：</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+                {currentTimer?.tasks.map((task: string) => (
+                  <button key={task} onClick={() => setSelectedTask(task)} style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${TH.gold}`, color: TH.gold, borderRadius: 20, cursor: 'pointer' }}>
+                    {task}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setActiveTimerId(null)} style={{ marginTop: 20, background: 'none', border: 'none', color: TH.textMuted, fontSize: 10, cursor: 'pointer' }}>← 戻る</button>
+            </div>
+          ) : (
+            /* カウントダウン表示 */
+            <div>
+              <div style={{ fontSize: 48, fontFamily: 'monospace', color: TH.text, marginBottom: 10 }}>
+                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+              </div>
+              <p style={{ fontSize: 11, color: TH.gold, marginBottom: 20 }}>{selectedTask}</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setIsRunning(!isRunning)} style={{ flex: 1, padding: 12, background: TH.gold, color: "#000", border: 'none', fontWeight: 'bold', borderRadius: 4 }}>
+                  {isRunning ? "PAUSE" : "START"}
+                </button>
+                <button onClick={() => { setIsRunning(false); setActiveTimerId(null); setSelectedTask(""); }} style={{ flex: 1, padding: 12, background: 'none', border: `1px solid ${TH.border}`, color: TH.textDim, borderRadius: 4 }}>
+                  RESET
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Panel>
+    );
+  };
 
   const cloudSave = useCallback(async (key: string, value: any) => {
     if (isOnline && user) await upsertData(user.id, key, value);
@@ -255,6 +326,13 @@ export default function Dashboard() {
                 <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
               </Panel>
             )}
+            {/* モバイル表示の例 */}
+{mobSec === "schedule" && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <TimerPanel /> {/* ★ここにタイマーを出現させる */}
+    <Panel TH={TH}> ...ルーティン... </Panel>
+  </div>
+)}
 
             {(!isMobile || mobSec === "tasks") && (
               <Panel TH={TH}>
