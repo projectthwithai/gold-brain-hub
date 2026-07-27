@@ -8,20 +8,17 @@ export interface RoutineStep {
 }
 
 export interface RoutineItem {
-  id: string;
-  time: string;
-  endTime?: string | null;      // ★追加：終了時刻
-  task: string;
-  icon: string;
-  iconImg?: string | null;
-  done: boolean;
-  freq: string;
-  days: number[];
-  steps?: RoutineStep[];
-  options?: string[];           // ★追加：選択肢のリスト
-  selectedOption?: string | null; // ★追加：選ばれた選択肢
-  isShared?: boolean;
-  showOnCalendar?: boolean;
+  // ...既存の項目
+  mode?: "all" | "weekday" | "holiday" | "monk"; // ★追加：表示モード
+  // ...
+}
+
+// ユーザー設定（OSConfiguration）にも現在のモードを追加
+export interface OSConfiguration {
+  lang: "ja" | "en";
+  themeName: "dark" | "light";
+  userName: string;
+  activeMode: "weekday" | "holiday" | "monk"; // ★追加
 }
 
 export interface TaskItem {

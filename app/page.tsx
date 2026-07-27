@@ -1055,6 +1055,16 @@ export default function Dashboard() {
   // --- 1. 全ての State（状態）管理 ---
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setSyncStatus] = useState("idle");
+  // --- モード管理State ---
+  const [activeMode, setActiveMode] = useState<"weekday" | "holiday" | "monk">(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("apx7_activeMode") as any) || "weekday";
+    return "weekday";
+  });
+
+  // モード変更時にLocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem("apx7_activeMode", activeMode);
+  }, [activeMode]);
   const user: User | null = session?.user ?? null;
   const isOnline = !!user && isSupabaseConfigured();
 
@@ -1146,7 +1156,15 @@ export default function Dashboard() {
       {activeTab === "today" && (
         <div style={{ padding: "10px 0" }}>
           {Array.from(new Set(tasks.map(tk => tk.category || "Focus"))).map(catName => {
-            const sortedInCat = [...tasks.filter(tk => (tk.category || "Focus") === catName)].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+            const sortedInCat = [...tasks.filter((tk: any) => {
+              // 1. カテゴリが一致するか
+              if ((tk.category || "Focus") !== catName) return false;
+              // 2. 未完了なら表示
+              if (!tk.done) return true;
+              // 3. 完了済みの場合：今日完了したものだけを表示（＝日付が変われば消える）
+              const doneDate = tk.updated_at ? tk.updated_at.split('T')[0] : currentDayStr;
+              return doneDate === currentDayStr;
+            })].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
             return (
               <div key={catName} style={{ marginBottom: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 15px', borderBottom: `1px solid ${TH.border}`, background: `${TH.gold}08` }}>
@@ -1216,6 +1234,24 @@ export default function Dashboard() {
           <div>
             <h1 style={{ fontSize: 32, letterSpacing: 8, color: TH.gold }}>APEX HUB</h1>
             <p style={{ color: TH.goldLight, fontSize: 12 }}>{userName ? `WELCOME, ${userName}` : t.tagline}</p>
+            {/* モード切り替えボタン */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              {["weekday", "holiday", "monk"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setActiveMode(m as any)}
+                  style={{
+                    padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+                    background: activeMode === m ? TH.gold : 'transparent',
+                    color: activeMode === m ? TH.bg : TH.textDim,
+                    border: `1px solid ${TH.goldDark}`,
+                    textTransform: 'uppercase', letterSpacing: 1, transition: '0.2s'
+                  }}
+                >
+                  {m === "monk" ? "🔥 MONK" : m === "weekday" ? "🏢 WORK" : "☕ REST"}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 24, fontFamily: "monospace" }}>{timeStr}</div>
@@ -1230,10 +1266,14 @@ export default function Dashboard() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <Panel TH={TH}>
-                <PanelHeader title={t.routine_title} TH={TH} />
-                {sched.filter(rc => isActiveToday(rc, currentDayOfWeek)).map(rc => (
-                  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
-                ))}
+              {sched.filter((rc: any) => {
+  const dayMatch = isActiveToday(rc, currentDayOfWeek);
+  // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
+  const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
+  return dayMatch && modeMatch;
+}).map(rc => (
+  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
+))}
                 <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
               </Panel>
               <TasksPanel />
@@ -1253,10 +1293,14 @@ export default function Dashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 80 }}>
             {mobSec === "schedule" && (
               <Panel TH={TH}>
-                <PanelHeader title={t.routine_title} TH={TH} />
-                {sched.filter(rc => isActiveToday(rc, currentDayOfWeek)).map(rc => (
-                  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
-                ))}
+                {sched.filter((rc: any) => {
+  const dayMatch = isActiveToday(rc, currentDayOfWeek);
+  // モードが設定されていない(all)か、現在のモードと一致する場合のみ表示
+  const modeMatch = !rc.mode || rc.mode === "all" || rc.mode === activeMode;
+  return dayMatch && modeMatch;
+}).map(rc => (
+  <RoutineRow key={rc.id} routine={rc} onToggleDone={() => toggleSched(rc.id)} onEdit={() => setModal({ type: "sched", item: rc })} TH={TH} t={t} />
+))}
                 <AddRow onClick={() => setModal({ type: "sched", item: null })} label={t.add_routine} TH={TH} />
               </Panel>
             )}
