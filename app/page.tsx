@@ -48,6 +48,28 @@ const AddRow = ({ onClick, label }: any) => (
 // 2. SUB-COMPONENTS (Dashboardの外に配置：エラー防止)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2. SUB-COMPONENTS (外部定義：エラー防止の要)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const Panel = ({ children, TH, style = {} }: any) => (
+  <div style={{ background: TH.surface, border: `1px solid ${TH.borderGold}`, borderRadius: 4, overflow: "hidden", position: "relative", ...style }}>
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg,transparent,${TH.gold}44,transparent)` }} />
+    {children}
+  </div>
+);
+
+const PanelHeader = ({ title, sub, right, TH }: any) => (
+  <div style={{ padding: "12px 15px", borderBottom: `1px solid ${TH.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div><h2 style={{ fontSize: 11, letterSpacing: 3, color: TH.gold, textTransform: "uppercase" }}>{title}</h2>{sub && <p style={{ fontSize: 8, color: TH.textMuted }}>{sub}</p>}</div>
+    {right}
+  </div>
+);
+
+const AddRow = ({ onClick, label }: any) => (
+  <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "10px", background: "transparent", border: `1px dashed #333`, color: "#888", cursor: "pointer", fontSize: 10, letterSpacing: 2, textTransform: "uppercase" }}>{label}</button>
+);
+
 const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
   const handleToggle = () => { if (routine.done) routine.selectedOption = null; onToggleDone(); };
   
@@ -57,11 +79,13 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
     : routine.task;
 
   return (
-    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '14px 18px', borderBottom: `1px solid ${TH.border}` }}>
+    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 15px', borderBottom: `1px solid ${TH.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div onClick={handleToggle} style={{ width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-          {routine.done && "✓"}
-        </div>
+        {(routine.done || !routine.options?.length) && (
+          <div onClick={handleToggle} style={{ width: 20, height: 20, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            {routine.done && "✓"}
+          </div>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>{routine.icon || "📌"}</span>
@@ -78,50 +102,55 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
         {!routine.done && routine.cycle?.length > 0 && (
           <button onClick={(e) => { e.stopPropagation(); onToggleDone(); onToggleDone(); }} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, fontSize: 8, padding: "2px 6px", borderRadius: 2, cursor: "pointer", marginRight: 10 }}>NEXT ⏭️</button>
         )}
-        <button onClick={onEdit} style={{background:"none", border:"none", cursor:"pointer", fontSize:12}}>✏️</button>
+        <button onClick={onEdit} className="edit-btn">✏️</button>
       </div>
+      {!routine.done && routine.options?.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', paddingLeft: 32 }}>
+          {routine.options.map((opt: string) => (
+            <button key={opt} onClick={() => { routine.selectedOption = opt; onToggleDone(); }} style={{ background: 'transparent', border: `1px solid ${TH.goldDark}`, color: TH.gold, fontSize: 8, padding: '2px 8px', borderRadius: 10, cursor: 'pointer' }}>+ {opt}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
-function ScheduleModal({item, onSave, onDelete, onClose, t, TH}: any){
-  const [time, setTime] = useState(item?.time || "08:00");
-  const [endTime, setEndTime] = useState(item?.endTime || ""); 
-  const [task, setTask] = useState(item?.task || "");
-  const [mode, setMode] = useState(item?.mode || "all");
-  const [cycleStr, setCycleStr] = useState(item?.cycle?.join(", ") || "");
-  
-  const IS = { width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: "10px", borderRadius: 2, marginBottom: 10 };
+// 【重要】今回足りなかったカレンダーの定義
+const EventCalendar = ({ TH, tasks, sched, vy, vm, setVY, setVM, onAddEvent }: any) => {
+  const today = new Date();
+  const cells = []; 
+  const fd = new Date(vy, vm, 1).getDay();
+  const dim = new Date(vy, vm + 1, 0).getDate();
+  for (let i = 0; i < fd; i++) cells.push(null); for (let d = 1; d <= dim; d++) cells.push(d);
+  const prev = () => { if (vm === 0) { setVY(vy - 1); setVM(11); } else setVM(vm - 1); };
+  const next = () => { if (vm === 11) { setVY(vy + 1); setVM(0); } else setVM(vm + 1); };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 450, border: `1px solid ${TH.gold}` }}>
-        <h3 style={{ color: TH.gold, marginBottom: 15 }}>ROUTINE ADVANCED SETTING</h3>
-        <label style={{fontSize:10, color:TH.textMuted}}>表示モード</label>
-        <select style={IS} value={mode} onChange={e=>setMode(e.target.value)}>
-          <option value="all">全モード</option>
-          <option value="weekday">WEEKDAY (平日)</option>
-          <option value="holiday">HOLIDAY (休日)</option>
-          <option value="monk">MONK MODE (修行)</option>
-        </select>
-        <label style={{fontSize:10, color:TH.textMuted}}>サイクル (カンマ区切り)</label>
-        <input style={IS} value={cycleStr} onChange={e=>setCycleStr(e.target.value)} placeholder="例：上半身, 下半身" />
-        <div style={{display:"flex", gap:10}}>
-          <div style={{flex:1}}><label style={{fontSize:10}}>開始</label><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)} /></div>
-          <div style={{flex:1}}><label style={{fontSize:10}}>終了</label><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)} /></div>
-        </div>
-        <input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="ルーティン名" />
-        <div style={{display:"flex", gap:10, marginTop:10}}>
-          {item && <button onClick={() => { onDelete(item.id); onClose(); }} style={{ flex: 1, background: "#200", color: "red", border: "1px solid red", padding:10, borderRadius:4, cursor:"pointer" }}>DELETE</button>}
-          <button onClick={() => { 
-            onSave({ time, endTime, task, mode, cycle: cycleStr ? cycleStr.split(",").map((s:any) => s.trim()) : [] }); 
-            onClose(); 
-          }} style={{flex:2, padding:10, background:TH.gold, color:"#000", fontWeight:"bold", border:"none", borderRadius:4, cursor:"pointer"}}>SAVE</button>
-        </div>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={prev} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>‹</button>
+        <span style={{ fontSize: 11, color: TH.gold }}>{vy} / {vm + 1}</span>
+        <button onClick={next} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>›</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const dstr = `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const isToday = today.getFullYear()===vy && today.getMonth()===vm && today.getDate()===d;
+          return (
+            <div key={dstr} style={{ minHeight: 45, border: `1px solid ${isToday ? TH.gold : TH.border}`, padding: 4, background: isToday ? `${TH.gold}05` : "none" }}>
+              <div style={{ fontSize: 9, color: isToday ? TH.gold : TH.textDim }}>{d}</div>
+              <div style={{ display: 'flex', gap: 1, marginTop: 2, flexWrap: 'wrap' }}>
+                {tasks?.filter((tk: any) => tk.deadline === dstr).map((tk: any) => <div key={tk.id} style={{ width: 4, height: 4, background: TH.textMuted, borderRadius: '50%' }}></div>)}
+                {sched?.filter((rc: any) => rc.done && isToday).map((rc: any) => <div key={rc.id} style={{ width: 4, height: 4, background: TH.gold, borderRadius: '50%' }}></div>)}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
-}
+};
 export default function Dashboard() {
   const [shouldRecord, setShouldRecord] = useState(true);
   const [session, setSession] = useState<any>(null);
