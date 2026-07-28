@@ -47,6 +47,42 @@ const AddRow = ({ onClick, label }: any) => (
 const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
   const handleToggle = () => { if (routine.done) routine.selectedOption = null; onToggleDone(); };
   
+  // 【第3項目】サイクル表示ロジック
+  // サイクル設定があれば現在の番号の内容を、なければ通常のタスク名を表示
+  const displayTaskName = (routine.cycle && routine.cycle.length > 0)
+    ? routine.cycle[routine.currentCycleIndex || 0]
+    : routine.task;
+
+  return (
+    <div className="row" style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '14px 18px', borderBottom: `1px solid ${TH.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div onClick={handleToggle} style={{ width: 22, height: 22, border: `1px solid ${routine.done ? TH.gold : TH.border}`, background: routine.done ? `${TH.gold}1a` : "transparent", borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          {routine.done && "✓"}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{routine.icon || "📌"}</span>
+            <span style={{ fontSize: 13, color: routine.done ? TH.textMuted : TH.text, textDecoration: routine.done ? 'line-through' : 'none', opacity: routine.done ? 0.6 : 1 }}>
+              {displayTaskName}
+              {routine.cycle?.length > 0 && <span style={{fontSize:8, color:TH.goldDark, border:`1px solid ${TH.goldDark}`, padding:'0 3px', marginLeft:8}}>CYCLE</span>}
+            </span>
+          </div>
+          {/* 【第1項目】開始〜終了時刻の表示 */}
+          <div style={{ fontSize: 10, color: TH.textMuted }}>
+            {routine.time}{routine.endTime ? ` 〜 ${routine.endTime}` : ""}
+          </div>
+        </div>
+        
+        {/* 手動でサイクルを次に進めるボタン */}
+        {!routine.done && routine.cycle?.length > 0 && (
+          <button onClick={(e) => { e.stopPropagation(); onToggleDone(); onToggleDone(); }} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, fontSize: 8, padding: "2px 6px", borderRadius: 2, cursor: "pointer", marginRight: 10 }}>NEXT ⏭️</button>
+        )}
+        <button onClick={onEdit} className="edit-btn">✏️</button>
+      </div>
+    </div>
+  );
+};
+  
   // 現在のサイクルの内容（例：上半身）を取得
   const taskName = routine.cycle?.length 
     ? routine.cycle[routine.currentCycleIndex || 0] 
@@ -71,52 +107,40 @@ const RoutineRow = ({ routine, onToggleDone, onEdit, TH }: any) => {
       </div>
     </div>
   );
-};
-
-// 【第8項目】カレンダーのWIN/LOSE表示
-const EventCalendar = ({ TH, tasks, sched, vy, vm, setVY, setVM, streakPct }: any) => {
-  const today = new Date();
-  const cells = []; 
-  const fd = new Date(vy, vm, 1).getDay();
-  for (let i = 0; i < fd; i++) cells.push(null); for (let d = 1; d <= 31; d++) cells.push(d);
-  const prev = () => { if (vm === 0) { setVY(vy - 1); setVM(11); } else setVM(vm - 1); };
-  const next = () => { if (vm === 11) { setVY(vy + 1); setVM(0); } else setVM(vm + 1); };
+// 110行目付近から Dashboard の上の間に貼り付け
+function ScheduleModal({item, onSave, onDelete, onClose, TH}: any){
+  const [time, setTime] = useState(item?.time || "08:00");
+  const [endTime, setEndTime] = useState(item?.endTime || ""); 
+  const [task, setTask] = useState(item?.task || "");
+  const [mode, setMode] = useState(item?.mode || "all");
+  const [cycleStr, setCycleStr] = useState(item?.cycle?.join(", ") || "");
+  const [options, setOptions] = useState<string[]>(item?.options || [""]);
+  
+  const IS = { width: "100%", background: TH.inputBg, border: `1px solid ${TH.border}`, color: TH.text, padding: "10px", borderRadius: 2, marginBottom: 10 };
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-        <button onClick={prev} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>‹</button>
-        <span style={{ fontSize: 11, color: TH.gold }}>{vy} / {vm + 1}</span>
-        <button onClick={next} style={{ background: "none", border: `1px solid ${TH.border}`, color: TH.textDim, cursor:"pointer" }}>›</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-        {cells.map((d, i) => {
-          if (!d) return <div key={i} />;
-          const dstr = `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          const isToday = today.getFullYear()===vy && today.getMonth()===vm && today.getDate()===d;
-          
-          const doneCount = sched.filter((rc: any) => rc.done).length;
-          const isWin = sched.length > 0 && (doneCount / sched.length) * 100 >= streakPct;
-
-          return (
-            <div key={i} style={{ minHeight: 45, border: `1px solid ${isToday ? TH.gold : TH.border}`, padding: 4, background: isToday ? `${TH.gold}05` : "none" }}>
-              <div style={{ fontSize: 9, color: isToday ? TH.gold : TH.textDim }}>{d}</div>
-              {doneCount > 0 && isToday && (
-                <div style={{ fontSize: 7, fontWeight: 'bold', color: isWin ? '#4AFF9E' : '#FF4A9E' }}>{isWin ? "WIN" : "LOSE"}</div>
-              )}
-            </div>
-          );
-        })}
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: TH.surface, padding: 25, borderRadius: 8, width: "100%", maxWidth: 450, border: `1px solid ${TH.gold}` }}>
+        <h3 style={{ color: TH.gold, marginBottom: 15 }}>ROUTINE ADVANCED SETTING</h3>
+        <div style={{display:"flex", gap:10}}><input type="time" style={IS} value={time} onChange={e=>setTime(e.target.value)} /><input type="time" style={IS} value={endTime} onChange={e=>setEndTime(e.target.value)} /></div>
+        <input style={IS} value={task} onChange={e=>setTask(e.target.value)} placeholder="Task name..." />
+        <select style={IS} value={mode} onChange={e=>setMode(e.target.value)}><option value="all">ALL MODES</option><option value="weekday">WEEKDAY</option><option value="holiday">HOLIDAY</option><option value="monk">MONK MODE</option></select>
+        <input style={IS} value={cycleStr} onChange={e=>setCycleStr(e.target.value)} placeholder="サイクル項目 (カンマ区切り)" />
+        <div style={{display:"flex", gap:10, marginTop:10}}>
+          {item && <button onClick={() => { onDelete(item.id); onClose(); }} style={{ flex: 1, background: "#200", color: "red", border: "1px solid red", padding:10, borderRadius:4 }}>DELETE</button>}
+          <button onClick={() => { onSave({ time, endTime, task, mode, cycle: cycleStr ? cycleStr.split(",").map((s:any) => s.trim()) : [] }); onClose(); }} style={{flex:2, padding:10, background:TH.gold, color:"#000", fontWeight:"bold", border:"none", borderRadius:4}}>SAVE</button>
+        </div>
       </div>
     </div>
   );
-};
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 3. MAIN DASHBOARD
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function Dashboard() {
+  const [shouldRecord, setShouldRecord] = useState(true);
   const [session, setSession] = useState<any>(null);
   const user = session?.user ?? null;
   const isOnline = !!user && isSupabaseConfigured();
@@ -227,19 +251,18 @@ export default function Dashboard() {
     setSched(prev => prev.map(rc => {
       if (rc.id !== id) return rc;
       const nextDone = !rc.done;
-
-      // 【第3項目】チェックを入れた瞬間に中身を次に進める
+      // 完了した瞬間にインデックスを1つ進める（サイクル機能）
       let nextIdx = rc.currentCycleIndex || 0;
       if (nextDone && rc.cycle && rc.cycle.length > 0) {
         nextIdx = (nextIdx + 1) % rc.cycle.length;
       }
-
       return { ...rc, done: nextDone, currentCycleIndex: nextIdx };
     }));
   };
   const saveSched = (item: any, d: any) => {
     if (!item) setSched(prev => [...prev, { id: String(Date.now()), done: false, ...d }]);
     else setSched(prev => prev.map(rc => rc.id === item.id ? { ...rc, ...d } : rc));
+    setModal(null);
   };
 
   const displayTasks = tasks.filter(tk => !tk.done || (tk.updated_at || "").split('T')[0] === currentDayStr);
@@ -252,6 +275,13 @@ export default function Dashboard() {
           {["数学", "英語", "ビジネス"].map(tk => (
             <button key={tk} onClick={() => { setSelectedTask(tk); setTimeLeft(3000); }} style={{ padding: '10px 20px', background: 'none', border: `1px solid ${TH.gold}`, color: TH.gold, borderRadius: 4, cursor: "pointer" }}>{tk}</button>
           ))}
+          {/* 画像の289行目（</div>の手前）に挿入 */}
+          <div style={{ marginTop: 15 }}>
+            <label style={{ fontSize: 10, color: TH.textDim, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+              <input type="checkbox" checked={shouldRecord} onChange={e => setShouldRecord(e.target.checked)} />
+              このセッションを記録タブに残す
+            </label>
+          </div>
         </div>
       ) : (
         <div>
