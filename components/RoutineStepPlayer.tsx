@@ -1,10 +1,12 @@
 // @ts-nocheck
-import ModalBackdrop from "./ModalBackdrop";
 
 export default function RoutineStepPlayer({ routine, onCompleteStep, onClose, TH, t }: any) {
   const currentStep = routine.steps.find((s: any) => !s.isCompleted) || routine.steps[routine.steps.length - 1];
   const completedCount = routine.steps.filter((s: any) => s.isCompleted).length;
   const progress = (completedCount / routine.steps.length) * 100;
+  const stepLabel = typeof t?.step_of === "function"
+    ? t.step_of(completedCount, routine.steps.length)
+    : `STEP ${completedCount}/${routine.steps.length}`;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: TH.bg, zIndex: 3000, display: 'flex', flexDirection: 'column', padding: 20 }}>
@@ -24,7 +26,7 @@ export default function RoutineStepPlayer({ routine, onCompleteStep, onClose, TH
 
       <div style={{ padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: TH.textMuted, marginBottom: 8 }}>
-          <span>{t.step_of(completedCount, routine.steps.length)}</span>
+          <span>{stepLabel}</span>
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="pbar"><div className="pfill" style={{ width: `${progress}%` }} /></div>

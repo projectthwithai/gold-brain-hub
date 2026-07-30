@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 
-export default function PartnerPanel({ TH, t, lang, userId, userName, partnership, pendingCode, partnerSnapshot, mySnapshot, activities, onGenerateCode, onJoinCode, loading }: any) {
+export default function PartnerPanel({ TH, t, userId, partnership, pendingCode, partnerSnapshot, mySnapshot, activities, onGenerateCode, onJoinCode, loading }: any) {
   const [inputCode, setInputCode] = useState("");
 
   if (!userId) return <div style={{ padding: 20, textAlign: 'center', color: TH.textMuted }}>{t.no_partner}</div>;
@@ -42,7 +42,7 @@ export default function PartnerPanel({ TH, t, lang, userId, userName, partnershi
             <p style={{ fontSize: 10, color: TH.gold, marginBottom: 8, letterSpacing: 2 }}>{t.activity_feed}</p>
             {activities.length === 0 ? <p style={{ fontSize: 10, color: TH.textMuted }}>{t.no_activity}</p> : activities.map((a: any) => (
               <div key={a.id} style={{ fontSize: 11, padding: '6px 0', borderBottom: `1px solid ${TH.border}44`, color: TH.textDim }}>
-                {a.metadata?.message || "Activity recorded"}
+                {a.message || a.payload?.message || "Activity recorded"}
               </div>
             ))}
           </div>
