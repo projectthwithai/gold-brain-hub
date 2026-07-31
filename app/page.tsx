@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
-// --- 型定義 ---
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
 
@@ -23,13 +22,13 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const INITIAL_ROUTINES: RoutineItem[] = [
   { id: "r1", name: "朝5時 Deep Work (数学演習)", startTime: "05:00", endTime: "06:30", duration: 90, modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 1, freqDaysOfWeek: [1, 2, 3, 4, 5], done: false },
   { id: "r2", name: "高強度筋トレ (肉体兵站補給)", startTime: "06:30", endTime: "07:15", duration: 45, modes: ["weekday", "holiday", "monk"], freqType: "interval", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5], done: false },
-  { id: "r3", name: "英語 SVOC 論理構造インストール", startTime: "08:00", endTime: "09:00", duration: 60, modes: ["weekday", "monk"], freqType: "weekly", freqIntervalDays: 1, freqDaysOfWeek: [1, 3, 5], done: false },
+  { id: "r3", name: "英語 SVOC 論理構造インストール", startTime: "08:00", endTime: "09:00", duration: 60, modes: ["weekday", "monk"], freqType: "weekly", freqIntervalDays: 1, freqDaysOfWeek: [1, 3, 5], done: false }, // 月, 水, 金
+  { id: "r4", name: "現代文 論理デバッグ＆要約演習", startTime: "09:15", endTime: "10:00", duration: 45, modes: ["weekday", "monk"], freqType: "weekly", freqIntervalDays: 1, freqDaysOfWeek: [2, 4, 6], done: false }, // 火, 木, 土
 ];
 
 export default function Page() {
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record">("routine");
 
-  // ルーティンState
   const [currentMode, setCurrentMode] = useState<RoutineMode>("weekday");
   const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
@@ -47,7 +46,6 @@ export default function Page() {
   const [isRunning, setIsRunning] = useState(false);
   const [timerMode, setTimerMode] = useState<"work" | "break">("work");
 
-  // クイックタイマー起動
   const handleQuickTimer = (name: string, duration: number) => {
     setTaskName(name);
     setCustomMins(duration);
@@ -57,7 +55,6 @@ export default function Page() {
     setTab("timer");
   };
 
-  // タイマーカウントダウン
   useEffect(() => {
     let interval: any = null;
     if (isRunning && timeLeft > 0) {
@@ -69,7 +66,6 @@ export default function Page() {
     return () => { if (interval) clearInterval(interval); };
   }, [isRunning, timeLeft, timerMode]);
 
-  // 作業停止時 1/5 自動計算ポモドーロ
   const handleStopOrComplete = () => {
     setIsRunning(false);
     if (timerMode === "work") {
@@ -83,9 +79,36 @@ export default function Page() {
     }
   };
 
-  const filteredRoutines = routines.filter((r) => r.modes.includes(currentMode)).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const completedCount = filteredRoutines.filter((r) => r.done).length;
-  const progressPct = filteredRoutines.length > 0 ? Math.round((completedCount / filteredRoutines.length) * 100) : 0;
+  const todayDow = new Date().getDay(); // 今日の曜日 (0=日, 1=月, ..., 6=土)
+
+  // 1. 本日表示されるアクティブ日課
+  const activeRoutines = routines.filter((r) => {
+    if (!r.modes.includes(currentMode)) return false;
+    if (r.freqType === "daily") return true;
+    if (r.freqType === "weekly") return r.freqDaysOfWeek?.includes(todayDow) ?? true;
+    if (r.freqType === "interval") return true;
+    return true;
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // 2. 本日対象外（未来に控えている）の非アクティブ日課
+  const upcomingRoutines = routines.filter((r) => {
+    if (!r.modes.includes(currentMode)) return false;
+    if (r.freqType === "weekly") return !r.freqDaysOfWeek?.includes(todayDow);
+    return false;
+  });
+
+  // 「あと〇日後に表示」の動的計算ロジック
+  const getDaysUntilNext = (item: RoutineItem) => {
+    if (item.freqType === "interval") {
+      return item.freqIntervalDays - 1 || 1;
+    }
+    if (item.freqType === "weekly" && item.freqDaysOfWeek && item.freqDaysOfWeek.length > 0) {
+      // 次の指定曜日までの最小日数を計算
+      const diffs = item.freqDaysOfWeek.map((d) => (d - todayDow + 7) % 7).filter((d) => d > 0);
+      return diffs.length > 0 ? Math.min(...diffs) : 7;
+    }
+    return 1;
+  };
 
   const toggleFreqDay = (dow: number, isEdit: boolean) => {
     if (isEdit && editingRoutine) {
@@ -98,6 +121,9 @@ export default function Page() {
       setNewRoutine({ ...newRoutine, freqDaysOfWeek: updated });
     }
   };
+
+  const completedCount = activeRoutines.filter((r) => r.done).length;
+  const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
@@ -135,7 +161,7 @@ export default function Page() {
       {tab === "routine" && (
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン全件管理一覧</h3>
+            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン管理</h3>
 
             <div style={{ display: "flex", gap: "8px" }}>
               <button onClick={() => setIsCreating(true)} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
@@ -167,7 +193,7 @@ export default function Page() {
           {/* 達成度バー */}
           <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px", color: "#ccc" }}>
-              <span>【{currentMode.toUpperCase()}】本日の日課達成度 ({completedCount} / {filteredRoutines.length})</span>
+              <span>【{currentMode.toUpperCase()}】本日の日課達成度 ({completedCount} / {activeRoutines.length})</span>
               <span style={{ color: "#C9A84C", fontWeight: "bold" }}>{progressPct}%</span>
             </div>
             <div style={{ width: "100%", background: "#222", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
@@ -175,9 +201,10 @@ export default function Page() {
             </div>
           </div>
 
-          {/* チェックボックスカードリスト */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {filteredRoutines.map((item) => (
+          {/* 本日のアクティブ日課カードリスト */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
+            <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 本日の実行日課:</span>
+            {activeRoutines.map((item) => (
               <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #222", padding: "12px 15px", borderRadius: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <input
@@ -207,6 +234,39 @@ export default function Page() {
               </div>
             ))}
           </div>
+
+          {/* ★新機能要件: 本日非表示のルーティンを下に薄く表示＆「あと〇日後に表示」バッジ！ */}
+          {upcomingRoutines.length > 0 && (
+            <div style={{ borderTop: "1px dashed #333", paddingTop: "20px" }}>
+              <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💤 本日対象外 (次回準備中の日課):</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {upcomingRoutines.map((item) => {
+                  const daysLeft = getDaysUntilNext(item);
+                  return (
+                    <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1f1f1f", padding: "10px 15px", borderRadius: "6px", opacity: 0.45 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <input type="checkbox" disabled checked={false} style={{ cursor: "not-allowed", width: "16px", height: "16px" }} />
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
+                            <span style={{ fontSize: "11px", color: "#666" }}>⏰ {item.startTime} - {item.endTime}</span>
+                            {/* ★「あと〇日後に表示」バッジ表示！ */}
+                            <span style={{ fontSize: "10px", padding: "2px 6px", background: "#221100", color: "#f59e0b", border: "1px solid #78350f", borderRadius: "3px", fontWeight: "bold" }}>
+                              ⏳ あと {daysLeft} 日後に表示
+                            </span>
+                          </div>
+                          <span style={{ color: "#aaa", fontSize: "14px" }}>{item.name}</span>
+                        </div>
+                      </div>
+
+                      <button onClick={() => setEditingRoutine(item)} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px" }}>
+                        ✏️ 編集
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -331,7 +391,6 @@ export default function Page() {
               >
                 保存する
               </button>
-
               <button onClick={() => { setIsCreating(false); setEditingRoutine(null); }} style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
                 キャンセル
               </button>
@@ -365,7 +424,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* その他の簡略タグ表示 */}
+      {/* その他のタブ */}
       {tab === "task" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>✅ タスク管理ボード (稼働中)</div>}
       {tab === "calendar" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📅 カレンダー WIN/LOSE 表示 (稼働中)</div>}
       {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
