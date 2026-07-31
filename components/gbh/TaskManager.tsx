@@ -1,110 +1,427 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-export interface Task {
+// ジャンル(カテゴリ)選択肢型
+export interface TaskCategoryOption {
   id: string;
-  text: string;
-  category: "数学" | "英語" | "現代文" | "Vision" | "兵站";
-  done: boolean;
-  memo?: string;
+  label: string;
 }
 
+export interface TaskItem {
+  id: string;
+  text: string;
+  category: string;     // 選択ジャンル名
+  done: boolean;
+  completedAt?: number; // 完了時のタイムスタンプ (24時間パージ用)
+  memo?: string;        // メモ
+}
+
+const INITIAL_CATEGORIES: TaskCategoryOption[] = [
+  { id: "c1", label: "数学" },
+  { id: "c2", label: "英語" },
+  { id: "c3", label: "現代文" },
+  { id: "c4", label: "Vision" },
+  { id: "c5", label: "兵站" },
+];
+
+const INITIAL_TASKS: TaskItem[] = [
+  { id: "1", text: "17歳の野望を開始せよ (筑波AC突破)", category: "Vision", done: false, memo: "情報メディア創成学類合格に向けた実績づくり" },
+  { id: "2", text: "微分積分 演習問題 10問解く", category: "数学", done: false, memo: "教科書P.45〜P.50の応用問題を解く" },
+  { id: "3", text: "SVOC 精読長文 2文精読", category: "英語", done: true, completedAt: Date.now() - 3600000 }, // 1時間前に完了
+];
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間 (1日)
+
 export default function TaskManager() {
-  const [taskList, setTaskList] = useState<Task[]>([
-    { id: "1", text: "17歳の野望を開始せよ (筑波AC突破)", category: "Vision", done: false, memo: "情報メディア創成学類合格に向けた実績づくり" },
-    { id: "2", text: "微分積分 演習問題 10問解く", category: "数学", done: false },
-    { id: "3", text: "SVOC 精読長文 2文精読", category: "英語", done: true },
-  ]);
+  // ジャンル選択肢自体の管理 (追加・編集・削除)
+  const [categories, setCategories] = useState<TaskCategoryOption[]>(INITIAL_CATEGORIES);
+  const [newCatInput, setNewCatInput] = useState("");
+  const [editingCat, setEditingCat] = useState<TaskCategoryOption | null>(null);
+  const [isManagingCategories, setIsManagingCategories] = useState(false);
+
+  // タスク管理State
+  const [taskList, setTaskList] = useState<TaskItem[]>(INITIAL_TASKS);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+
+  // 新規タスク追加フォーム State
   const [newText, setNewText] = useState("");
-  const [newCategory, setNewCategory] = useState<Task["category"]>("数学");
+  const [newCategory, setNewCategory] = useState<string>("数学");
+  const [newMemo, setNewMemo] = useState("");
 
-  const categories = ["ALL", "数学", "英語", "現代文", "Vision", "兵站"];
+  // モーダル編集 State
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [activeMemoTask, setActiveMemoTask] = useState<TaskItem | null>(null); // メモ閲覧・編集用
 
-  const filteredTasks = selectedCategory === "ALL" ? taskList : taskList.filter((t) => t.category === selectedCategory);
+  // ★要件: 24時間(1日)経過した完了タスクの全自動パージロジック★
+  useEffect(() => {
+    const now = Date.now();
+    const validTasks = taskList.filter((t) => {
+      if (!t.done || !t.completedAt) return true;
+      return now - t.completedAt < ONE_DAY_MS; // 24時間以内のみ保持
+    });
 
-  const addTask = () => {
+    if (validTasks.length !== taskList.length) {
+      setTaskList(validTasks);
+    }
+  }, [taskList]);
+
+  // タスク追加
+  const handleAddTask = () => {
     if (!newText.trim()) return;
-    const newTask: Task = {
+    const item: TaskItem = {
       id: Date.now().toString(),
-      text: newText,
+      text: newText.trim(),
       category: newCategory,
       done: false,
+      memo: newMemo.trim() || undefined,
     };
-    setTaskList([...taskList, newTask]);
+    setTaskList([...taskList, item]);
     setNewText("");
+    setNewMemo("");
   };
 
+  // チェック切り替え (完了時にタイムスタンプ記録)
   const toggleDone = (id: string) => {
-    setTaskList(taskList.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    setTaskList(taskList.map((t) => {
+      if (t.id !== id) return t;
+      const nextDone = !t.done;
+      return {
+        ...t,
+        done: nextDone,
+        completedAt: nextDone ? Date.now() : undefined,
+      };
+    }));
   };
+
+  // タスク削除
+  const deleteTask = (id: string) => {
+    setTaskList(taskList.filter((t) => t.id !== id));
+  };
+
+  // ジャンル追加
+  const handleAddCategory = () => {
+    if (!newCatInput.trim()) return;
+    const newOpt: TaskCategoryOption = { id: `c_${Date.now()}`, label: newCatInput.trim() };
+    setCategories([...categories, newOpt]);
+    setNewCategory(newCatInput.trim());
+    setNewCatInput("");
+  };
+
+  // ジャンル編集保存
+  const handleSaveCategoryEdit = () => {
+    if (!editingCat) return;
+    setCategories(categories.map((c) => (c.id === editingCat.id ? editingCat : c)));
+    setEditingCat(null);
+  };
+
+  // ジャンル削除
+  const handleDeleteCategory = (id: string) => {
+    if (categories.length <= 1) return;
+    const catToDelete = categories.find((c) => c.id === id);
+    setCategories(categories.filter((c) => c.id !== id));
+    if (catToDelete && newCategory === catToDelete.label) {
+      setNewCategory(categories.filter((c) => c.id !== id)[0].label);
+    }
+  };
+
+  // タスク編集保存
+  const handleSaveTaskEdit = () => {
+    if (!editingTask) return;
+    setTaskList(taskList.map((t) => (t.id === editingTask.id ? editingTask : t)));
+    setEditingTask(null);
+  };
+
+  // メモ編集保存
+  const handleSaveMemoEdit = () => {
+    if (!activeMemoTask) return;
+    setTaskList(taskList.map((t) => (t.id === activeMemoTask.id ? activeMemoTask : t)));
+    setActiveMemoTask(null);
+  };
+
+  // フィルタリング (ジャンル別)
+  const filteredAll = selectedCategory === "ALL" ? taskList : taskList.filter((t) => t.category === selectedCategory);
+  
+  // 未完了タスク ＆ 1日以内の完了タスクに分類
+  const activeTasks = filteredAll.filter((t) => !t.done);
+  const completedTasks = filteredAll.filter((t) => t.done);
 
   return (
     <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff" }}>
-      <h3 style={{ margin: "0 0 15px 0", color: "#C9A84C", fontSize: "16px" }}>✅ ジャンル別 タスク管理ボード</h3>
+      
+      {/* ヘッダー ＆ ジャンル管理ボタン */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+        <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>✅ タスク管理ボード (ジャンル別・時限パージ対応)</h3>
 
-      {/* ジャンル/カテゴリ タブフィルター */}
+        <button
+          onClick={() => setIsManagingCategories(true)}
+          style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
+        >
+          🏷️ ジャンル選択肢の管理
+        </button>
+      </div>
+
+      {/* 要件: ジャンル別表示タブフィルター */}
       <div style={{ display: "flex", gap: "6px", marginBottom: "15px", flexWrap: "wrap" }}>
+        <button
+          onClick={() => setSelectedCategory("ALL")}
+          style={{
+            padding: "6px 12px",
+            background: selectedCategory === "ALL" ? "#C9A84C" : "#1a1a1a",
+            color: selectedCategory === "ALL" ? "#000" : "#888",
+            border: "1px solid #C9A84C",
+            borderRadius: "4px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            cursor: "pointer"
+          }}
+        >
+          ALL (全て)
+        </button>
         {categories.map((cat) => (
           <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
+            key={cat.id}
+            onClick={() => setSelectedCategory(cat.label)}
             style={{
               padding: "6px 12px",
-              background: selectedCategory === cat ? "#C9A84C" : "#1a1a1a",
-              color: selectedCategory === cat ? "#000" : "#888",
-              border: "1px solid #C9A84C",
+              background: selectedCategory === cat.label ? "#C9A84C" : "#1a1a1a",
+              color: selectedCategory === cat.label ? "#000" : "#888",
+              border: `1px solid ${selectedCategory === cat.label ? "#C9A84C" : "#333"}`,
               borderRadius: "4px",
-              cursor: "pointer",
               fontSize: "12px",
               fontWeight: "bold",
+              cursor: "pointer"
             }}
           >
-            {cat}
+            {cat.label}
           </button>
         ))}
       </div>
 
-      {/* タスク追加フォーム */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <select
-          value={newCategory}
-          onChange={(e) => setNewCategory(e.target.value as any)}
-          style={{ padding: "8px", background: "#1a1a1a", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px", fontWeight: "bold" }}
-        >
-          <option value="数学">数学</option>
-          <option value="英語">英語</option>
-          <option value="現代文">現代文</option>
-          <option value="Vision">Vision</option>
-          <option value="兵站">兵站</option>
-        </select>
+      {/* 要件: タスク追加フォーム (ジャンルは選択肢から選択) */}
+      <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>＋ 新規タスク追加:</span>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {/* ジャンル選択ドロップダウン */}
+          <select
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            style={{ padding: "8px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", fontWeight: "bold" }}
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.label}>{c.label}</option>
+            ))}
+          </select>
 
-        <input
-          type="text"
-          placeholder="タスクを入力..."
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          style={{ flex: 1, padding: "8px", background: "#1a1a1a", border: "1px solid #333", color: "#fff", borderRadius: "4px" }}
-        />
-        <button onClick={addTask} style={{ padding: "8px 16px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
-          追加
-        </button>
+          <input
+            type="text"
+            placeholder="タスク内容を入力..."
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            style={{ flex: 1, minWidth: "180px", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            type="text"
+            placeholder="メモ (任意)..."
+            value={newMemo}
+            onChange={(e) => setNewMemo(e.target.value)}
+            style={{ flex: 1, padding: "6px 8px", background: "#000", border: "1px solid #333", color: "#ccc", borderRadius: "4px", fontSize: "12px" }}
+          />
+          <button
+            onClick={handleAddTask}
+            style={{ padding: "6px 16px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+          >
+            タスク追加
+          </button>
+        </div>
       </div>
 
-      {/* タスク一覧 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {filteredTasks.map((t) => (
-          <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", padding: "10px 12px", borderRadius: "4px" }}>
+      {/* 1. 未完了アクティブタスク一覧 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "25px" }}>
+        <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 実行中タスク:</span>
+        {activeTasks.length === 0 && <span style={{ fontSize: "12px", color: "#666" }}>タスクはありません</span>}
+        {activeTasks.map((t) => (
+          <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #2a2a2a", padding: "10px 12px", borderRadius: "6px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer" }} />
-              <span style={{ fontSize: "11px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
+              <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer", width: "18px", height: "18px" }} />
+              <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
                 {t.category}
               </span>
-              <span style={{ textDecoration: t.done ? "line-through" : "none", color: t.done ? "#666" : "#fff" }}>{t.text}</span>
+              <span style={{ color: "#fff", fontWeight: "bold", fontSize: "14px" }}>{t.text}</span>
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              {/* 要件: メモが存在する場合の「📄 メモを開く」ボタン */}
+              {t.memo && (
+                <button
+                  onClick={() => setActiveMemoTask(t)}
+                  style={{ padding: "4px 8px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                >
+                  📄 メモを開く
+                </button>
+              )}
+              <button onClick={() => setEditingTask(t)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
+              <button onClick={() => deleteTask(t.id)} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️ 削除</button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* 2. 要件: チェック済み(1日以内)タスク一覧 (薄く・打消し線表示) */}
+      {completedTasks.length > 0 && (
+        <div style={{ borderTop: "1px dashed #333", paddingTop: "15px" }}>
+          <span style={{ fontSize: "12px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "8px" }}>
+            ✔ 本日完了タスク (※24時間後に自動消去されます):
+          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {completedTasks.map((t) => (
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", borderRadius: "6px", opacity: 0.5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer" }} />
+                  <span style={{ fontSize: "10px", padding: "1px 5px", background: "#222", color: "#888", borderRadius: "3px" }}>{t.category}</span>
+                  <span style={{ textDecoration: "line-through", color: "#888", fontSize: "13px" }}>{t.text}</span>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {t.memo && (
+                    <button onClick={() => setActiveMemoTask(t)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#888", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>
+                      📄 メモ
+                    </button>
+                  )}
+                  <button onClick={() => deleteTask(t.id)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#e11d48", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>🗑️</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🏷️ ジャンル(カテゴリ)の【追加・編集・削除】管理モーダル */}
+      {isManagingCategories && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>🏷️ ジャンル選択肢の【追加・編集・削除】</h4>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                placeholder="新しいジャンル名 (例: 物理)..."
+                value={newCatInput}
+                onChange={(e) => setNewCatInput(e.target.value)}
+                style={{ flex: 1, padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px" }}
+              />
+              <button onClick={handleAddCategory} style={{ padding: "8px 14px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
+                ＋追加
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
+              <span style={{ fontSize: "12px", color: "#888" }}>現在のジャンル一覧:</span>
+              {categories.map((cat) => (
+                <div key={cat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0d0d0d", padding: "8px 12px", borderRadius: "4px", border: "1px solid #222" }}>
+                  {editingCat?.id === cat.id ? (
+                    <div style={{ display: "flex", gap: "6px", flex: 1 }}>
+                      <input
+                        type="text"
+                        value={editingCat.label}
+                        onChange={(e) => setEditingCat({ ...editingCat, label: e.target.value })}
+                        style={{ flex: 1, padding: "4px", background: "#1a1a1a", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px" }}
+                      />
+                      <button onClick={handleSaveCategoryEdit} style={{ padding: "4px 8px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold" }}>保存</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ fontWeight: "bold" }}>{cat.label}</span>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button onClick={() => setEditingCat(cat)} style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
+                        {categories.length > 1 && (
+                          <button onClick={() => handleDeleteCategory(cat.id)} style={{ background: "none", border: "none", color: "#e11d48", cursor: "pointer", fontSize: "12px" }}>🗑️ 削除</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setIsManagingCategories(false)} style={{ marginTop: "10px", padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
+              完了
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ タスク本体の編集モーダル */}
+      {editingTask && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>✏️ タスクの編集</h4>
+
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>ジャンル:</span>
+              <select
+                value={editingTask.category}
+                onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
+                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", fontWeight: "bold" }}
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.label}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>タスク内容:</span>
+              <input
+                type="text"
+                value={editingTask.text}
+                onChange={(e) => setEditingTask({ ...editingTask, text: e.target.value })}
+                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
+              />
+            </div>
+
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>メモ:</span>
+              <textarea
+                rows={3}
+                value={editingTask.memo || ""}
+                onChange={(e) => setEditingTask({ ...editingTask, memo: e.target.value })}
+                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#22c55e", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button onClick={handleSaveTaskEdit} style={{ flex: 1, padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>保存する</button>
+              <button onClick={() => setEditingTask(null)} style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📄 要件: メモ閲覧 ＆ その場で直接編集・保存モーダル */}
+      {activeMemoTask && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #22c55e", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+            <h4 style={{ margin: 0, color: "#22c55e", fontSize: "16px" }}>📄 メモの閲覧・直接編集</h4>
+            <span style={{ fontSize: "12px", color: "#888" }}>タスク: <strong>{activeMemoTask.text}</strong></span>
+
+            <textarea
+              rows={5}
+              value={activeMemoTask.memo || ""}
+              onChange={(e) => setActiveMemoTask({ ...activeMemoTask, memo: e.target.value })}
+              placeholder="メモを入力してください..."
+              style={{ width: "100%", padding: "10px", background: "#000", border: "1px solid #22c55e", color: "#22c55e", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box", fontFamily: "monospace" }}
+            />
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button onClick={handleSaveMemoEdit} style={{ flex: 1, padding: "10px", background: "#22c55e", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>メモ保存</button>
+              <button onClick={() => setActiveMemoTask(null)} style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
