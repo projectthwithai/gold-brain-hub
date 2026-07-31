@@ -500,6 +500,80 @@ export default function Page() {
                 </label>
               </div>
 
+              {/* ★復活！ 表示頻度設定UI (毎日 / 〇日に1回 / 曜日指定)★ */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "8px" }}>⚙️ 表示頻度の設定:</span>
+
+              {/* タイプ選択ボタン (毎日 / 〇日に1回 / 曜日指定) */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+                {[
+                  { id: "daily", label: "毎日" },
+                  { id: "interval", label: "〇日に1回" },
+                  { id: "weekly", label: "曜日指定" },
+                ].map((f) => {
+                  const active = (isCreating ? newRoutine.freqType : editingRoutine?.freqType) === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => isCreating ? setNewRoutine({ ...newRoutine, freqType: f.id as any }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqType: f.id as any })}
+                      style={{
+                        flex: 1, padding: "6px 0",
+                        background: active ? "#C9A84C" : "#1a1a1a",
+                        color: active ? "#000" : "#888",
+                        border: "1px solid #C9A84C",
+                        borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer"
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 〇日に1回入力フォーム */}
+              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "interval" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                  <span>表示間隔:</span>
+                  <input
+                    type="number" min="2" max="30"
+                    value={isCreating ? newRoutine.freqIntervalDays : editingRoutine?.freqIntervalDays || 2}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, freqIntervalDays: Number(e.target.value) }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqIntervalDays: Number(e.target.value) })}
+                    style={{ width: "60px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center", fontWeight: "bold" }}
+                  />
+                  <span>日に1回表示</span>
+                </div>
+              )}
+
+              {/* 曜日複数選択ボタン群 */}
+              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "weekly" && (
+                <div>
+                  <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "6px" }}>表示する曜日を選択 (複数選択可):</span>
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {WEEKDAYS.map((dayName, idx) => {
+                      const selected = isCreating ? newRoutine.freqDaysOfWeek?.includes(idx) : editingRoutine?.freqDaysOfWeek?.includes(idx);
+                      return (
+                        <button
+                          key={dayName}
+                          type="button"
+                          onClick={() => toggleFreqDay(idx, !isCreating)}
+                          style={{
+                            padding: "6px 10px",
+                            background: selected ? "#C9A84C" : "#1a1a1a",
+                            color: selected ? "#000" : "#666",
+                            border: `1px solid ${selected ? "#C9A84C" : "#333"}`,
+                            borderRadius: "4px", fontSize: "12px", cursor: "pointer", fontWeight: "bold"
+                          }}
+                        >
+                          {dayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
               {(isCreating ? newRoutine.hasRotation : editingRoutine?.hasRotation) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                   <span style={{ fontSize: "11px", color: "#888" }}>サブ項目 (カンマ区切りで入力):</span>
