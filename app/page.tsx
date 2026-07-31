@@ -16,31 +16,40 @@ export interface RoutineItem {
   freqDaysOfWeek: number[];
   done: boolean;
 
-  // ★多段階ローテーション仕様★
+  // 多段階ローテーション仕様
   hasRotation: boolean;
-  rotationItems: string[];      // 例: ["上半身", "下半身"] や ["数学", "英語", "国語", "化学", "物理"]
-  currentRotationIndex: number; // 現在のローテーション位置 (0, 1, 2...)
-  rotTargetCount: number;       // 〇回チェックしたら次へ進む (デフォルト1)
-  rotCurrentCount: number;      // 現在の達成チェック回数
+  rotationItems: string[];
+  currentRotationIndex: number;
+  rotTargetCount: number;
+  rotCurrentCount: number;
+
+  // 手順メモ (全画面ステッププレイヤー用)
+  hasSteps: boolean;
+  stepMap: Record<string, string[]>;
 }
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 const INITIAL_ROUTINES: RoutineItem[] = [
   {
-    id: "r1", name: "朝5時 帝国学習ローテーション", startTime: "05:00", endTime: "06:30", duration: 90,
-    modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 1, freqDaysOfWeek: [1, 2, 3, 4, 5], done: false,
-    hasRotation: true, rotationItems: ["数学 (微分積分)", "英語 (SVOC構文)", "現代文 (論理読解)", "化学 (有機化学)", "物理 (力学)"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0
-  },
-  {
-    id: "r2", name: "肉体兵站 筋トレローテーション", startTime: "06:30", endTime: "07:15", duration: 45,
+    id: "r1", name: "肉体兵站 筋トレローテーション", startTime: "06:30", endTime: "07:15", duration: 45,
     modes: ["weekday", "holiday", "monk"], freqType: "interval", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5], done: false,
-    hasRotation: true, rotationItems: ["上半身 (胸・肩・三頭)", "下半身 (脚・腹筋)", "背中・二頭"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0
+    hasRotation: true, rotationItems: ["上半身", "下半身"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0,
+    hasSteps: true,
+    stepMap: {
+      "上半身": ["1. ベンチプレス (3セット)", "2. ラットプルダウン (3セット)", "3. バーティカルロー (3セット)"],
+      "下半身": ["1. スクワット (3セット)", "2. レッグプレス (3セット)", "3. デッドリフト (3セット)", "4. レッグカール (3セット)"]
+    }
   },
   {
-    id: "r3", name: "1日2L水・天然塩・卵摂取", startTime: "08:00", endTime: "09:00", duration: 10,
+    id: "r2", name: "朝5時 帝国学習ローテーション", startTime: "05:00", endTime: "06:30", duration: 90,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 1, freqDaysOfWeek: [1, 2, 3, 4, 5], done: false,
-    hasRotation: false, rotationItems: [], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0
+    hasRotation: true, rotationItems: ["数学 (微分積分)", "英語 (SVOC構文)", "現代文 (論理読解)"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0,
+    hasSteps: true,
+    stepMap: {
+      "数学 (微分積分)": ["1. 定理の証明確認 (15分)", "2. 演習問題 5問解法解説 (45分)", "3. 間違えた問題の解き直し (30分)"],
+      "英語 (SVOC構文)": ["1. 長文 1セクション精読 (30分)", "2. SVOC構造書き出し (30分)"]
+    }
   },
 ];
 
@@ -52,14 +61,22 @@ export default function Page() {
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // ローテーション項目用テキスト入力一時保持
+  // 入力保持State
   const [rotationInputText, setRotationInputText] = useState("");
+  const [stepInputText, setStepInputText] = useState("");
 
+  // 新規ルーティン用State (トップレベルで確実に宣言)
   const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
-    hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1
+    hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1,
+    hasSteps: false, stepMap: {}
   });
+
+  // 全画面ステッププレイヤー用State
+  const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
+  const [playerSteps, setPlayerSteps] = useState<string[]>([]);
+  const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
 
   // タイマーState
   const [taskName, setTaskName] = useState("数学 Deep Work");
@@ -104,7 +121,6 @@ export default function Page() {
 
   const todayDow = new Date().getDay();
 
-  // 本日アクティブな日課
   const activeRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentMode)) return false;
     if (r.freqType === "daily") return true;
@@ -113,7 +129,6 @@ export default function Page() {
     return true;
   }).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  // 本日対象外（準備中）の日課
   const upcomingRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentMode)) return false;
     if (r.freqType === "weekly") return !r.freqDaysOfWeek?.includes(todayDow);
@@ -129,47 +144,54 @@ export default function Page() {
     return 1;
   };
 
-  // ★重要ロジック: チェックボックス完了 ➔ カウント増加 ➔ 目標達成でローテーション次へ★
   const handleCheckRoutine = (id: string) => {
     setRoutines(routines.map((r) => {
       if (r.id !== id) return r;
       if (!r.hasRotation || r.rotationItems.length === 0) {
         return { ...r, done: !r.done };
       }
-
-      // ローテーションありの場合
       const newDone = !r.done;
       let newCount = r.rotCurrentCount + (newDone ? 1 : -1);
       if (newCount < 0) newCount = 0;
-
       let newIndex = r.currentRotationIndex;
-      // 〇回完了目標に達したら次のサブ項目へ歩進！
       if (newCount >= r.rotTargetCount) {
         newIndex = (r.currentRotationIndex + 1) % r.rotationItems.length;
-        newCount = 0; // カウントリセット
+        newCount = 0;
       }
-
-      return {
-        ...r,
-        done: newDone,
-        rotCurrentCount: newCount,
-        currentRotationIndex: newIndex,
-      };
+      return { ...r, done: newDone, rotCurrentCount: newCount, currentRotationIndex: newIndex };
     }));
   };
 
-  // ★重要ロジック: 手動スキップボタン ⏩ (チェックせずに次のサブ項目へ)★
   const handleSkipRotation = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setRoutines(routines.map((r) => {
       if (r.id !== id || !r.hasRotation || r.rotationItems.length === 0) return r;
       const nextIndex = (r.currentRotationIndex + 1) % r.rotationItems.length;
-      return {
-        ...r,
-        currentRotationIndex: nextIndex,
-        rotCurrentCount: 0,
-      };
+      return { ...r, currentRotationIndex: nextIndex, rotCurrentCount: 0 };
     }));
+  };
+
+  const openStepPlayer = (item: RoutineItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const currentSub = item.hasRotation && item.rotationItems?.length > 0
+      ? item.rotationItems[item.currentRotationIndex % item.rotationItems.length]
+      : "デフォルト";
+
+    const steps = item.stepMap?.[currentSub] || item.stepMap?.["デフォルト"] || ["1. 準備を完了する", "2. メイン演習・トレーニング実行", "3. クールダウン"];
+
+    setActivePlayerRoutine(item);
+    setPlayerSteps(steps);
+    setPlayerCurrentStepIndex(0);
+  };
+
+  const handleNextPlayerStep = () => {
+    if (!activePlayerRoutine) return;
+    if (playerCurrentStepIndex + 1 < playerSteps.length) {
+      setPlayerCurrentStepIndex(playerCurrentStepIndex + 1);
+    } else {
+      handleCheckRoutine(activePlayerRoutine.id);
+      setActivePlayerRoutine(null);
+    }
   };
 
   const toggleFreqDay = (dow: number, isEdit: boolean) => {
@@ -223,10 +245,10 @@ export default function Page() {
       {tab === "routine" && (
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制管理 (多段階ローテーション対応)</h3>
+            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制管理 (全画面手順モード搭載)</h3>
 
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setIsCreating(true)} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+              <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); }} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
                 ＋ 新規作成
               </button>
               <div style={{ display: "flex", gap: "4px" }}>
@@ -295,10 +317,9 @@ export default function Page() {
                           {item.name}
                         </span>
 
-                        {/* ★多段階ローテーション現出バッジ★ */}
                         {item.hasRotation && currentSubItem && (
                           <span style={{ padding: "2px 8px", background: "#111", border: "1px solid #C9A84C", color: "#C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold" }}>
-                            🎯 現在: {currentSubItem} ({item.rotCurrentCount}/{item.rotTargetCount}回完了で次へ)
+                            🎯 現在: {currentSubItem}
                           </span>
                         )}
                       </div>
@@ -306,19 +327,26 @@ export default function Page() {
                   </div>
 
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    {/* ★手動スキップボタン ⏩ (チェックなしで次のサブ項目へ)★ */}
+                    {item.hasSteps && (
+                      <button
+                        onClick={(e) => openStepPlayer(item, e)}
+                        style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                      >
+                        📺 全画面手順
+                      </button>
+                    )}
+
                     {item.hasRotation && item.rotationItems?.length > 0 && (
                       <button
                         onClick={(e) => handleSkipRotation(item.id, e)}
                         style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}
-                        title="次のサブ項目へスキップ"
                       >
                         スキップ ⏩
                       </button>
                     )}
 
                     <button onClick={() => handleQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>⏱️ 起動</button>
-                    <button onClick={() => { setEditingRoutine(item); setRotationInputText(item.rotationItems?.join(", ") || ""); }} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
+                    <button onClick={() => { setEditingRoutine(item); setRotationInputText(item.rotationItems?.join(", ") || ""); setStepInputText(Object.values(item.stepMap || {})[0]?.join("\n") || ""); }} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
                     <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️</button>
                   </div>
                 </div>
@@ -360,11 +388,54 @@ export default function Page() {
         </div>
       )}
 
+      {/* 全画面手順モード (フルスクリーン・ステップ・プレイヤー) */}
+      {activePlayerRoutine && playerSteps.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, background: "#050505", zIndex: 9999, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "40px 20px", color: "#fff", textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "16px", color: "#C9A84C", fontWeight: "bold" }}>
+              📜 {activePlayerRoutine.name} (全画面手順モード)
+            </span>
+            <button
+              onClick={() => setActivePlayerRoutine(null)}
+              style={{ padding: "8px 16px", background: "#222", border: "1px solid #555", color: "#fff", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
+            >
+              ✕ 閉じる
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px", marginTop: "auto", marginBottom: "auto" }}>
+            <div style={{ fontSize: "24px", color: "#888", fontWeight: "bold", letterSpacing: "2px" }}>
+              STEP {playerCurrentStepIndex + 1} / {playerSteps.length}
+            </div>
+
+            <div style={{ fontSize: "clamp(36px, 8vw, 72px)", fontWeight: "900", color: "#C9A84C", textShadow: "0 0 20px rgba(201,168,76,0.3)", padding: "0 20px", lineHeight: "1.2" }}>
+              {playerSteps[playerCurrentStepIndex]}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+            <button
+              onClick={handleNextPlayerStep}
+              style={{
+                width: "100%", maxWidth: "500px", padding: "20px 40px",
+                background: "linear-gradient(135deg, #22c55e, #15803d)",
+                color: "#fff", border: "none", borderRadius: "12px",
+                fontSize: "24px", fontWeight: "900", cursor: "pointer",
+                boxShadow: "0 10px 30px rgba(34,197,94,0.4)",
+                letterSpacing: "1px"
+              }}
+            >
+              {playerCurrentStepIndex + 1 < playerSteps.length ? "✅ クリア (次の種目へ ➔)" : "🔥 作戦完遂！ (ルーティン完了)"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ✏️ 編集 / 新規作成ポップアップモーダル */}
       {(isCreating || editingRoutine) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "380px", display: "flex", flexDirection: "column", gap: "12px" }}>
-            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・ローテーション設定変更"}</h4>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・手順メモ設定変更"}</h4>
 
             <div>
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>ルーティン名:</span>
@@ -394,7 +465,47 @@ export default function Page() {
               />
             </div>
 
-            {/* ★新機能要件: 多段階ローテーション設定UI★ */}
+            {/* 手順メモ設定UI */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: "bold" }}>📋 手順メモ設定 (全画面表示用):</span>
+                <label style={{ fontSize: "12px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps || false}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, hasSteps: e.target.checked }) : editingRoutine && setEditingRoutine({ ...editingRoutine, hasSteps: e.target.checked })}
+                  />
+                  使用する
+                </label>
+              </div>
+
+              {(isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps) && (
+                <div>
+                  <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>1行に1種目ずつ入力してください:</span>
+                  <textarea
+                    rows={4}
+                    placeholder={`1. ベンチプレス (3セット)\n2. ラットプルダウン (3セット)\n3. バーティカルロー (3セット)`}
+                    value={stepInputText}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setStepInputText(text);
+                      const stepsArr = text.split("\n").filter((s) => s.trim().length > 0);
+                      const currentSub = isCreating
+                        ? (newRoutine.rotationItems?.[0] || "デフォルト")
+                        : (editingRoutine?.rotationItems?.[0] || "デフォルト");
+
+                      const map = { [currentSub]: stepsArr, "デフォルト": stepsArr };
+
+                      if (isCreating) setNewRoutine({ ...newRoutine, stepMap: map });
+                      else if (editingRoutine) setEditingRoutine({ ...editingRoutine, stepMap: map });
+                    }}
+                    style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#22c55e", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", fontFamily: "monospace" }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 多段階ローテーション設定UI */}
             <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>🔄 多段階ローテーション設定:</span>
@@ -410,105 +521,24 @@ export default function Page() {
 
               {(isCreating ? newRoutine.hasRotation : editingRoutine?.hasRotation) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-                  <div>
-                    <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>サブ項目 (カンマ区切りで入力):</span>
-                    <input
-                      type="text"
-                      placeholder="例: 上半身, 下半身  または  数学, 英語, 国語, 化学, 物理"
-                      value={rotationInputText}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setRotationInputText(val);
-                        const items = val.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
-                        if (isCreating) setNewRoutine({ ...newRoutine, rotationItems: items });
-                        else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotationItems: items });
-                      }}
-                      style={{ width: "100%", padding: "6px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                    <span>次へ進む条件:</span>
-                    <input
-                      type="number" min="1" max="10"
-                      value={isCreating ? newRoutine.rotTargetCount : editingRoutine?.rotTargetCount || 1}
-                      onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, rotTargetCount: Number(e.target.value) }) : editingRoutine && setEditingRoutine({ ...editingRoutine, rotTargetCount: Number(e.target.value) })}
-                      style={{ width: "50px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center", fontWeight: "bold" }}
-                    />
-                    <span>回チェックしたら次へ</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 表示頻度設定UI */}
-            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
-              <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "8px" }}>⚙️ 表示頻度の設定:</span>
-
-              <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-                {[
-                  { id: "daily", label: "毎日" },
-                  { id: "interval", label: "〇日に1回" },
-                  { id: "weekly", label: "曜日指定" },
-                ].map((f) => {
-                  const active = (isCreating ? newRoutine.freqType : editingRoutine?.freqType) === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => isCreating ? setNewRoutine({ ...newRoutine, freqType: f.id as any }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqType: f.id as any })}
-                      style={{
-                        flex: 1, padding: "6px 0",
-                        background: active ? "#C9A84C" : "#1a1a1a",
-                        color: active ? "#000" : "#888",
-                        border: "1px solid #C9A84C",
-                        borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer"
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "interval" && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                  <span>表示間隔:</span>
                   <input
-                    type="number" min="2" max="30"
-                    value={isCreating ? newRoutine.freqIntervalDays : editingRoutine?.freqIntervalDays || 2}
-                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, freqIntervalDays: Number(e.target.value) }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqIntervalDays: Number(e.target.value) })}
-                    style={{ width: "50px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center" }}
+                    type="text"
+                    placeholder="例: 上半身, 下半身  または  数学, 英語, 国語"
+                    value={rotationInputText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRotationInputText(val);
+                      const items = val.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+                      if (isCreating) setNewRoutine({ ...newRoutine, rotationItems: items });
+                      else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotationItems: items });
+                    }}
+                    style={{ width: "100%", padding: "6px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
                   />
-                  <span>日に1回</span>
-                </div>
-              )}
-
-              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "weekly" && (
-                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                  {WEEKDAYS.map((dayName, idx) => {
-                    const selected = isCreating ? newRoutine.freqDaysOfWeek?.includes(idx) : editingRoutine?.freqDaysOfWeek?.includes(idx);
-                    return (
-                      <button
-                        key={dayName}
-                        type="button"
-                        onClick={() => toggleFreqDay(idx, !isCreating)}
-                        style={{
-                          padding: "4px 8px",
-                          background: selected ? "#C9A84C" : "#1a1a1a",
-                          color: selected ? "#000" : "#666",
-                          border: `1px solid ${selected ? "#C9A84C" : "#333"}`,
-                          borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: "bold"
-                        }}
-                      >
-                        {dayName}
-                      </button>
-                    );
-                  })}
                 </div>
               )}
             </div>
 
+            {/* 保存 / キャンセル */}
             <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
               <button
                 onClick={() => {
