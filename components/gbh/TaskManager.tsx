@@ -1,8 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import TaskManager from "../components/gbh/TaskManager";
 
-// ジャンル(カテゴリ)選択肢型
 export interface TaskCategoryOption {
   id: string;
   label: string;
@@ -11,10 +9,10 @@ export interface TaskCategoryOption {
 export interface TaskItem {
   id: string;
   text: string;
-  category: string;     // 選択ジャンル名
+  category: string;
   done: boolean;
-  completedAt?: number; // 完了時のタイムスタンプ (24時間パージ用)
-  memo?: string;        // メモ
+  completedAt?: number;
+  memo?: string;
 }
 
 const INITIAL_CATEGORIES: TaskCategoryOption[] = [
@@ -28,37 +26,33 @@ const INITIAL_CATEGORIES: TaskCategoryOption[] = [
 const INITIAL_TASKS: TaskItem[] = [
   { id: "1", text: "17歳の野望を開始せよ (筑波AC突破)", category: "Vision", done: false, memo: "情報メディア創成学類合格に向けた実績づくり" },
   { id: "2", text: "微分積分 演習問題 10問解く", category: "数学", done: false, memo: "教科書P.45〜P.50の応用問題を解く" },
-  { id: "3", text: "SVOC 精読長文 2文精読", category: "英語", done: true, completedAt: Date.now() - 3600000 }, // 1時間前に完了
+  { id: "3", text: "SVOC 精読長文 2文精読", category: "英語", done: true, completedAt: Date.now() - 3600000 },
 ];
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間 (1日)
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function TaskManager() {
-  // ジャンル選択肢自体の管理 (追加・編集・削除)
   const [categories, setCategories] = useState<TaskCategoryOption[]>(INITIAL_CATEGORIES);
   const [newCatInput, setNewCatInput] = useState("");
   const [editingCat, setEditingCat] = useState<TaskCategoryOption | null>(null);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
 
-  // タスク管理State
   const [taskList, setTaskList] = useState<TaskItem[]>(INITIAL_TASKS);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
-  // 新規タスク追加フォーム State
   const [newText, setNewText] = useState("");
   const [newCategory, setNewCategory] = useState<string>("数学");
   const [newMemo, setNewMemo] = useState("");
 
-  // モーダル編集 State
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
-  const [activeMemoTask, setActiveMemoTask] = useState<TaskItem | null>(null); // メモ閲覧・編集用
+  const [activeMemoTask, setActiveMemoTask] = useState<TaskItem | null>(null);
 
-  // ★要件: 24時間(1日)経過した完了タスクの全自動パージロジック★
+  // 24時間経過完了タスクの全自動パージ
   useEffect(() => {
     const now = Date.now();
     const validTasks = taskList.filter((t) => {
       if (!t.done || !t.completedAt) return true;
-      return now - t.completedAt < ONE_DAY_MS; // 24時間以内のみ保持
+      return now - t.completedAt < ONE_DAY_MS;
     });
 
     if (validTasks.length !== taskList.length) {
@@ -66,7 +60,6 @@ export default function TaskManager() {
     }
   }, [taskList]);
 
-  // タスク追加
   const handleAddTask = () => {
     if (!newText.trim()) return;
     const item: TaskItem = {
@@ -81,7 +74,6 @@ export default function TaskManager() {
     setNewMemo("");
   };
 
-  // チェック切り替え (完了時にタイムスタンプ記録)
   const toggleDone = (id: string) => {
     setTaskList(taskList.map((t) => {
       if (t.id !== id) return t;
@@ -94,12 +86,10 @@ export default function TaskManager() {
     }));
   };
 
-  // タスク削除
   const deleteTask = (id: string) => {
     setTaskList(taskList.filter((t) => t.id !== id));
   };
 
-  // ジャンル追加
   const handleAddCategory = () => {
     if (!newCatInput.trim()) return;
     const newOpt: TaskCategoryOption = { id: `c_${Date.now()}`, label: newCatInput.trim() };
@@ -108,14 +98,12 @@ export default function TaskManager() {
     setNewCatInput("");
   };
 
-  // ジャンル編集保存
   const handleSaveCategoryEdit = () => {
     if (!editingCat) return;
     setCategories(categories.map((c) => (c.id === editingCat.id ? editingCat : c)));
     setEditingCat(null);
   };
 
-  // ジャンル削除
   const handleDeleteCategory = (id: string) => {
     if (categories.length <= 1) return;
     const catToDelete = categories.find((c) => c.id === id);
@@ -125,31 +113,25 @@ export default function TaskManager() {
     }
   };
 
-  // タスク編集保存
   const handleSaveTaskEdit = () => {
     if (!editingTask) return;
     setTaskList(taskList.map((t) => (t.id === editingTask.id ? editingTask : t)));
     setEditingTask(null);
   };
 
-  // メモ編集保存
   const handleSaveMemoEdit = () => {
     if (!activeMemoTask) return;
     setTaskList(taskList.map((t) => (t.id === activeMemoTask.id ? activeMemoTask : t)));
     setActiveMemoTask(null);
   };
 
-  // フィルタリング (ジャンル別)
   const filteredAll = selectedCategory === "ALL" ? taskList : taskList.filter((t) => t.category === selectedCategory);
-  
-  // 未完了タスク ＆ 1日以内の完了タスクに分類
   const activeTasks = filteredAll.filter((t) => !t.done);
   const completedTasks = filteredAll.filter((t) => t.done);
 
   return (
     <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff" }}>
       
-      {/* ヘッダー ＆ ジャンル管理ボタン */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
         <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>✅ タスク管理ボード (ジャンル別・時限パージ対応)</h3>
 
@@ -161,7 +143,7 @@ export default function TaskManager() {
         </button>
       </div>
 
-      {/* 要件: ジャンル別表示タブフィルター */}
+      {/* ジャンル別表示タブフィルター */}
       <div style={{ display: "flex", gap: "6px", marginBottom: "15px", flexWrap: "wrap" }}>
         <button
           onClick={() => setSelectedCategory("ALL")}
@@ -198,11 +180,10 @@ export default function TaskManager() {
         ))}
       </div>
 
-      {/* 要件: タスク追加フォーム (ジャンルは選択肢から選択) */}
+      {/* タスク追加フォーム */}
       <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
         <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>＋ 新規タスク追加:</span>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {/* ジャンル選択ドロップダウン */}
           <select
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
@@ -254,7 +235,6 @@ export default function TaskManager() {
             </div>
 
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              {/* 要件: メモが存在する場合の「📄 メモを開く」ボタン */}
               {t.memo && (
                 <button
                   onClick={() => setActiveMemoTask(t)}
@@ -270,7 +250,7 @@ export default function TaskManager() {
         ))}
       </div>
 
-      {/* 2. 要件: チェック済み(1日以内)タスク一覧 (薄く・打消し線表示) */}
+      {/* 2. チェック済み(1日以内)タスク一覧 (薄く・打消し線表示) */}
       {completedTasks.length > 0 && (
         <div style={{ borderTop: "1px dashed #333", paddingTop: "15px" }}>
           <span style={{ fontSize: "12px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "8px" }}>
@@ -401,7 +381,7 @@ export default function TaskManager() {
         </div>
       )}
 
-      {/* 📄 要件: メモ閲覧 ＆ その場で直接編集・保存モーダル */}
+      {/* 📄 メモ閲覧 ＆ その場で直接編集・保存モーダル */}
       {activeMemoTask && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #22c55e", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
