@@ -12,8 +12,8 @@ export interface RoutineItem {
   duration: number;
   modes: RoutineMode[];
   freqType: FrequencyType;
-  freqIntervalDays: number; // 〇日に1回用 (デフォルト2)
-  freqDaysOfWeek: number[]; // 曜日の配列 (0=日, 1=月, ..., 6=土)
+  freqIntervalDays: number;
+  freqDaysOfWeek: number[];
   done: boolean;
 }
 
@@ -44,15 +44,10 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
 
   const todayDow = new Date().getDay();
 
-  const filtered = routines
-    .filter((r) => {
-      if (!r.modes.includes(currentMode)) return false;
-      if (r.freqType === "daily") return true;
-      if (r.freqType === "weekly") return r.freqDaysOfWeek?.includes(todayDow) ?? true;
-      if (r.freqType === "interval") return true;
-      return true;
-    })
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const filtered = routines.filter((r) => {
+    if (!r.modes.includes(currentMode)) return false;
+    return true;
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const toggleDone = (id: string) => {
     setRoutines(routines.map((r) => (r.id === id ? { ...r, done: !r.done } : r)));
@@ -93,7 +88,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
 
   return (
     <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff" }}>
-      {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
         <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン管理一覧</h3>
 
@@ -125,7 +119,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         </div>
       </div>
 
-      {/* ルーティン一覧 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filtered.map((item) => (
           <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #222", padding: "12px 15px", borderRadius: "6px" }}>
@@ -137,7 +130,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                     ⏰ {item.startTime} - {item.endTime}
                   </span>
                   
-                  {/* 表示頻度バッジ */}
                   <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
                     {item.freqType === "daily" && "📅 毎日"}
                     {item.freqType === "interval" && `🔄 ${item.freqIntervalDays || 2}日に1回`}
@@ -166,13 +158,11 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         ))}
       </div>
 
-      {/* ✏️ 編集 / ＋ 新規作成 ポップアップモーダル */}
       {(isCreating || editingRoutine) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・表示頻度の設定変更"}</h4>
 
-            {/* ルーティン名 */}
             <div>
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>ルーティン名:</span>
               <input
@@ -184,7 +174,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
               />
             </div>
 
-            {/* 時間設定 */}
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <span style={{ fontSize: "12px", color: "#888" }}>時間:</span>
               <input
@@ -202,11 +191,9 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
               />
             </div>
 
-            {/* ⚙️ 表示頻度設定UI (毎日 / 〇日に1回 / 曜日指定) */}
             <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
               <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "8px" }}>⚙️ 表示頻度の設定:</span>
 
-              {/* タイプ切り替えボタン */}
               <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
                 {[
                   { id: "daily", label: "毎日" },
@@ -237,7 +224,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                 })}
               </div>
 
-              {/* 〇日に1回フォーム */}
               {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "interval" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                   <span>表示間隔:</span>
@@ -253,7 +239,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                 </div>
               )}
 
-              {/* 曜日複数選択ボタン群 */}
               {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "weekly" && (
                 <div>
                   <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "6px" }}>表示する曜日を選択 (複数選択可):</span>
@@ -285,21 +270,9 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
               )}
             </div>
 
-            {/* 保存 / キャンセル */}
             <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-              <button
-                onClick={isCreating ? handleAddRoutine : saveEdit}
-                style={{ flex: 1, padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
-              >
-                保存する
-              </button>
-
-              <button
-                onClick={() => { setIsCreating(false); setEditingRoutine(null); }}
-                style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-              >
-                キャンセル
-              </button>
+              <button onClick={isCreating ? handleAddRoutine : saveEdit} style={{ flex: 1, padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>保存する</button>
+              <button onClick={() => { setIsCreating(false); setEditingRoutine(null); }} style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>キャンセル</button>
             </div>
           </div>
         </div>

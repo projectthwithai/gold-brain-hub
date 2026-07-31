@@ -21,7 +21,6 @@ export default function Page() {
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      {/* 5大メインナビゲーション */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid #222", paddingBottom: "10px", flexWrap: "wrap" }}>
         {[
           { id: "routine", label: "📜 ルーティン" },
@@ -51,10 +50,10 @@ export default function Page() {
         ))}
       </div>
 
-      {/* タブ切替コンテンツ */}
       {tab === "routine" && <RoutineList onQuickTimer={handleQuickTimer} />}
       {tab === "timer" && <TacticalTimer initialTask={quickTask} initialMinutes={quickMin} />}
       {tab === "task" && <TaskManager />}
+      {tab === "calendar" && <CalendarView />}
       {tab === "analytics" && <AnalyticsCenter />}
       {tab === "partner" && <PartnerTab />}
       {tab === "record" && <RecordTab />}
