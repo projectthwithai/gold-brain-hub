@@ -54,8 +54,7 @@ export default function Page() {
       {/* タブ切替コンテンツ */}
       {tab === "routine" && <RoutineList onQuickTimer={handleQuickTimer} />}
       {tab === "timer" && <TacticalTimer initialTask={quickTask} initialMinutes={quickMin} />}
-      {tab === "task" && <TaskManager tasks={[]} setTasks={() => {}} TH={{ surface: "#0d0d0d", borderGold: "#8A683066", border: "#222", gold: "#C9A84C", text: "#fff" }} />}
-      {tab === "calendar" && <CalendarView />}
+      {tab === "task" && <TaskManager />}
       {tab === "analytics" && <AnalyticsCenter />}
       {tab === "partner" && <PartnerTab />}
       {tab === "record" && <RecordTab />}
