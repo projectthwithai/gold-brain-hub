@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import TaskManager from "../components/gbh/TaskManager";
 
 // ジャンル(カテゴリ)選択肢型
 export interface TaskCategoryOption {

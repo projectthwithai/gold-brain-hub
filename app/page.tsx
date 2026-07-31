@@ -1,5 +1,6 @@
 "use client";
 import TacticalTimer from "../components/gbh/TacticalTimer";
+import TaskManager from "../components/gbh/TaskManager";
 import React, { useState, useEffect } from "react";
 
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -829,7 +830,8 @@ export default function Page() {
         <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
       )}
 
-      {tab === "task" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>✅ タスク管理ボード (稼働中)</div>}
+      {/* ✅ タスク管理 タブ呼び出し */}
+      {tab === "task" && <TaskManager />}
       {tab === "calendar" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📅 カレンダー WIN/LOSE 表示 (稼働中)</div>}
       {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
       {tab === "partner" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>}
