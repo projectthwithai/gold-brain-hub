@@ -23,9 +23,9 @@ export interface RoutineItem {
   rotTargetCount: number;
   rotCurrentCount: number;
 
-  // 手順メモ (全画面ステッププレイヤー用)
+  // ★サブ項目ごとの個別手順メモマップ★
   hasSteps: boolean;
-  stepMap: Record<string, string[]>;
+  stepMap: Record<string, string[]>; // 例: { "上半身": ["ベンチプレス", "ラットプル"], "下半身": ["スクワット", "レッグプレス"] }
 }
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -47,8 +47,9 @@ const INITIAL_ROUTINES: RoutineItem[] = [
     hasRotation: true, rotationItems: ["数学 (微分積分)", "英語 (SVOC構文)", "現代文 (論理読解)"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0,
     hasSteps: true,
     stepMap: {
-      "数学 (微分積分)": ["1. 定理の証明確認 (15分)", "2. 演習問題 5問解法解説 (45分)", "3. 間違えた問題の解き直し (30分)"],
-      "英語 (SVOC構文)": ["1. 長文 1セクション精読 (30分)", "2. SVOC構造書き出し (30分)"]
+      "数学 (微分積分)": ["1. 定理の証明確認 (15分)", "2. 演習問題 5問解説 (45分)", "3. 誤答の解き直し (30分)"],
+      "英語 (SVOC構文)": ["1. 長文 1章精読 (30分)", "2. SVOC構造書き出し (30分)"],
+      "現代文 (論理読解)": ["1. 本文要約作成 (30分)", "2. 設問解答デバッグ (15分)"]
     }
   },
 ];
@@ -61,16 +62,19 @@ export default function Page() {
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  // 編集用サブ項目選択タブ State
+  const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
+
   // 入力保持State
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
 
-  // 新規ルーティン用State (トップレベルで確実に宣言)
+  // 新規ルーティン用State
   const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
     hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1,
-    hasSteps: false, stepMap: {}
+    hasSteps: false, stepMap: { "デフォルト": ["1. 準備", "2. 実行", "3. 完了"] }
   });
 
   // 全画面ステッププレイヤー用State
@@ -171,13 +175,15 @@ export default function Page() {
     }));
   };
 
+  // ★自動連動: 現在アクトなサブ項目名に応じた手順を全画面表示★
   const openStepPlayer = (item: RoutineItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const currentSub = item.hasRotation && item.rotationItems?.length > 0
       ? item.rotationItems[item.currentRotationIndex % item.rotationItems.length]
       : "デフォルト";
 
-    const steps = item.stepMap?.[currentSub] || item.stepMap?.["デフォルト"] || ["1. 準備を完了する", "2. メイン演習・トレーニング実行", "3. クールダウン"];
+    // サブ項目名に紐づく手順リストを取得 (なければデフォルト)
+    const steps = item.stepMap?.[currentSub] || item.stepMap?.["デフォルト"] || Object.values(item.stepMap || {})[0] || ["1. 準備完了", "2. メイン実行", "3. 完遂"];
 
     setActivePlayerRoutine(item);
     setPlayerSteps(steps);
@@ -208,6 +214,38 @@ export default function Page() {
 
   const completedCount = activeRoutines.filter((r) => r.done).length;
   const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
+
+  // モーダル編集開始時の準備
+  const startEdit = (item: RoutineItem) => {
+    setEditingRoutine(item);
+    setRotationInputText(item.rotationItems?.join(", ") || "");
+    const subs = item.hasRotation && item.rotationItems?.length > 0 ? item.rotationItems : ["デフォルト"];
+    const firstSub = subs[0];
+    setEditingSubTab(firstSub);
+    setStepInputText(item.stepMap?.[firstSub]?.join("\n") || "");
+  };
+
+  // サブ項目タブ切り替え時のテキストエリア同期
+  const handleSubTabChange = (subName: string, isEdit: boolean) => {
+    setEditingSubTab(subName);
+    const map = isEdit ? editingRoutine?.stepMap : newRoutine.stepMap;
+    const existingSteps = map?.[subName] || [];
+    setStepInputText(existingSteps.join("\n"));
+  };
+
+  // テキストエリア更新時の StepMap 保存
+  const handleStepTextChange = (text: string, isEdit: boolean) => {
+    setStepInputText(text);
+    const stepsArr = text.split("\n").filter((s) => s.trim().length > 0);
+
+    if (isEdit && editingRoutine) {
+      const updatedMap = { ...(editingRoutine.stepMap || {}), [editingSubTab]: stepsArr };
+      setEditingRoutine({ ...editingRoutine, stepMap: updatedMap });
+    } else if (isCreating) {
+      const updatedMap = { ...(newRoutine.stepMap || {}), [editingSubTab]: stepsArr };
+      setNewRoutine({ ...newRoutine, stepMap: updatedMap });
+    }
+  };
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
@@ -245,10 +283,10 @@ export default function Page() {
       {tab === "routine" && (
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制管理 (全画面手順モード搭載)</h3>
+            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制 (サブ項目別個別手順連動)</h3>
 
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); }} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+              <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); setEditingSubTab("デフォルト"); }} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
                 ＋ 新規作成
               </button>
               <div style={{ display: "flex", gap: "4px" }}>
@@ -346,7 +384,7 @@ export default function Page() {
                     )}
 
                     <button onClick={() => handleQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>⏱️ 起動</button>
-                    <button onClick={() => { setEditingRoutine(item); setRotationInputText(item.rotationItems?.join(", ") || ""); setStepInputText(Object.values(item.stepMap || {})[0]?.join("\n") || ""); }} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
+                    <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
                     <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️</button>
                   </div>
                 </div>
@@ -354,7 +392,7 @@ export default function Page() {
             })}
           </div>
 
-          {/* 本日対象外（準備中）の日課 */}
+          {/* 本日対象外の日課 */}
           {upcomingRoutines.length > 0 && (
             <div style={{ borderTop: "1px dashed #333", paddingTop: "20px" }}>
               <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💤 本日対象外 (次回準備中の日課):</span>
@@ -376,7 +414,7 @@ export default function Page() {
                         </div>
                       </div>
 
-                      <button onClick={() => { setEditingRoutine(item); setRotationInputText(item.rotationItems?.join(", ") || ""); }} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px" }}>
+                      <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px" }}>
                         ✏️ 編集
                       </button>
                     </div>
@@ -388,12 +426,12 @@ export default function Page() {
         </div>
       )}
 
-      {/* 全画面手順モード (フルスクリーン・ステップ・プレイヤー) */}
+      {/* 📺 全画面手順モード (アクティブなサブ項目の手順を正確表示) */}
       {activePlayerRoutine && playerSteps.length > 0 && (
         <div style={{ position: "fixed", inset: 0, background: "#050505", zIndex: 9999, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "40px 20px", color: "#fff", textAlign: "center" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "16px", color: "#C9A84C", fontWeight: "bold" }}>
-              📜 {activePlayerRoutine.name} (全画面手順モード)
+              📜 {activePlayerRoutine.name} ➔ 【{activePlayerRoutine.hasRotation ? activePlayerRoutine.rotationItems[activePlayerRoutine.currentRotationIndex % activePlayerRoutine.rotationItems.length] : "手順"}】
             </span>
             <button
               onClick={() => setActivePlayerRoutine(null)}
@@ -431,11 +469,11 @@ export default function Page() {
         </div>
       )}
 
-      {/* ✏️ 編集 / 新規作成ポップアップモーダル */}
+      {/* ✏️ 編集 / 新規作成モーダル (サブ項目別手順メモ切替タブ新設) */}
       {(isCreating || editingRoutine) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
-            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・手順メモ設定変更"}</h4>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "400px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・サブ項目別手順メモ設定"}</h4>
 
             <div>
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>ルーティン名:</span>
@@ -446,63 +484,6 @@ export default function Page() {
                 onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, name: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, name: e.target.value })}
                 style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
               />
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <span style={{ fontSize: "12px", color: "#888" }}>時間:</span>
-              <input
-                type="time"
-                value={isCreating ? newRoutine.startTime : editingRoutine?.startTime || "07:00"}
-                onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, startTime: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, startTime: e.target.value })}
-                style={{ padding: "6px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px" }}
-              />
-              <span style={{ fontSize: "12px", color: "#888" }}>〜</span>
-              <input
-                type="time"
-                value={isCreating ? newRoutine.endTime : editingRoutine?.endTime || "08:00"}
-                onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, endTime: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, endTime: e.target.value })}
-                style={{ padding: "6px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px" }}
-              />
-            </div>
-
-            {/* 手順メモ設定UI */}
-            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: "bold" }}>📋 手順メモ設定 (全画面表示用):</span>
-                <label style={{ fontSize: "12px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <input
-                    type="checkbox"
-                    checked={isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps || false}
-                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, hasSteps: e.target.checked }) : editingRoutine && setEditingRoutine({ ...editingRoutine, hasSteps: e.target.checked })}
-                  />
-                  使用する
-                </label>
-              </div>
-
-              {(isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps) && (
-                <div>
-                  <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>1行に1種目ずつ入力してください:</span>
-                  <textarea
-                    rows={4}
-                    placeholder={`1. ベンチプレス (3セット)\n2. ラットプルダウン (3セット)\n3. バーティカルロー (3セット)`}
-                    value={stepInputText}
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      setStepInputText(text);
-                      const stepsArr = text.split("\n").filter((s) => s.trim().length > 0);
-                      const currentSub = isCreating
-                        ? (newRoutine.rotationItems?.[0] || "デフォルト")
-                        : (editingRoutine?.rotationItems?.[0] || "デフォルト");
-
-                      const map = { [currentSub]: stepsArr, "デフォルト": stepsArr };
-
-                      if (isCreating) setNewRoutine({ ...newRoutine, stepMap: map });
-                      else if (editingRoutine) setEditingRoutine({ ...editingRoutine, stepMap: map });
-                    }}
-                    style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#22c55e", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", fontFamily: "monospace" }}
-                  />
-                </div>
-              )}
             </div>
 
             {/* 多段階ローテーション設定UI */}
@@ -521,6 +502,7 @@ export default function Page() {
 
               {(isCreating ? newRoutine.hasRotation : editingRoutine?.hasRotation) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#888" }}>サブ項目 (カンマ区切りで入力):</span>
                   <input
                     type="text"
                     placeholder="例: 上半身, 下半身  または  数学, 英語, 国語"
@@ -533,6 +515,61 @@ export default function Page() {
                       else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotationItems: items });
                     }}
                     style={{ width: "100%", padding: "6px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* ★新機能要件: サブ項目別の個別手順メモ設定UI★ */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: "bold" }}>📋 手順メモ設定 (全画面表示用):</span>
+                <label style={{ fontSize: "12px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps || false}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, hasSteps: e.target.checked }) : editingRoutine && setEditingRoutine({ ...editingRoutine, hasSteps: e.target.checked })}
+                  />
+                  使用する
+                </label>
+              </div>
+
+              {(isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps) && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {/* サブ項目選択タブ ([ 上半身 ] [ 下半身 ]) */}
+                  {((isCreating ? newRoutine.rotationItems : editingRoutine?.rotationItems) || []).length > 0 && (
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>手順を編集するサブ項目を選択:</span>
+                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                        {((isCreating ? newRoutine.rotationItems : editingRoutine?.rotationItems) || ["デフォルト"]).map((sub) => (
+                          <button
+                            key={sub}
+                            type="button"
+                            onClick={() => handleSubTabChange(sub, !isCreating)}
+                            style={{
+                              padding: "4px 8px",
+                              background: editingSubTab === sub ? "#22c55e" : "#1a1a1a",
+                              color: editingSubTab === sub ? "#000" : "#888",
+                              border: "1px solid #22c55e",
+                              borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: "bold"
+                            }}
+                          >
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <span style={{ fontSize: "11px", color: "#22c55e", display: "block" }}>
+                    【{editingSubTab}】の手順 (1行に1種目ずつ入力):
+                  </span>
+                  <textarea
+                    rows={4}
+                    placeholder={`1. ベンチプレス (3セット)\n2. ラットプルダウン (3セット)\n3. バーティカルロー (3セット)`}
+                    value={stepInputText}
+                    onChange={(e) => handleStepTextChange(e.target.value, !isCreating)}
+                    style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#22c55e", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", fontFamily: "monospace" }}
                   />
                 </div>
               )}
