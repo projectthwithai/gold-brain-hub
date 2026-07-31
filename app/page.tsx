@@ -1,4 +1,5 @@
 "use client";
+import TacticalTimer from "../components/gbh/TacticalTimer";
 import React, { useState, useEffect } from "react";
 
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -823,28 +824,9 @@ export default function Page() {
       )}
 
       {/* その他のタブ */}
+      {/* 2. ⏱️ 戦術タイマー タブ呼び出し */}
       {tab === "timer" && (
-        <div style={{ background: "#0d0d0d", border: `2px solid ${timerMode === "work" ? "#C9A84C" : "#22c55e"}`, borderRadius: "8px", padding: "20px" }}>
-          <h3 style={{ margin: "0 0 15px 0", color: timerMode === "work" ? "#C9A84C" : "#22c55e" }}>
-            {timerMode === "work" ? "⏱️ 戦術タイマー (自由時間設定)" : "☕ 自動計算 1/5 休憩タイマー"}
-          </h3>
-          <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
-            <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} style={{ flex: 1, padding: "8px", background: "#1a1a1a", border: "1px solid #333", color: "#fff", borderRadius: "4px" }} />
-            <input type="number" value={customMins} onChange={(e) => { setCustomMins(Number(e.target.value)); setTimeLeft(Number(e.target.value) * 60); }} style={{ width: "70px", padding: "8px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center", fontWeight: "bold" }} />
-            <span style={{ alignSelf: "center" }}>分</span>
-          </div>
-          <div style={{ fontSize: "52px", fontWeight: "bold", textAlign: "center", color: timerMode === "work" ? "#C9A84C" : "#22c55e", fontFamily: "monospace", margin: "15px 0" }}>
-            {`${Math.floor(timeLeft / 60).toString().padStart(2, "0")}:${(timeLeft % 60).toString().padStart(2, "0")}`}
-          </div>
-          <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-            <button onClick={() => setIsRunning(!isRunning)} style={{ padding: "10px 24px", background: isRunning ? "#e11d48" : "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
-              {isRunning ? "一時停止" : "タイマー開始"}
-            </button>
-            <button onClick={handleStopOrComplete} style={{ padding: "10px 16px", background: "#333", color: "#fff", border: "1px solid #555", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>
-              作業終了 ➔ 1/5自動休憩へ
-            </button>
-          </div>
-        </div>
+        <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
       )}
 
       {tab === "task" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>✅ タスク管理ボード (稼働中)</div>}
