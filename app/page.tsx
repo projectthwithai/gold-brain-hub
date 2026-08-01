@@ -66,6 +66,10 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function Page() {
+  // ★新機能: 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)★
+  const [streakDays, setStreakDays] = useState<number>(5); // 現在の連続達成日数
+  const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
+  const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record">("routine");
 
   // モード(種類)動的管理State
@@ -296,6 +300,35 @@ export default function Page() {
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
+
+    {/* ★画面最上部: 連続記録 (Streak) ＆ 判定基準バッジ★ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #C9A84C", padding: "12px 18px", borderRadius: "8px", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "24px" }}>🔥</span>
+          <div>
+            <span style={{ fontSize: "11px", color: "#888", display: "block" }}>CONTINUOUS STREAK</span>
+            <strong style={{ fontSize: "18px", color: progressPct >= streakPct ? "#22c55e" : "#C9A84C" }}>
+              {streakDays} 日連続達成中
+            </strong>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ textAlign: "right" }}>
+            <span style={{ fontSize: "11px", color: "#888", display: "block" }}>本日達成度 / 判定基準</span>
+            <span style={{ fontSize: "13px", fontWeight: "bold", color: progressPct >= streakPct ? "#22c55e" : "#e11d48" }}>
+              本日 {progressPct}% / 基準 {streakPct}% ({progressPct >= streakPct ? "WIN 判定中" : "LOSE 判定中"})
+            </span>
+          </div>
+
+          <button
+            onClick={() => setIsManagingStreak(true)}
+            style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
+          >
+            ⚙️ 基準設定
+          </button>
+        </div>
+      </div>
       {/* 7大メインタブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid #222", paddingBottom: "10px", flexWrap: "wrap" }}>
         {[
@@ -836,6 +869,36 @@ export default function Page() {
       {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
       {tab === "partner" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>}
       {tab === "record" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>}
+      {/* ★新機能: 継続判定基準 (streakPct) 設定モーダル★ */}
+      {isManagingStreak && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>⚙️ 連続記録の達成基準ライン設定</h4>
+            
+            <span style={{ fontSize: "12px", color: "#ccc", lineHeight: "1.4" }}>
+              本日の日課達成率（％）がこの基準を超えると、連続記録（Streak日数）がカウントアップされます。1日でも届かないと0日にリセットされます。
+            </span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#0d0d0d", padding: "12px", borderRadius: "4px", border: "1px solid #222" }}>
+              <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>達成基準ライン:</span>
+              <input
+                type="number" min="10" max="100" step="5"
+                value={streakPct}
+                onChange={(e) => setStreakPct(Number(e.target.value))}
+                style={{ width: "70px", padding: "6px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", fontSize: "16px", fontWeight: "bold", textAlign: "center" }}
+              />
+              <span style={{ fontSize: "14px", fontWeight: "bold" }}>％</span>
+            </div>
+
+            <button
+              onClick={() => setIsManagingStreak(false)}
+              style={{ marginTop: "10px", padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+            >
+              設定を保存して閉じる
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
