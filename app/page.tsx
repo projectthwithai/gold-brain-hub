@@ -67,6 +67,10 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function Page() {
+  // ★カレンダー青色表示用 タスクデータState★
+  const [tasks, setTasks] = useState<any[]>([
+    { id: "t1", text: "筑波大学 AC入試 願書実績整理", category: "Vision", done: false, showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"] }
+  ]);
   // ★新機能: カレンダー特定日メモ State★
   const [dateNotes, setDateNotes] = useState<Record<string, string>>({
     "2026-08-15": "筑波AC願書提出準備"
@@ -927,7 +931,7 @@ export default function Page() {
       {/* 4. 📅 カレンダー WIN/LOSE ＆ 赤(ルーティン)/青(タスク)連動 ＆ 日付予定メモ タブ */}
       {tab === "calendar" && (
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
             <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)</h3>
             <span style={{ fontSize: "12px", color: "#aaa" }}>※日付マスをクリックすると特定日の予定メモを書けます</span>
           </div>
@@ -939,24 +943,21 @@ export default function Page() {
 
             {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
               const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
-              
-              // ★今日の日付を自動取得★
               const todayNum = new Date().getDate(); 
               const isToday = day === todayNum;
               const isPast = day < todayNum;
-              const isFuture = day > todayNum;
 
-              // ★WIN / LOSE 判定ロジック: 未来の日は null (表示しない)★
               let resultStatus: "WIN" | "LOSE" | null = null;
               if (isToday) {
                 resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
               } else if (isPast) {
-                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE"; // 過去日の実績判定
+                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
               } else {
-                resultStatus = null; // ★未来の日は表示しない！★
+                resultStatus = null;
               }
 
               const redRoutines = routines.filter((r) => r.showOnCalendar);
+              const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
               const dateNote = dateNotes[dateStr];
 
               return (
@@ -972,8 +973,6 @@ export default function Page() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
-                    
-                    {/* ★未来の日は WIN/LOSE を表示しないバッジ判定★ */}
                     {resultStatus && (
                       <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
                         {resultStatus}
@@ -981,12 +980,14 @@ export default function Page() {
                     )}
                   </div>
 
+                  {/* 特定日メモ */}
                   {dateNote && (
                     <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       📝 {dateNote}
                     </div>
                   )}
 
+                  {/* 🔴 赤色ルーティン表示 */}
                   {redRoutines.map((r) => {
                     const currentSub = r.hasRotation && r.rotationItems?.length > 0
                       ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
@@ -997,45 +998,25 @@ export default function Page() {
                       </div>
                     );
                   })}
+
+                  {/* 🔵 青色タスクバッジ表示 */}
+                  {blueTasks.map((t: any) => (
+                    <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      🔵 {t.text}
+                    </div>
+                  ))}
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* その他のタブ */}
       {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
       {tab === "partner" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>}
       {tab === "record" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>}
-      {/* ★新機能: 継続判定基準 (streakPct) 設定モーダル★ */}
-      {isManagingStreak && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
-            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>⚙️ 連続記録の達成基準ライン設定</h4>
-            
-            <span style={{ fontSize: "12px", color: "#ccc", lineHeight: "1.4" }}>
-              本日の日課達成率（％）がこの基準を超えると、連続記録（Streak日数）がカウントアップされます。1日でも届かないと0日にリセットされます。
-            </span>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#0d0d0d", padding: "12px", borderRadius: "4px", border: "1px solid #222" }}>
-              <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>達成基準ライン:</span>
-              <input
-                type="number" min="10" max="100" step="5"
-                value={streakPct}
-                onChange={(e) => setStreakPct(Number(e.target.value))}
-                style={{ width: "70px", padding: "6px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", fontSize: "16px", fontWeight: "bold", textAlign: "center" }}
-              />
-              <span style={{ fontSize: "14px", fontWeight: "bold" }}>％</span>
-            </div>
-
-            <button
-              onClick={() => setIsManagingStreak(false)}
-              style={{ marginTop: "10px", padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
-            >
-              設定を保存して閉じる
-            </button>
-          </div>
-        </div>
-      )}
       {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
       {selectedCalendarDate && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
