@@ -568,6 +568,113 @@ export default function Page() {
           )}
         </div>
 
+        {/* その他のタブ */}
+      {/* 2. ⏱️ 戦術タイマー タブ呼び出し */}
+      {tab === "timer" && (
+        <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
+      )}
+
+      {/* ✅ タスク管理 タブ呼び出し */}
+      {tab === "task" && <TaskManager />}
+      {/* 4. 📅 カレンダー WIN/LOSE タブ (非破壊保持・完全復活) */}
+      <div style={{ display: tab === "calendar" ? "block" : "none" }}>
+        <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)</h3>
+            <span style={{ fontSize: "12px", color: "#aaa" }}>※日付マスをクリックすると特定日の予定メモを書けます</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+            {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
+              <div key={d} style={{ textAlign: "center", padding: "6px", fontSize: "12px", fontWeight: "bold", color: i === 0 ? "#e11d48" : i === 6 ? "#3b82f6" : "#888" }}>{d}</div>
+            ))}
+
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+              const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
+              const todayNum = new Date().getDate(); 
+              const isToday = day === todayNum;
+              const isPast = day < todayNum;
+
+              // WIN / LOSE 判定 (未来の日は表示しない)
+              let resultStatus: "WIN" | "LOSE" | null = null;
+              if (isToday) {
+                resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
+              } else if (isPast) {
+                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
+              } else {
+                resultStatus = null;
+            }
+
+            const redRoutines = routines.filter((r) => r.showOnCalendar);
+            const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
+            const dateNote = dateNotes[dateStr];
+
+            return (
+              <div
+                key={day}
+                onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
+                style={{
+                  background: isToday ? "#1f1a08" : "#111",
+                  border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
+                  borderRadius: "6px", minHeight: "90px", padding: "6px",
+                  cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
+                  {resultStatus && (
+                    <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
+                      {resultStatus}
+                    </span>
+                  )}
+                </div>
+
+                {/* 特定日メモ */}
+                {dateNote && (
+                  <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    📝 {dateNote}
+                  </div>
+                )}
+
+                {/* 🔴 赤色ルーティン表示 */}
+                {redRoutines.map((r) => {
+                  const currentSub = r.hasRotation && r.rotationItems?.length > 0
+                    ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
+                    : null;
+                  return (
+                    <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      🔴 {r.name} {currentSub ? `(${currentSub})` : ""}
+                    </div>
+                  );
+                })}
+
+                {/* 🔵 青色タスク表示 */}
+                {blueTasks.map((t: any) => (
+                  <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    🔵 {t.text}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. 📊 研究所データ (非破壊保持) */}
+      <div style={{ display: tab === "analytics" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
+      </div>
+
+      {/* 6. 🤝 相棒監視 (非破壊保持) */}
+      <div style={{ display: tab === "partner" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>
+      </div>
+
+      {/* 7. 📱 兵站調達 (非破壊保持) */}
+      <div style={{ display: tab === "record" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>
+      </div>
+
       {/* ★新機能要件①: ⚙️ モード(種類)動的管理ポップアップモーダル★ */}
       {isManagingModes && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
@@ -918,113 +1025,6 @@ export default function Page() {
           </div>
         </div>
       )}
-
-      {/* その他のタブ */}
-      {/* 2. ⏱️ 戦術タイマー タブ呼び出し */}
-      {tab === "timer" && (
-        <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
-      )}
-
-      {/* ✅ タスク管理 タブ呼び出し */}
-      {tab === "task" && <TaskManager />}
-      {/* 4. 📅 カレンダー WIN/LOSE タブ (非破壊保持・完全復活) */}
-      <div style={{ display: tab === "calendar" ? "block" : "none" }}>
-        <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)</h3>
-            <span style={{ fontSize: "12px", color: "#aaa" }}>※日付マスをクリックすると特定日の予定メモを書けます</span>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
-            {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
-              <div key={d} style={{ textAlign: "center", padding: "6px", fontSize: "12px", fontWeight: "bold", color: i === 0 ? "#e11d48" : i === 6 ? "#3b82f6" : "#888" }}>{d}</div>
-            ))}
-
-            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-              const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
-              const todayNum = new Date().getDate(); 
-              const isToday = day === todayNum;
-              const isPast = day < todayNum;
-
-              // WIN / LOSE 判定 (未来の日は表示しない)
-              let resultStatus: "WIN" | "LOSE" | null = null;
-              if (isToday) {
-                resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
-              } else if (isPast) {
-                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
-              } else {
-                resultStatus = null;
-            }
-
-            const redRoutines = routines.filter((r) => r.showOnCalendar);
-            const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
-            const dateNote = dateNotes[dateStr];
-
-            return (
-              <div
-                key={day}
-                onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
-                style={{
-                  background: isToday ? "#1f1a08" : "#111",
-                  border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
-                  borderRadius: "6px", minHeight: "90px", padding: "6px",
-                  cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
-                  {resultStatus && (
-                    <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
-                      {resultStatus}
-                    </span>
-                  )}
-                </div>
-
-                {/* 特定日メモ */}
-                {dateNote && (
-                  <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    📝 {dateNote}
-                  </div>
-                )}
-
-                {/* 🔴 赤色ルーティン表示 */}
-                {redRoutines.map((r) => {
-                  const currentSub = r.hasRotation && r.rotationItems?.length > 0
-                    ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
-                    : null;
-                  return (
-                    <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      🔴 {r.name} {currentSub ? `(${currentSub})` : ""}
-                    </div>
-                  );
-                })}
-
-                {/* 🔵 青色タスク表示 */}
-                {blueTasks.map((t: any) => (
-                  <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    🔵 {t.text}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 5. 📊 研究所データ (非破壊保持) */}
-      <div style={{ display: tab === "analytics" ? "block" : "none" }}>
-        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
-      </div>
-
-      {/* 6. 🤝 相棒監視 (非破壊保持) */}
-      <div style={{ display: tab === "partner" ? "block" : "none" }}>
-        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>
-      </div>
-
-      {/* 7. 📱 兵站調達 (非破壊保持) */}
-      <div style={{ display: tab === "record" ? "block" : "none" }}>
-        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>
-      </div>
 
       {/* ⚙️ モード管理モーダル */}
       {isManagingModes && (
