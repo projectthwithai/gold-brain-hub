@@ -888,8 +888,22 @@ export default function Page() {
 
             {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
               const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
-              const isToday = day === 1;
-              const isWin = isToday ? progressPct >= streakPct : (day % 2 === 0);
+              
+              // ★今日の日付を自動取得★
+              const todayNum = new Date().getDate(); 
+              const isToday = day === todayNum;
+              const isPast = day < todayNum;
+              const isFuture = day > todayNum;
+
+              // ★WIN / LOSE 判定ロジック: 未来の日は null (表示しない)★
+              let resultStatus: "WIN" | "LOSE" | null = null;
+              if (isToday) {
+                resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
+              } else if (isPast) {
+                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE"; // 過去日の実績判定
+              } else {
+                resultStatus = null; // ★未来の日は表示しない！★
+              }
 
               const redRoutines = routines.filter((r) => r.showOnCalendar);
               const dateNote = dateNotes[dateStr];
@@ -907,9 +921,13 @@ export default function Page() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
-                    <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: isWin ? "#14532d" : "#450a0a", color: isWin ? "#22c55e" : "#ef4444" }}>
-                      {isWin ? "WIN" : "LOSE"}
-                    </span>
+                    
+                    {/* ★未来の日は WIN/LOSE を表示しないバッジ判定★ */}
+                    {resultStatus && (
+                      <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
+                        {resultStatus}
+                      </span>
+                    )}
                   </div>
 
                   {dateNote && (
