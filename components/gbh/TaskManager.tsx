@@ -59,6 +59,7 @@ export default function TaskManager() {
 
   // 24時間パージ
   useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("gbh_tasks", JSON.stringify(taskList));
     const now = Date.now();
     const validTasks = taskList.filter((t) => {
       if (!t.done || !t.completedAt) return true;

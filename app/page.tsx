@@ -576,7 +576,9 @@ export default function Page() {
               }
 
               const redRoutines = routines.filter((r) => r.showOnCalendar);
-              const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
+              // ★修正: タスクタブで作成・編集された自作タスクをリアルタイム読み込み★
+              const savedTasksArr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks") ? JSON.parse(localStorage.getItem("gbh_tasks")!) : (tasks || []);
+              const blueTasks = (savedTasksArr || []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
               const dateNote = dateNotes[dateStr];
 
               return (
