@@ -74,7 +74,7 @@ export default function Page() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [dateNoteInput, setDateNoteInput] = useState("");
   // ★新機能: 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)★
-  const [streakDays, setStreakDays] = useState<number>(5); // 現在の連続達成日数
+  const [streakDays, setStreakDays] = useState<number>(0); // 現在の連続達成日数
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
   const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record">("routine");
@@ -308,13 +308,44 @@ export default function Page() {
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
 
-    {/* ★画面最上部: 連続記録 (Streak) ＆ 判定基準バッジ★ */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #C9A84C", padding: "12px 18px", borderRadius: "8px", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+    {/* ★画面最上部: 連続記録 (Streak) 氷 ➔ 炎 動的エフェクトバッジ★ */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: progressPct >= streakPct ? "linear-gradient(135deg, #1c0d02, #0d0d0d)" : "linear-gradient(135deg, #031f38, #0d0d0d)",
+          border: `1px solid ${progressPct >= streakPct ? "#f97316" : "#38bdf8"}`,
+          boxShadow: progressPct >= streakPct ? "0 0 18px rgba(249, 115, 22, 0.4)" : "0 0 18px rgba(56, 189, 248, 0.25)",
+          padding: "12px 18px",
+          borderRadius: "8px",
+          marginBottom: "15px",
+          flexWrap: "wrap",
+          gap: "10px",
+          transition: "all 0.5s ease-in-out"
+        }}
+      >
+        
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "24px" }}>🔥</span>
+          <span style={{ fontSize: "28px", filter: progressPct >= streakPct ? "drop-shadow(0 0 8px #f97316)" : "drop-shadow(0 0 8px #38bdf8)", transition: "all 0.5s" }}>
+            {progressPct >= streakPct ? "🔥" : "🧊"}
+          </span>
           <div>
-            <span style={{ fontSize: "11px", color: "#888", display: "block" }}>CONTINUOUS STREAK</span>
-            <strong style={{ fontSize: "18px", color: progressPct >= streakPct ? "#22c55e" : "#C9A84C" }}>
+            <span style={{ fontSize: "10px", color: progressPct >= streakPct ? "#fdba74" : "#7dd3fc", letterSpacing: "1px", fontWeight: "bold", display: "block" }}>
+              {progressPct >= streakPct ? "🔥 STREAK IGNITED (基準達成中)" : "❄️ FROZEN STREAK (凍結中)"}
+            </span>
+            <strong
+              style={{
+                fontSize: "20px",
+                fontWeight: "900",
+                color: progressPct >= streakPct ? "#f97316" : "#38bdf8",
+                textShadow: progressPct >= streakPct
+                  ? "0 0 10px rgba(249, 115, 22, 0.8), 0 0 20px rgba(234, 88, 12, 0.5)"
+                  : "0 0 10px rgba(56, 189, 248, 0.8), 0 0 20px rgba(125, 211, 252, 0.4)",
+                letterSpacing: "0.5px",
+                transition: "all 0.5s"
+              }}
+            >
               {streakDays} 日連続達成中
             </strong>
           </div>
@@ -323,8 +354,8 @@ export default function Page() {
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ textAlign: "right" }}>
             <span style={{ fontSize: "11px", color: "#888", display: "block" }}>本日達成度 / 判定基準</span>
-            <span style={{ fontSize: "13px", fontWeight: "bold", color: progressPct >= streakPct ? "#22c55e" : "#e11d48" }}>
-              本日 {progressPct}% / 基準 {streakPct}% ({progressPct >= streakPct ? "WIN 判定中" : "LOSE 判定中"})
+            <span style={{ fontSize: "13px", fontWeight: "bold", color: progressPct >= streakPct ? "#22c55e" : "#38bdf8" }}>
+              本日 {progressPct}% / 基準 {streakPct}% ({progressPct >= streakPct ? "🔥 WIN 達成！" : "🧊 凍結中"})
             </span>
           </div>
 
