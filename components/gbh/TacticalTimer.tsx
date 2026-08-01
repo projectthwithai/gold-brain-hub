@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { sendNotification, playBeepSound } from "../../utils/notification";
 
 export type AlarmMode = "silent" | "once" | "loop";
 
@@ -38,13 +39,11 @@ interface TacticalTimerProps {
 }
 
 export default function TacticalTimer({ initialTask, initialMinutes }: TacticalTimerProps) {
-  // 作業項目選択肢 (追加・編集・削除)
   const [taskOptions, setTaskOptions] = useState<TaskOption[]>(INITIAL_TASK_OPTIONS);
   const [newTaskOptInput, setNewTaskOptInput] = useState("");
   const [editingTaskOpt, setEditingTaskOpt] = useState<TaskOption | null>(null);
   const [isManagingTaskOpts, setIsManagingTaskOpts] = useState(false);
 
-  // タイマープロファイル (追加・編集・削除)
   const [timerPresets, setTimerPresets] = useState<TimerPreset[]>(INITIAL_TIMER_PRESETS);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("p1");
   const [editingPreset, setEditingPreset] = useState<TimerPreset | null>(null);
@@ -63,6 +62,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   const activePreset = timerPresets.find((p) => p.id === selectedPresetId) || timerPresets[0];
   const [currentTaskCategory, setCurrentTaskCategory] = useState(initialTask || activePreset.taskCategory);
   const [timeLeft, setTimeLeft] = useState((initialMinutes || activePreset.workMinutes) * 60);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // ★実際の稼働秒数を正確にカウント★
   const [isRunning, setIsRunning] = useState(false);
   const [timerMode, setTimerMode] = useState<"work" | "break">("work");
   const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
@@ -72,6 +72,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   useEffect(() => {
     if (initialTask) setCurrentTaskCategory(initialTask);
     if (initialMinutes) setTimeLeft(initialMinutes * 60);
+    setElapsedSeconds(0);
   }, [initialTask, initialMinutes]);
 
   const playBeep = (isShort = true) => {
@@ -105,25 +106,39 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     const p = timerPresets.find((x) => x.id === presetId) || timerPresets[0];
     setCurrentTaskCategory(p.taskCategory);
     setTimeLeft(p.workMinutes * 60);
+    setElapsedSeconds(0);
     setIsRunning(false);
     setTimerMode("work");
   };
 
+  // ★要件完全修正: 予定時間ではなく【実際の稼働時間(elapsedSeconds)】に対して 5:1 (設定比率) の自動休憩時間を算出★
   const handleStopOrComplete = () => {
     setIsRunning(false);
     stopLoopAlarm();
 
     if (timerMode === "work") {
-      const breakMins = Math.max(1, Math.floor(activePreset.workMinutes / activePreset.ratioWorkToBreak));
-      setTimerMode("break");
-      setTimeLeft(breakMins * 60);
+      // 稼働秒数 ÷ 比率 (デフォルト5) ➔ 1/5 の休憩秒数を動的算定！ (最小1分/60秒保証)
+      const calculatedBreakSeconds = Math.max(60, Math.floor(elapsedSeconds / activePreset.ratioWorkToBreak));
+      const actualWorkedMins = Math.floor(elapsedSeconds / 60);
+      const breakMins = Math.floor(calculatedBreakSeconds / 60);
+
+      sendNotification(
+        "【作業完了】1/5自動休憩開始",
+        `実作業時間: ${actualWorkedMins}分${elapsedSeconds % 60}秒 ➔ 自動設定の休憩時間: ${breakMins}分`
+      );
       playBeep(true);
+
+      setTimerMode("break");
+      setTimeLeft(calculatedBreakSeconds);
     } else {
+      // 休憩終了 ➔ 作業モードへリセット
       setTimerMode("work");
       setTimeLeft(activePreset.workMinutes * 60);
+      setElapsedSeconds(0);
     }
   };
 
+  // タイマーカウントダウン ＆ 稼働秒数カウント ＆ 自動1/5休憩計算
   useEffect(() => {
     let interval: any = null;
     let wakeLock: any = null;
@@ -137,11 +152,20 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         setTimeLeft((prev) => {
           const nextSec = prev - 1;
 
-          if (timerMode === "work" && activePreset.hasMidAlert) {
-            const alertSec = activePreset.midAlertMinutesBeforeEnd * 60;
-            if (nextSec === alertSec) playBeep(true);
+          // 実作業時間を秒単位で正確に加算カウント
+          if (timerMode === "work") {
+            setElapsedSeconds((e) => e + 1);
           }
 
+          // 中間アラート音
+          if (timerMode === "work" && activePreset.hasMidAlert) {
+            const alertSec = activePreset.midAlertMinutesBeforeEnd * 60;
+            if (nextSec === alertSec) {
+              playBeep(true);
+            }
+          }
+
+          // タイマー完走 (0秒到達) 時の処理
           if (nextSec <= 0) {
             setIsRunning(false);
 
@@ -153,11 +177,13 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             }
 
             if (timerMode === "work") {
-              const breakMins = Math.max(1, Math.floor(activePreset.workMinutes / activePreset.ratioWorkToBreak));
+              // 完走時も【実作業時間(elapsedSeconds)】の 1/5 で休憩時間を正確計算！
+              const calculatedBreakSeconds = Math.max(60, Math.floor((elapsedSeconds + 1) / activePreset.ratioWorkToBreak));
               setTimerMode("break");
-              return breakMins * 60;
+              return calculatedBreakSeconds;
             } else {
               setTimerMode("work");
+              setElapsedSeconds(0);
               return activePreset.workMinutes * 60;
             }
           }
@@ -171,9 +197,8 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       if (interval) clearInterval(interval);
       if (wakeLock) wakeLock.release();
     };
-  }, [isRunning, timeLeft, timerMode, activePreset]);
+  }, [isRunning, timeLeft, timerMode, activePreset, elapsedSeconds]);
 
-  // ★要件: タイマー作業選択肢の追加・編集・削除ロジック★
   const handleAddTaskOption = () => {
     if (!newTaskOptInput.trim()) return;
     const newOpt: TaskOption = { id: `t_${Date.now()}`, label: newTaskOptInput.trim() };
@@ -188,7 +213,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     setEditingTaskOpt(null);
   };
 
-  // ★要件: タイマー種類の削除ロジック★
   const handleDeletePreset = (id: string) => {
     if (timerPresets.length <= 1) return;
     const updated = timerPresets.filter((p) => p.id !== id);
@@ -226,7 +250,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
         <h3 style={{ margin: 0, color: timerMode === "work" ? "#C9A84C" : "#22c55e", fontSize: "16px" }}>
-          {timerMode === "work" ? "⏱️ 戦術的タイマー (種類・作業名 完全管理)" : "☕ 自動計算 1/5 休憩タイマー"}
+          {timerMode === "work" ? "⏱️ 戦術的タイマー (実稼働1/5動的ポモドーロ計算)" : "☕ 自動計算 1/5 休憩タイマー"}
         </h3>
 
         <div style={{ display: "flex", gap: "8px" }}>
@@ -284,14 +308,30 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
           </select>
 
           <div style={{ fontSize: "12px", color: "#aaa" }}>
-            比率: <strong>{activePreset.workMinutes}分 : {Math.max(1, Math.floor(activePreset.workMinutes / activePreset.ratioWorkToBreak))}分 ({activePreset.ratioWorkToBreak}:1)</strong>
+            設定比率: <strong>{activePreset.ratioWorkToBreak} : 1</strong>
           </div>
         </div>
       )}
 
       {/* カウント表示 */}
-      <div style={{ fontSize: "56px", fontWeight: "bold", textAlign: "center", color: timerMode === "work" ? "#C9A84C" : "#22c55e", fontFamily: "monospace", margin: "20px 0" }}>
+      <div style={{ fontSize: "56px", fontWeight: "bold", textAlign: "center", color: timerMode === "work" ? "#C9A84C" : "#22c55e", fontFamily: "monospace", margin: "15px 0" }}>
         {`${Math.floor(timeLeft / 60).toString().padStart(2, "0")}:${(timeLeft % 60).toString().padStart(2, "0")}`}
+      </div>
+
+      {/* ★実作業時間のリアルタイム表示★ */}
+      {timerMode === "work" && (
+        <div style={{ textAlign: "center", fontSize: "13px", color: "#aaa", marginBottom: "15px", background: "#111", padding: "8px", borderRadius: "4px", border: "1px solid #222" }}>
+          ⏱️ 現在の実作業時間: <strong style={{ color: "#C9A84C", fontSize: "15px" }}>{Math.floor(elapsedSeconds / 60)}分 {elapsedSeconds % 60}秒</strong> 
+          <span style={{ color: "#888", marginLeft: "10px" }}>
+            (※今停止すると ➔ <strong style={{ color: "#22c55e" }}>{Math.max(1, Math.floor(Math.floor(elapsedSeconds / 60) / activePreset.ratioWorkToBreak))}分</strong> の自動休憩になります)
+          </span>
+        </div>
+      )}
+
+      {/* パラメータ状態バッジ表示 */}
+      <div style={{ display: "flex", justifyContent: "center", gap: "12px", fontSize: "12px", color: "#888", marginBottom: "20px", flexWrap: "wrap" }}>
+        <span>🔔 中間アラート: <strong style={{ color: activePreset.hasMidAlert ? "#C9A84C" : "#555" }}>{activePreset.hasMidAlert ? `残り${activePreset.midAlertMinutesBeforeEnd}分前に1回` : "OFF"}</strong></span>
+        <span>🔊 アラームモード: <strong style={{ color: "#C9A84C" }}>{activePreset.alarmMode === "silent" ? "無音" : activePreset.alarmMode === "once" ? "1回だけ" : "止めるまで連射"}</strong></span>
       </div>
 
       {/* 操作ボタン */}
@@ -300,17 +340,16 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
           {isRunning ? "一時停止" : (timerMode === "work" ? "集中開始" : "休憩開始")}
         </button>
         <button onClick={handleStopOrComplete} style={{ padding: "12px 20px", background: "#333", color: "#fff", border: "1px solid #555", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
-          作業完了 ➔ 自動休憩へ
+          作業完了 ➔ 実作業の1/5自動休憩へ
         </button>
       </div>
 
-      {/* 🏷️ 作業選択肢の【追加・編集・削除】モーダル */}
+      {/* モーダル群 (作業選択肢管理 ＆ タイマー設定) */}
       {isManagingTaskOpts && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>🏷️ 作業選択肢の【追加・編集・削除】</h4>
 
-            {/* 追加フォーム */}
             <div style={{ display: "flex", gap: "8px" }}>
               <input
                 type="text"
@@ -324,9 +363,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               </button>
             </div>
 
-            {/* 既存選択肢の編集 / 削除 リスト */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
-              <span style={{ fontSize: "12px", color: "#888" }}>現在の選択肢一覧:</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
               {taskOptions.map((opt) => (
                 <div key={opt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0d0d0d", padding: "8px 12px", borderRadius: "4px", border: "1px solid #222" }}>
                   {editingTaskOpt?.id === opt.id ? (
@@ -361,7 +398,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         </div>
       )}
 
-      {/* ⚙️ タイマー種類の【追加・編集・削除】モーダル */}
       {(isCreatingPreset || editingPreset) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "380px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
@@ -387,11 +423,10 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               />
             </div>
 
-            {/* 比率設定 */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "6px" }}>⚖️ 作業:休憩の比率 (デフォルト 5:1):</span>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                <span>作業分に対して 1/</span>
+                <span>実作業時間分に対して 1/</span>
                 <input
                   type="number" min="1" max="10"
                   value={isCreatingPreset ? newPreset.ratioWorkToBreak : editingPreset?.ratioWorkToBreak || 5}
@@ -402,7 +437,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               </div>
             </div>
 
-            {/* 中間アラート設定 */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                 <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>🔔 中間アラート音 (1回だけ短く鳴る):</span>
@@ -430,14 +464,13 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               )}
             </div>
 
-            {/* アラームモード設定 */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "6px" }}>🔊 アラームモード:</span>
               <div style={{ display: "flex", gap: "6px" }}>
                 {[
                   { id: "silent", label: "無音" },
-                  { id: "once", label: "1回だけ鳴る" },
-                  { id: "loop", label: "止めるまで連射" },
+                  { id: "once", label: "1回だけ" },
+                  { id: "loop", label: "連射停止" },
                 ].map((a) => {
                   const active = (isCreatingPreset ? newPreset.alarmMode : editingPreset?.alarmMode) === a.id;
                   return (
@@ -460,14 +493,12 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               </div>
             </div>
 
-            {/* 保存 / 削除 / キャンセル ボタン */}
             <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
               <button onClick={handleSavePreset} style={{ flex: 1, padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>保存する</button>
 
-              {/* ★要件: タイマー種類自体の削除ボタン★ */}
               {editingPreset && timerPresets.length > 1 && (
                 <button onClick={() => handleDeletePreset(editingPreset.id)} style={{ padding: "10px 14px", background: "#e11d48", color: "#fff", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
-                  🗑️ 種類削除
+                  🗑️ 削除
                 </button>
               )}
 
