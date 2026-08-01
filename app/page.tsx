@@ -927,8 +927,8 @@ export default function Page() {
 
       {/* ✅ タスク管理 タブ呼び出し */}
       {tab === "task" && <TaskManager />}
-      {/* 4. 📅 カレンダー WIN/LOSE ＆ 赤(ルーティン)/青(タスク)連動 ＆ 日付予定メモ タブ */}
-      {tab === "calendar" && (
+      {/* 4. 📅 カレンダー WIN/LOSE タブ (非破壊保持・完全復活) */}
+      <div style={{ display: tab === "calendar" ? "block" : "none" }}>
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
             <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)</h3>
@@ -946,6 +946,7 @@ export default function Page() {
               const isToday = day === todayNum;
               const isPast = day < todayNum;
 
+              // WIN / LOSE 判定 (未来の日は表示しない)
               let resultStatus: "WIN" | "LOSE" | null = null;
               if (isToday) {
                 resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
@@ -986,7 +987,7 @@ export default function Page() {
                     </div>
                   )}
 
-                  {/* 🔴 赤色ルーティン表示 */}
+                  {/* 🔴 赤色ルーティン表示 (ローテーション連動) */}
                   {redRoutines.map((r) => {
                     const currentSub = r.hasRotation && r.rotationItems?.length > 0
                       ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
@@ -998,7 +999,7 @@ export default function Page() {
                     );
                   })}
 
-                  {/* 🔵 青色タスクバッジ表示 */}
+                  {/* 🔵 青色タスクバッジ表示 (複数日選択可) */}
                   {blueTasks.map((t: any) => (
                     <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       🔵 {t.text}
@@ -1009,8 +1010,7 @@ export default function Page() {
             })}
           </div>
         </div>
-      )}
-</div>
+      </div>
 
       {/* 2. ⏱️ 戦術タイマー (非破壊保持) */}
       <div style={{ display: tab === "timer" ? "block" : "none" }}>
@@ -1038,6 +1038,7 @@ export default function Page() {
       </div>
 
       {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
+      {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
       {selectedCalendarDate && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "320px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
@@ -1049,7 +1050,7 @@ export default function Page() {
               onChange={(e) => setDateNoteInput(e.target.value)}
               style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }}
             />
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
               <button
                 onClick={() => {
                   if (selectedCalendarDate) {
