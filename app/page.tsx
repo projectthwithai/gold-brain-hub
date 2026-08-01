@@ -31,6 +31,7 @@ export interface RoutineItem {
 
   hasSteps: boolean;
   stepMap: Record<string, string[]>;
+  showOnCalendar?: boolean;
 }
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -66,6 +67,12 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function Page() {
+  // ★新機能: カレンダー特定日メモ State★
+  const [dateNotes, setDateNotes] = useState<Record<string, string>>({
+    "2026-08-15": "筑波AC願書提出準備"
+  });
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [dateNoteInput, setDateNoteInput] = useState("");
   // ★新機能: 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)★
   const [streakDays, setStreakDays] = useState<number>(5); // 現在の連続達成日数
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
@@ -609,6 +616,7 @@ export default function Page() {
 
       {/* ✏️ 編集 / 新規作成モーダル */}
       {(isCreating || editingRoutine) && (
+        
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "400px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・所属モード＆設定変更"}</h4>
@@ -865,7 +873,67 @@ export default function Page() {
 
       {/* ✅ タスク管理 タブ呼び出し */}
       {tab === "task" && <TaskManager />}
-      {tab === "calendar" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📅 カレンダー WIN/LOSE 表示 (稼働中)</div>}
+      {/* 4. 📅 カレンダー WIN/LOSE ＆ 赤(ルーティン)/青(タスク)連動 ＆ 日付予定メモ タブ */}
+      {tab === "calendar" && (
+        <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)</h3>
+            <span style={{ fontSize: "12px", color: "#aaa" }}>※日付マスをクリックすると特定日の予定メモを書けます</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+            {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
+              <div key={d} style={{ textAlign: "center", padding: "6px", fontSize: "12px", fontWeight: "bold", color: i === 0 ? "#e11d48" : i === 6 ? "#3b82f6" : "#888" }}>{d}</div>
+            ))}
+
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+              const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
+              const isToday = day === 1;
+              const isWin = isToday ? progressPct >= streakPct : (day % 2 === 0);
+
+              const redRoutines = routines.filter((r) => r.showOnCalendar);
+              const dateNote = dateNotes[dateStr];
+
+              return (
+                <div
+                  key={day}
+                  onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
+                  style={{
+                    background: isToday ? "#1f1a08" : "#111",
+                    border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
+                    borderRadius: "6px", minHeight: "90px", padding: "6px",
+                    cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
+                    <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: isWin ? "#14532d" : "#450a0a", color: isWin ? "#22c55e" : "#ef4444" }}>
+                      {isWin ? "WIN" : "LOSE"}
+                    </span>
+                  </div>
+
+                  {dateNote && (
+                    <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      📝 {dateNote}
+                    </div>
+                  )}
+
+                  {redRoutines.map((r) => {
+                    const currentSub = r.hasRotation && r.rotationItems?.length > 0
+                      ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
+                      : null;
+                    return (
+                      <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        🔴 {r.name} {currentSub ? `(${currentSub})` : ""}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
       {tab === "partner" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>}
       {tab === "record" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>}
@@ -896,6 +964,36 @@ export default function Page() {
             >
               設定を保存して閉じる
             </button>
+          </div>
+        </div>
+      )}
+      {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
+      {selectedCalendarDate && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "320px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📝 【{selectedCalendarDate}】の予定メモ入力</h4>
+            <textarea
+              rows={4}
+              placeholder="この日の重要な予定・スケジュールを入力..."
+              value={dateNoteInput}
+              onChange={(e) => setDateNoteInput(e.target.value)}
+              style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => {
+                  if (selectedCalendarDate) {
+                    setDateNotes({ ...dateNotes, [selectedCalendarDate]: dateNoteInput.trim() });
+                    setSelectedCalendarDate(null);
+                    setDateNoteInput("");
+                  }
+                }}
+                style={{ flex: 1, padding: "8px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+              >
+                保存
+              </button>
+              <button onClick={() => setSelectedCalendarDate(null)} style={{ flex: 1, padding: "8px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}

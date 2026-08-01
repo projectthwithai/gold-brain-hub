@@ -15,6 +15,7 @@ export interface RoutineItem {
   freqIntervalDays: number;
   freqDaysOfWeek: number[];
   done: boolean;
+  showOnCalendar?: boolean;
 }
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -171,6 +172,23 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                 value={isCreating ? newRoutine.name : editingRoutine?.name || ""}
                 onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, name: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, name: e.target.value })}
                 style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
+              />
+            </div>
+            {/* 🔴 カレンダー表示トグル (赤色表示) */}
+            <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "bold" }}>🔴 カレンダーに赤色で表示する:</span>
+              <input
+                type="checkbox"
+                checked={isCreating ? Boolean((newRoutine as any).showOnCalendar) : Boolean(editingRoutine?.showOnCalendar)}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  if (isCreating) {
+                    setNewRoutine({ ...newRoutine, showOnCalendar: val } as any);
+                  } else if (editingRoutine) {
+                    setEditingRoutine({ ...editingRoutine, showOnCalendar: val });
+                  }
+                }}
+                style={{ accentColor: "#ef4444", cursor: "pointer", width: "18px", height: "18px" }}
               />
             </div>
 
