@@ -273,6 +273,8 @@ export default function Page() {
 
   const completedCount = activeRoutines.filter((r) => r.done).length;
   const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
+  // ★本日のWIN判定 ＆ 動的ストリークカウント(+1)計算★
+  const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);
 
   const startEdit = (item: RoutineItem) => {
     setEditingRoutine(item);
@@ -325,7 +327,7 @@ export default function Page() {
           transition: "all 0.5s ease-in-out"
         }}
       >
-        
+
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "28px", filter: progressPct >= streakPct ? "drop-shadow(0 0 8px #f97316)" : "drop-shadow(0 0 8px #38bdf8)", transition: "all 0.5s" }}>
             {progressPct >= streakPct ? "🔥" : "🧊"}
@@ -346,7 +348,7 @@ export default function Page() {
                 transition: "all 0.5s"
               }}
             >
-              {streakDays} 日連続達成中
+              {currentDisplayStreak} 日連続達成中
             </strong>
           </div>
         </div>
