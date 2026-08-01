@@ -1,9 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
 import TacticalTimer from "../components/gbh/TacticalTimer";
 import TaskManager from "../components/gbh/TaskManager";
+import React, { useState, useEffect } from "react";
 
-export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
 
 // モード(種類)の型定義
@@ -18,7 +17,7 @@ export interface RoutineItem {
   startTime: string;
   endTime: string;
   duration: number;
-  modes: string[]; // 所属するモードIDの配列
+  modes: string[]; // 所属するモードIDの配列 (例: ["weekday", "monk", "custom_123"])
   freqType: FrequencyType;
   freqIntervalDays: number;
   freqDaysOfWeek: number[];
@@ -53,8 +52,7 @@ const INITIAL_ROUTINES: RoutineItem[] = [
     stepMap: {
       "上半身": ["1. ベンチプレス (3セット)", "2. ラットプルダウン (3セット)", "3. バーティカルロー (3セット)"],
       "下半身": ["1. スクワット (3セット)", "2. レッグプレス (3セット)", "3. デッドリフト (3セット)", "4. レッグカール (3セット)"]
-    },
-    showOnCalendar: true
+    }
   },
   {
     id: "r2", name: "朝5時 帝国学習ローテーション", startTime: "05:00", endTime: "06:30", duration: 90,
@@ -64,29 +62,25 @@ const INITIAL_ROUTINES: RoutineItem[] = [
     stepMap: {
       "数学 (微分積分)": ["1. 定理の証明確認 (15分)", "2. 演習問題 5問解説 (45分)", "3. 誤答の解き直し (30分)"],
       "英語 (SVOC構文)": ["1. 長文 1章精読 (30分)", "2. SVOC構造書き出し (30分)"]
-    },
-    showOnCalendar: false
+    }
   },
 ];
 
 export default function Page() {
-  // カレンダー青色表示用 タスクデータState
-  const [tasks] = useState<any[]>([
+  // ★カレンダー青色表示用 タスクデータState★
+  const [tasks, setTasks] = useState<any[]>([
     { id: "t1", text: "筑波大学 AC入試 願書実績整理", category: "Vision", done: false, showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"] }
   ]);
-
-  // カレンダー特定日メモ State
+  // ★新機能: カレンダー特定日メモ State★
   const [dateNotes, setDateNotes] = useState<Record<string, string>>({
     "2026-08-15": "筑波AC願書提出準備"
   });
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [dateNoteInput, setDateNoteInput] = useState("");
-
-  // 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)
-  const [streakDays] = useState<number>(0); // 初期値 0日
+  // ★新機能: 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)★
+  const [streakDays, setStreakDays] = useState<number>(0); // 現在の連続達成日数
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
   const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
-
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record">("routine");
 
   // モード(種類)動的管理State
@@ -107,7 +101,7 @@ export default function Page() {
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
     hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1,
-    hasSteps: false, stepMap: {}, showOnCalendar: false
+    hasSteps: false, stepMap: {}
   });
 
   const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
@@ -115,18 +109,49 @@ export default function Page() {
   const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
 
   // タイマーState
-  const [quickTask, setQuickTask] = useState("数学 Deep Work");
-  const [quickMin, setQuickMin] = useState(45);
+  const [taskName, setTaskName] = useState("数学 Deep Work");
+  const [customMins, setCustomMins] = useState(45);
+  const [timeLeft, setTimeLeft] = useState(45 * 60);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [timerMode, setTimerMode] = useState<"work" | "break">("work");
 
   const handleQuickTimer = (name: string, duration: number) => {
-    setQuickTask(name);
-    setQuickMin(duration);
+    setTaskName(name);
+    setCustomMins(duration);
+    setTimeLeft(duration * 60);
+    setElapsedSeconds(0);
+    setTimerMode("work");
     setTab("timer");
+  };
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isRunning && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+        if (timerMode === "work") setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => { if (interval) clearInterval(interval); };
+  }, [isRunning, timeLeft, timerMode]);
+
+  const handleStopOrComplete = () => {
+    setIsRunning(false);
+    if (timerMode === "work") {
+      const breakSecs = Math.max(60, Math.floor(elapsedSeconds / 5));
+      setTimerMode("break");
+      setTimeLeft(breakSecs);
+    } else {
+      setTimerMode("work");
+      setTimeLeft(customMins * 60);
+      setElapsedSeconds(0);
+    }
   };
 
   const todayDow = new Date().getDay();
 
-  // モードフィルタリング
+  // ★モードフィルタリング★
   const activeRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentModeId)) return false;
     if (r.freqType === "daily") return true;
@@ -218,7 +243,7 @@ export default function Page() {
     }
   };
 
-  // ルーティン所属モードの切替
+  // ルーティン所属モードの切替 (「全て」または個別のトグル)
   const toggleRoutineModeAssign = (modeId: string, isEdit: boolean) => {
     if (modeId === "ALL") {
       const allIds = modeOptions.map((m) => m.id);
@@ -252,8 +277,7 @@ export default function Page() {
 
   const completedCount = activeRoutines.filter((r) => r.done).length;
   const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
-  
-  // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
+  // ★本日のWIN判定 ＆ 動的ストリークカウント(+1)計算★
   const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);
 
   const startEdit = (item: RoutineItem) => {
@@ -285,24 +309,17 @@ export default function Page() {
     }
   };
 
-  const handleSaveDateNote = () => {
-    if (!selectedCalendarDate) return;
-    setDateNotes({ ...dateNotes, [selectedCalendarDate]: dateNoteInput.trim() });
-    setSelectedCalendarDate(null);
-    setDateNoteInput("");
-  };
-
   const currentModeLabel = modeOptions.find((m) => m.id === currentModeId)?.label || "全モード";
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
 
-      {/* 画面最上部: 連続記録 (Streak) 氷 ➔ 炎 動的エフェクトバッジ */}
+    {/* ★画面最上部: 連続記録 (Streak) 氷 ➔ 炎 動的エフェクトバッジ★ */}
       <div
         style={{
           display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+          justifyContent: "space-between",
+          alignItems: "center",
           background: progressPct >= streakPct ? "linear-gradient(135deg, #1c0d02, #0d0d0d)" : "linear-gradient(135deg, #031f38, #0d0d0d)",
           border: `1px solid ${progressPct >= streakPct ? "#f97316" : "#38bdf8"}`,
           boxShadow: progressPct >= streakPct ? "0 0 18px rgba(249, 115, 22, 0.4)" : "0 0 18px rgba(56, 189, 248, 0.25)",
@@ -314,6 +331,7 @@ export default function Page() {
           transition: "all 0.5s ease-in-out"
         }}
       >
+
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "28px", filter: progressPct >= streakPct ? "drop-shadow(0 0 8px #f97316)" : "drop-shadow(0 0 8px #38bdf8)", transition: "all 0.5s" }}>
             {progressPct >= streakPct ? "🔥" : "🧊"}
@@ -355,7 +373,6 @@ export default function Page() {
           </button>
         </div>
       </div>
-
       {/* 7大メインタブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid #222", paddingBottom: "10px", flexWrap: "wrap" }}>
         {[
@@ -386,15 +403,14 @@ export default function Page() {
         ))}
       </div>
 
-      {/* ★全7タブが完全に独立分離された Keep-Alive レンダリングエリア (真っ黒問題解呪)★ */}
-
-      {/* 1. 📜 ルーティン タブ (独立保持) */}
+      {/* 1. 📜 ルーティン タブ */}
       <div style={{ display: tab === "routine" ? "block" : "none" }}>
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制 (動的モード創設＆所属選択連動)</h3>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {/* モード種類管理モーダル起動ボタン */}
               <button onClick={() => setIsManagingModes(true)} style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
                 ⚙️ モード種類管理
               </button>
@@ -403,6 +419,7 @@ export default function Page() {
                 ＋ 新規日課作成
               </button>
 
+              {/* 動的モード切替ボタン群 */}
               <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                 {modeOptions.map((m) => (
                   <button
@@ -426,6 +443,7 @@ export default function Page() {
             </div>
           </div>
 
+          {/* 達成度バー */}
           <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px", color: "#ccc" }}>
               <span>【{currentModeLabel}】本日の日課達成度 ({completedCount} / {activeRoutines.length})</span>
@@ -436,6 +454,7 @@ export default function Page() {
             </div>
           </div>
 
+          {/* 本日のアクティブ日課カードリスト */}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
             <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 【{currentModeLabel}】実行日課:</span>
             {activeRoutines.map((item) => {
@@ -461,6 +480,7 @@ export default function Page() {
                           {item.freqType === "weekly" && `📆 曜日: ${item.freqDaysOfWeek?.map((d) => WEEKDAYS[d]).join(",")}`}
                         </span>
 
+                        {/* 所属モードタグ表示 */}
                         <div style={{ display: "flex", gap: "2px" }}>
                           {item.modes.map((mid) => {
                             const opt = modeOptions.find((o) => o.id === mid);
@@ -489,11 +509,23 @@ export default function Page() {
 
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                     {item.hasSteps && (
-                      <button onClick={(e) => openStepPlayer(item, e)} style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📺 全画面手順</button>
+                      <button
+                        onClick={(e) => openStepPlayer(item, e)}
+                        style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                      >
+                        📺 全画面手順
+                      </button>
                     )}
+
                     {item.hasRotation && item.rotationItems?.length > 0 && (
-                      <button onClick={(e) => handleSkipRotation(item.id, e)} style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>スキップ ⏩</button>
+                      <button
+                        onClick={(e) => handleSkipRotation(item.id, e)}
+                        style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}
+                      >
+                        スキップ ⏩
+                      </button>
                     )}
+
                     <button onClick={() => handleQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>⏱️ 起動</button>
                     <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
                     <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️</button>
@@ -503,6 +535,7 @@ export default function Page() {
             })}
           </div>
 
+          {/* 本日対象外の日課 */}
           {upcomingRoutines.length > 0 && (
             <div style={{ borderTop: "1px dashed #333", paddingTop: "20px" }}>
               <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💤 本日対象外 (次回準備中の日課):</span>
@@ -534,19 +567,16 @@ export default function Page() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* 2. ⏱️ 戦術タイマー (独立保持) */}
-      <div style={{ display: tab === "timer" ? "block" : "none" }}>
-        <TacticalTimer initialTask={quickTask || "数学 Deep Work"} initialMinutes={quickMin || 45} />
-      </div>
+        {/* その他のタブ */}
+      {/* 2. ⏱️ 戦術タイマー タブ呼び出し */}
+      {tab === "timer" && (
+        <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
+      )}
 
-      {/* 3. ✅ タスク管理 (独立保持) */}
-      <div style={{ display: tab === "task" ? "block" : "none" }}>
-        <TaskManager />
-      </div>
-
-      {/* 4. 📅 カレンダー WIN/LOSE タブ (独立保持) */}
+      {/* ✅ タスク管理 タブ呼び出し */}
+      {tab === "task" && <TaskManager />}
+      {/* 4. 📅 カレンダー WIN/LOSE タブ (非破壊保持・完全復活) */}
       <div style={{ display: tab === "calendar" ? "block" : "none" }}>
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
@@ -565,6 +595,7 @@ export default function Page() {
               const isToday = day === todayNum;
               const isPast = day < todayNum;
 
+              // WIN / LOSE 判定 (未来の日は表示しない)
               let resultStatus: "WIN" | "LOSE" | null = null;
               if (isToday) {
                 resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
@@ -572,75 +603,428 @@ export default function Page() {
                 resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
               } else {
                 resultStatus = null;
-              }
+            }
 
-              const redRoutines = routines.filter((r) => r.showOnCalendar);
-              const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
-              const dateNote = dateNotes[dateStr];
+            const redRoutines = routines.filter((r) => r.showOnCalendar);
+            const blueTasks = (typeof tasks !== "undefined" ? tasks : []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
+            const dateNote = dateNotes[dateStr];
 
-              return (
-                <div
-                  key={day}
-                  onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
-                  style={{
-                    background: isToday ? "#1f1a08" : "#111",
-                    border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
-                    borderRadius: "6px", minHeight: "90px", padding: "6px",
-                    cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
-                    {resultStatus && (
-                      <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
-                        {resultStatus}
-                      </span>
-                    )}
-                  </div>
-
-                  {dateNote && (
-                    <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      📝 {dateNote}
-                    </div>
+            return (
+              <div
+                key={day}
+                onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
+                style={{
+                  background: isToday ? "#1f1a08" : "#111",
+                  border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
+                  borderRadius: "6px", minHeight: "90px", padding: "6px",
+                  cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
+                  {resultStatus && (
+                    <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
+                      {resultStatus}
+                    </span>
                   )}
-
-                  {redRoutines.map((r) => {
-                    const currentSub = r.hasRotation && r.rotationItems?.length > 0
-                      ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
-                      : null;
-                    return (
-                      <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        🔴 {r.name} {currentSub ? `(${currentSub})` : ""}
-                      </div>
-                    );
-                  })}
-
-                  {blueTasks.map((t: any) => (
-                    <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      🔵 {t.text}
-                    </div>
-                  ))}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* 特定日メモ */}
+                {dateNote && (
+                  <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    📝 {dateNote}
+                  </div>
+                )}
+
+                {/* 🔴 赤色ルーティン表示 */}
+                {redRoutines.map((r) => {
+                  const currentSub = r.hasRotation && r.rotationItems?.length > 0
+                    ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
+                    : null;
+                  return (
+                    <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      🔴 {r.name} {currentSub ? `(${currentSub})` : ""}
+                    </div>
+                  );
+                })}
+
+                {/* 🔵 青色タスク表示 */}
+                {blueTasks.map((t: any) => (
+                  <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    🔵 {t.text}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* 5. 📊 研究所データ (独立保持) */}
+      {/* 5. 📊 研究所データ (非破壊保持) */}
       <div style={{ display: tab === "analytics" ? "block" : "none" }}>
         <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
       </div>
 
-      {/* 6. 🤝 相棒監視 (独立保持) */}
+      {/* 6. 🤝 相棒監視 (非破壊保持) */}
       <div style={{ display: tab === "partner" ? "block" : "none" }}>
         <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>
       </div>
 
-      {/* 7. 📱 兵站調達 (独立保持) */}
+      {/* 7. 📱 兵站調達 (非破壊保持) */}
       <div style={{ display: tab === "record" ? "block" : "none" }}>
         <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>
       </div>
+
+      {/* ★新機能要件①: ⚙️ モード(種類)動的管理ポップアップモーダル★ */}
+      {isManagingModes && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>⚙️ ルーティンモード(種類)の管理</h4>
+
+            {/* 新規モード追加 */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                placeholder="新しいモード名 (例: テスト期間)..."
+                value={newModeLabelInput}
+                onChange={(e) => setNewModeLabelInput(e.target.value)}
+                style={{ flex: 1, padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px" }}
+              />
+              <button onClick={handleAddModeOption} style={{ padding: "8px 14px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
+                ＋追加
+              </button>
+            </div>
+
+            {/* 既存モード一覧・削除 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
+              <span style={{ fontSize: "12px", color: "#888" }}>現在のモード一覧:</span>
+              {modeOptions.map((m) => (
+                <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0d0d0d", padding: "8px 12px", borderRadius: "4px", border: "1px solid #222" }}>
+                  <span style={{ fontWeight: "bold", fontSize: "14px" }}>{m.label} ({m.id})</span>
+                  {modeOptions.length > 1 && (
+                    <button onClick={() => handleDeleteModeOption(m.id)} style={{ background: "none", border: "none", color: "#e11d48", cursor: "pointer", fontSize: "12px" }}>
+                      🗑️ 削除
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setIsManagingModes(false)} style={{ marginTop: "10px", padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
+              完了
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 📺 全画面手順モード */}
+      {activePlayerRoutine && playerSteps.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, background: "#050505", zIndex: 9999, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "40px 20px", color: "#fff", textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "16px", color: "#C9A84C", fontWeight: "bold" }}>
+              📜 {activePlayerRoutine.name} ➔ 【{activePlayerRoutine.hasRotation ? activePlayerRoutine.rotationItems[activePlayerRoutine.currentRotationIndex % activePlayerRoutine.rotationItems.length] : "手順"}】
+            </span>
+            <button onClick={() => setActivePlayerRoutine(null)} style={{ padding: "8px 16px", background: "#222", border: "1px solid #555", color: "#fff", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
+              ✕ 閉じる
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px", marginTop: "auto", marginBottom: "auto" }}>
+            <div style={{ fontSize: "24px", color: "#888", fontWeight: "bold", letterSpacing: "2px" }}>
+              STEP {playerCurrentStepIndex + 1} / {playerSteps.length}
+            </div>
+
+            <div style={{ fontSize: "clamp(36px, 8vw, 72px)", fontWeight: "900", color: "#C9A84C", textShadow: "0 0 20px rgba(201,168,76,0.3)", padding: "0 20px", lineHeight: "1.2" }}>
+              {playerSteps[playerCurrentStepIndex]}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+            <button
+              onClick={handleNextPlayerStep}
+              style={{
+                width: "100%", maxWidth: "500px", padding: "20px 40px",
+                background: "linear-gradient(135deg, #22c55e, #15803d)",
+                color: "#fff", border: "none", borderRadius: "12px",
+                fontSize: "24px", fontWeight: "900", cursor: "pointer",
+                boxShadow: "0 10px 30px rgba(34,197,94,0.4)",
+                letterSpacing: "1px"
+              }}
+            >
+              {playerCurrentStepIndex + 1 < playerSteps.length ? "✅ クリア (次の種目へ ➔)" : "🔥 作戦完遂！ (ルーティン完了)"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ 編集 / 新規作成モーダル */}
+      {(isCreating || editingRoutine) && (
+        
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "400px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・所属モード＆設定変更"}</h4>
+
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>ルーティン名:</span>
+              <input
+                type="text"
+                placeholder="例: 筋トレ, 帝国学習..."
+                value={isCreating ? newRoutine.name : editingRoutine?.name || ""}
+                onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, name: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, name: e.target.value })}
+                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
+              />
+            </div>
+
+            {/* 🔴 ルーティンのカレンダー表示トグル (デフォルトOFF / 赤色表示) */}
+            <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "bold" }}>🔴 カレンダーに赤色で表示する:</span>
+              <input
+                type="checkbox"
+                checked={isCreating ? Boolean((newRoutine as any).showOnCalendar) : Boolean(editingRoutine?.showOnCalendar)}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  if (isCreating) {
+                    setNewRoutine({ ...newRoutine, showOnCalendar: val } as any);
+                  } else if (editingRoutine) {
+                    setEditingRoutine({ ...editingRoutine, showOnCalendar: val });
+                  }
+                }}
+                style={{ accentColor: "#ef4444", cursor: "pointer", width: "18px", height: "18px" }}
+              />
+            </div>
+
+            {/* ★新機能要件②: 所属するモード(種類)の選択UI (「全て」または個別のトグルボタン)★ */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "8px" }}>🏷️ 表示するモード(種類)の選択:</span>
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "6px" }}>
+                {/* 全て(ALL)ボタン */}
+                <button
+                  type="button"
+                  onClick={() => toggleRoutineModeAssign("ALL", !isCreating)}
+                  style={{
+                    padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer"
+                  }}
+                >
+                  ＋ 全てのモードに割り当て
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {modeOptions.map((opt) => {
+                  const assigned = isCreating ? newRoutine.modes?.includes(opt.id) : editingRoutine?.modes?.includes(opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => toggleRoutineModeAssign(opt.id, !isCreating)}
+                      style={{
+                        padding: "6px 10px",
+                        background: assigned ? "#C9A84C" : "#1a1a1a",
+                        color: assigned ? "#000" : "#888",
+                        border: `1px solid ${assigned ? "#C9A84C" : "#333"}`,
+                        borderRadius: "4px", fontSize: "12px", cursor: "pointer", fontWeight: "bold"
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "#888" }}>時間:</span>
+              <input
+                type="time"
+                value={isCreating ? newRoutine.startTime : editingRoutine?.startTime || "07:00"}
+                onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, startTime: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, startTime: e.target.value })}
+                style={{ padding: "6px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px" }}
+              />
+              <span style={{ fontSize: "12px", color: "#888" }}>〜</span>
+              <input
+                type="time"
+                value={isCreating ? newRoutine.endTime : editingRoutine?.endTime || "08:00"}
+                onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, endTime: e.target.value }) : editingRoutine && setEditingRoutine({ ...editingRoutine, endTime: e.target.value })}
+                style={{ padding: "6px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px" }}
+              />
+            </div>
+
+            {/* 多段階ローテーション設定UI */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>🔄 多段階ローテーション設定:</span>
+                <label style={{ fontSize: "12px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isCreating ? newRoutine.hasRotation : editingRoutine?.hasRotation || false}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, hasRotation: e.target.checked }) : editingRoutine && setEditingRoutine({ ...editingRoutine, hasRotation: e.target.checked })}
+                  />
+                  使用する
+                </label>
+              </div>
+
+              {(isCreating ? newRoutine.hasRotation : editingRoutine?.hasRotation) && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                  <input
+                    type="text"
+                    placeholder="例: 上半身, 下半身  または  数学, 英語, 国語"
+                    value={rotationInputText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRotationInputText(val);
+                      const items = val.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+                      if (isCreating) setNewRoutine({ ...newRoutine, rotationItems: items });
+                      else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotationItems: items });
+                    }}
+                    style={{ width: "100%", padding: "6px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 手順メモ設定UI */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: "bold" }}>📋 手順メモ設定 (全画面表示用):</span>
+                <label style={{ fontSize: "12px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps || false}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, hasSteps: e.target.checked }) : editingRoutine && setEditingRoutine({ ...editingRoutine, hasSteps: e.target.checked })}
+                  />
+                  使用する
+                </label>
+              </div>
+
+              {(isCreating ? newRoutine.hasSteps : editingRoutine?.hasSteps) && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {((isCreating ? newRoutine.rotationItems : editingRoutine?.rotationItems) || []).length > 0 && (
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>手順を編集するサブ項目を選択:</span>
+                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                        {((isCreating ? newRoutine.rotationItems : editingRoutine?.rotationItems) || ["デフォルト"]).map((sub) => (
+                          <button
+                            key={sub}
+                            type="button"
+                            onClick={() => handleSubTabChange(sub, !isCreating)}
+                            style={{
+                              padding: "4px 8px",
+                              background: editingSubTab === sub ? "#22c55e" : "#1a1a1a",
+                              color: editingSubTab === sub ? "#000" : "#888",
+                              border: "1px solid #22c55e",
+                              borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: "bold"
+                            }}
+                          >
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <textarea
+                    rows={4}
+                    placeholder={`1. ベンチプレス (3セット)\n2. ラットプルダウン (3セット)`}
+                    value={stepInputText}
+                    onChange={(e) => handleStepTextChange(e.target.value, !isCreating)}
+                    style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#22c55e", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", fontFamily: "monospace" }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 表示頻度設定UI */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "8px" }}>⚙️ 表示頻度の設定:</span>
+
+              <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+                {[
+                  { id: "daily", label: "毎日" },
+                  { id: "interval", label: "〇日に1回" },
+                  { id: "weekly", label: "曜日指定" },
+                ].map((f) => {
+                  const active = (isCreating ? newRoutine.freqType : editingRoutine?.freqType) === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => isCreating ? setNewRoutine({ ...newRoutine, freqType: f.id as any }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqType: f.id as any })}
+                      style={{
+                        flex: 1, padding: "6px 0",
+                        background: active ? "#C9A84C" : "#1a1a1a",
+                        color: active ? "#000" : "#888",
+                        border: "1px solid #C9A84C",
+                        borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer"
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "interval" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                  <span>表示間隔:</span>
+                  <input
+                    type="number" min="2" max="30"
+                    value={isCreating ? newRoutine.freqIntervalDays : editingRoutine?.freqIntervalDays || 2}
+                    onChange={(e) => isCreating ? setNewRoutine({ ...newRoutine, freqIntervalDays: Number(e.target.value) }) : editingRoutine && setEditingRoutine({ ...editingRoutine, freqIntervalDays: Number(e.target.value) })}
+                    style={{ width: "60px", padding: "6px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center" }}
+                  />
+                  <span>日に1回</span>
+                </div>
+              )}
+
+              {(isCreating ? newRoutine.freqType : editingRoutine?.freqType) === "weekly" && (
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                  {WEEKDAYS.map((dayName, idx) => {
+                    const selected = isCreating ? newRoutine.freqDaysOfWeek?.includes(idx) : editingRoutine?.freqDaysOfWeek?.includes(idx);
+                    return (
+                      <button
+                        key={dayName}
+                        type="button"
+                        onClick={() => toggleFreqDay(idx, !isCreating)}
+                        style={{
+                          padding: "6px 10px",
+                          background: selected ? "#C9A84C" : "#1a1a1a",
+                          color: selected ? "#000" : "#666",
+                          border: `1px solid ${selected ? "#C9A84C" : "#333"}`,
+                          borderRadius: "4px", fontSize: "12px", cursor: "pointer", fontWeight: "bold"
+                        }}
+                      >
+                        {dayName}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 保存 / キャンセル */}
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button
+                onClick={() => {
+                  if (isCreating) {
+                    if (!newRoutine.name.trim()) return;
+                    setRoutines([...routines, { ...newRoutine, id: Date.now().toString(), done: false, currentRotationIndex: 0, rotCurrentCount: 0 }]);
+                    setIsCreating(false);
+                  } else if (editingRoutine) {
+                    setRoutines(routines.map((r) => (r.id === editingRoutine.id ? editingRoutine : r)));
+                    setEditingRoutine(null);
+                  }
+                }}
+                style={{ flex: 1, padding: "10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+              >
+                保存する
+              </button>
+              <button onClick={() => { setIsCreating(false); setEditingRoutine(null); }} style={{ flex: 1, padding: "10px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ⚙️ モード管理モーダル */}
       {isManagingModes && (
@@ -908,12 +1292,18 @@ export default function Page() {
         </div>
       )}
 
-      {/* 📅 カレンダー特定日スケジュールメモ入力モーダル (1文字のズレもなく完璧に閉じる！) */}
+      {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
       {selectedCalendarDate && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "320px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📝 【{selectedCalendarDate}】の予定メモ入力</h4>
-            <textarea rows={4} placeholder="この日の重要な予定・スケジュールを入力..." value={dateNoteInput} onChange={(e) => setDateNoteInput(e.target.value)} style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }} />
+            <textarea
+              rows={4}
+              placeholder="この日の重要な予定・スケジュールを入力..."
+              value={dateNoteInput}
+              onChange={(e) => setDateNoteInput(e.target.value)}
+              style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }}
+            />
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => {
@@ -933,5 +1323,7 @@ export default function Page() {
         </div>
       )}
     </div>
-  );
+  </div>
+</div>
+);
 }
