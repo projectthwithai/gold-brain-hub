@@ -404,7 +404,7 @@ export default function Page() {
       </div>
 
       {/* 1. 📜 ルーティン タブ */}
-      {tab === "routine" && (
+      <div style={{ display: tab === "routine" ? "block" : "none" }}>
         <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制 (動的モード創設＆所属選択連動)</h3>
@@ -567,7 +567,6 @@ export default function Page() {
             </div>
           )}
         </div>
-      )}
 
       {/* ★新機能要件①: ⚙️ モード(種類)動的管理ポップアップモーダル★ */}
       {isManagingModes && (
@@ -1011,11 +1010,32 @@ export default function Page() {
           </div>
         </div>
       )}
+</div>
 
-      {/* その他のタブ */}
-      {tab === "analytics" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>}
-      {tab === "partner" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>}
-      {tab === "record" && <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>}
+      {/* 2. ⏱️ 戦術タイマー (非破壊保持) */}
+      <div style={{ display: tab === "timer" ? "block" : "none" }}>
+        <TacticalTimer initialTask="数学 Deep Work" initialMinutes={45} />
+      </div>
+
+      {/* 3. ✅ タスク管理 (非破壊保持) */}
+      <div style={{ display: tab === "task" ? "block" : "none" }}>
+        <TaskManager />
+      </div>
+
+      {/* 5. 📊 研究所データ (非破壊保持) */}
+      <div style={{ display: tab === "analytics" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
+      </div>
+
+      {/* 6. 🤝 相棒監視 (非破壊保持) */}
+      <div style={{ display: tab === "partner" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>
+      </div>
+
+      {/* 7. 📱 兵站調達 (非破壊保持) */}
+      <div style={{ display: tab === "record" ? "block" : "none" }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📱 兵站調達: Galaxy S26 Ultra 資金18万円進捗 (稼働中)</div>
+      </div>
 
       {/* 📅 カレンダー特定日スケジュールメモ入力モーダル */}
       {selectedCalendarDate && (
