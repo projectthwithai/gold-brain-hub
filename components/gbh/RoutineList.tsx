@@ -307,6 +307,52 @@ export default function RoutineList({ onQuickTimer }: RoutineListProps) {
                     style={{ width: "100%", padding: "6px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
                   />
 
+                  {/* ★新機能: 次へ進む進行ルールの選択UI★ */}
+                  <div>
+                    <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>次へ進む進行ルールの選択:</span>
+                    <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
+                      {[
+                        { id: "check", label: "完了チェック数で次へ" },
+                        { id: "days", label: "表示日数経過で自動更新" },
+                      ].map((type) => {
+                        const active = (isCreating ? newRoutine.rotAdvanceType : editingRoutine?.rotAdvanceType || "check") === type.id;
+                        return (
+                          <button
+                            key={type.id} type="button"
+                            onClick={() => {
+                              if (isCreating) setNewRoutine({ ...newRoutine, rotAdvanceType: type.id as any });
+                              else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotAdvanceType: type.id as any });
+                            }}
+                            style={{
+                              flex: 1, padding: "6px 0",
+                              background: active ? "#C9A84C" : "#1a1a1a",
+                              color: active ? "#000" : "#888",
+                              border: "1px solid #C9A84C",
+                              borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer"
+                            }}
+                          >
+                            {type.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                      <span>目標値:</span>
+                      <input
+                        type="number" min="1" max="30"
+                        value={isCreating ? newRoutine.rotTargetCount : editingRoutine?.rotTargetCount || 1}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (isCreating) setNewRoutine({ ...newRoutine, rotTargetCount: val });
+                          else if (editingRoutine) setEditingRoutine({ ...editingRoutine, rotTargetCount: val });
+                        }}
+                        style={{ width: "50px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center", fontWeight: "bold" }}
+                      />
+                      <span>{(isCreating ? newRoutine.rotAdvanceType : editingRoutine?.rotAdvanceType) === "days" ? "日表示されたら自動で次へ (非表示日は除く)" : "回チェック完了したら次へ"}</span>
+                    </div>
+                  </div>
+
                   {/* ★要件: 次へ進む進行条件の2選択ラジオUI★ */}
                   <div>
                     <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>次へ進む進行ルールの選択:</span>

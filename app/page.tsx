@@ -7,6 +7,7 @@ import Header from "../components/gbh/Header";
 import { supabase } from "../lib/supabase";
 import PartnerTab from "../components/gbh/PartnerTab";
 import UrlTab from "../components/gbh/UrlTab";
+import RoutineList from "@/components/gbh/RoutineList";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -452,152 +453,9 @@ export default function Page() {
 
       {/* ★全7タブが完全に独立分離された Keep-Alive レンダリングエリア (真っ黒問題解呪)★ */}
 
-      {/* 1. 📜 ルーティン タブ (独立保持) */}
+      {/* 1. 📜 ルーティン タブ (RoutineList.tsx から呼び出し) */}
       <div style={{ display: tab === "routine" ? "block" : "none" }}>
-        <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-            <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制 (動的モード創設＆所属選択連動)</h3>
-
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button onClick={() => setIsManagingModes(true)} style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
-                ⚙️ モード種類管理
-              </button>
-
-              <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); setEditingSubTab("デフォルト"); }} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
-                ＋ 新規日課作成
-              </button>
-
-              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                {modeOptions.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setCurrentModeId(m.id)}
-                    style={{
-                      padding: "6px 10px",
-                      background: currentModeId === m.id ? "#C9A84C" : "#1b1b1b",
-                      color: currentModeId === m.id ? "#000" : "#888",
-                      border: "1px solid #C9A84C",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px", color: "#ccc" }}>
-              <span>【{currentModeLabel}】本日の日課達成度 ({completedCount} / {activeRoutines.length})</span>
-              <span style={{ color: "#C9A84C", fontWeight: "bold" }}>{progressPct}%</span>
-            </div>
-            <div style={{ width: "100%", background: "#222", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
-              <div style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #C9A84C, #f59e0b)", height: "100%", transition: "width 0.3s" }} />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
-            <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 【{currentModeLabel}】実行日課:</span>
-            {activeRoutines.map((item) => {
-              const currentSubItem = item.hasRotation && item.rotationItems?.length > 0
-                ? item.rotationItems[item.currentRotationIndex % item.rotationItems.length]
-                : null;
-
-              return (
-                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #222", padding: "12px 15px", borderRadius: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <input
-                      type="checkbox"
-                      checked={item.done}
-                      onChange={() => handleCheckRoutine(item.id)}
-                      style={{ accentColor: "#C9A84C", cursor: "pointer", width: "18px", height: "18px" }}
-                    />
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>⏰ {item.startTime} - {item.endTime}</span>
-                        <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
-                          {item.freqType === "daily" && "📅 毎日"}
-                          {item.freqType === "interval" && `🔄 ${item.freqIntervalDays || 2}日に1回`}
-                          {item.freqType === "weekly" && `📆 曜日: ${item.freqDaysOfWeek?.map((d) => WEEKDAYS[d]).join(",")}`}
-                        </span>
-
-                        <div style={{ display: "flex", gap: "2px" }}>
-                          {item.modes.map((mid) => {
-                            const opt = modeOptions.find((o) => o.id === mid);
-                            return opt ? (
-                              <span key={mid} style={{ fontSize: "9px", padding: "1px 4px", background: "#111", color: "#aaa", border: "1px solid #333", borderRadius: "2px" }}>
-                                {opt.label}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span style={{ textDecoration: item.done ? "line-through" : "none", color: item.done ? "#888" : "#fff", fontWeight: "bold", fontSize: "15px" }}>
-                          {item.name}
-                        </span>
-
-                        {item.hasRotation && currentSubItem && (
-                          <span style={{ padding: "2px 8px", background: "#111", border: "1px solid #C9A84C", color: "#C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold" }}>
-                            🎯 現在: {currentSubItem}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    {item.hasSteps && (
-                      <button onClick={(e) => openStepPlayer(item, e)} style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📺 全画面手順</button>
-                    )}
-                    {item.hasRotation && item.rotationItems?.length > 0 && (
-                      <button onClick={(e) => handleSkipRotation(item.id, e)} style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>スキップ ⏩</button>
-                    )}
-                    <button onClick={() => handleQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>⏱️ 起動</button>
-                    <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
-                    <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {upcomingRoutines.length > 0 && (
-            <div style={{ borderTop: "1px dashed #333", paddingTop: "20px" }}>
-              <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💤 本日対象外 (次回準備中の日課):</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {upcomingRoutines.map((item) => {
-                  const daysLeft = getDaysUntilNext(item);
-                  return (
-                    <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1f1f1f", padding: "10px 15px", borderRadius: "6px", opacity: 0.45 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <input type="checkbox" disabled checked={false} style={{ cursor: "not-allowed", width: "16px", height: "16px" }} />
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
-                            <span style={{ fontSize: "11px", color: "#666" }}>⏰ {item.startTime} - {item.endTime}</span>
-                            <span style={{ fontSize: "10px", padding: "2px 6px", background: "#221100", color: "#f59e0b", border: "1px solid #78350f", borderRadius: "3px", fontWeight: "bold" }}>
-                              ⏳ あと {daysLeft} 日後に表示
-                            </span>
-                          </div>
-                          <span style={{ color: "#aaa", fontSize: "14px" }}>{item.name}</span>
-                        </div>
-                      </div>
-
-                      <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px" }}>
-                        ✏️ 編集
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        <RoutineList onQuickTimer={handleQuickTimer} />
       </div>
 
       {/* 2. ⏱️ 戦術タイマー (独立保持) */}
