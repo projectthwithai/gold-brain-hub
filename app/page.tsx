@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import TacticalTimer from "../components/gbh/TacticalTimer";
 import TaskManager from "../components/gbh/TaskManager";
 import RecordTab from "../components/gbh/RecordTab";
+import Header from "../components/gbh/Header";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -298,7 +299,7 @@ export default function Page() {
 
   return (
     <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
-
+<Header />
       {/* 画面最上部: 連続記録 (Streak) 氷 ➔ 炎 動的エフェクトバッジ */}
       <div
         style={{
