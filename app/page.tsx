@@ -5,6 +5,7 @@ import TaskManager from "../components/gbh/TaskManager";
 import RecordTab from "../components/gbh/RecordTab";
 import Header from "../components/gbh/Header";
 import { supabase } from "../lib/supabase";
+import PartnerTab from "../components/gbh/PartnerTab";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -695,9 +696,9 @@ export default function Page() {
         <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
       </div>
 
-      {/* 6. 🤝 相棒監視 (独立保持) */}
+      {/* 6. 🤝 相棒監視 (本物コンポーネント呼び出し) */}
       <div style={{ display: tab === "partner" ? "block" : "none" }}>
-        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>🤝 相棒監視タブ (稼働中)</div>
+        <PartnerTab />
       </div>
 
       {/* 7. 📱 兵站調達 (独立保持) */}
