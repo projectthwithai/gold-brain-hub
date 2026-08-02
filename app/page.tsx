@@ -105,6 +105,40 @@ export default function Page() {
   const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+　// ★神修復: カレンダー用の最新ルーティン＆タスクを0.5秒ごとにリアルタイム自動同期★
+  const [calendarRoutines, setCalendarRoutines] = useState<any[]>([]);
+  const [calendarTasks, setCalendarTasks] = useState<any[]>([]);
+
+  useEffect(() => {
+    const syncCalendarData = () => {
+      // 1. ルーティンの最新ON/OFFデータをロード
+      const savedRoutinesStr = typeof window !== "undefined" && localStorage.getItem("gbh_routines");
+      if (savedRoutinesStr) {
+        try { setCalendarRoutines(JSON.parse(savedRoutinesStr)); } catch (e) {}
+      } else {
+        setCalendarRoutines(routines);
+      }
+
+      // 2. タスクの最新ON/OFFデータをロード
+      const savedTasksStr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks");
+      if (savedTasksStr) {
+        try { setCalendarTasks(JSON.parse(savedTasksStr)); } catch (e) {}
+      } else {
+        setCalendarTasks(tasks);
+      }
+    };
+
+    syncCalendarData();
+    const interval = setInterval(syncCalendarData, 500); // 0.5秒ごとに超高速チェック
+    window.addEventListener("focus", syncCalendarData);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", syncCalendarData);
+    };
+  }, [routines, tasks, tab]);
+
   // ★全自動クラウド同期エンジン (Auto Cloud Sync)★
   useEffect(() => {
     if (!supabase) return;
@@ -496,9 +530,9 @@ export default function Page() {
                 resultStatus = null;
               }
 
-              const redRoutines = routines.filter((r) => r.showOnCalendar);
-              // ★修正: タスクタブで作成・編集された自作タスクをリアルタイム読み込み★
-              const savedTasksArr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks") ? JSON.parse(localStorage.getItem("gbh_tasks")!) : (tasks || []);
+              // ★修正: ルーティンとタスクの最新ON/OFFデータをリアルタイム読み込み★
+              const redRoutines = (calendarRoutines || []).filter((r: any) => Boolean(r?.showOnCalendar));
+              const savedTasksArr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks") ? JSON.parse(localStorage.getItem("gbh_tasks")!) : (calendarTasks || tasks || []);
               const blueTasks = (savedTasksArr || []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
               const dateNote = dateNotes[dateStr];
 
