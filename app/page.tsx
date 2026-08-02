@@ -6,6 +6,7 @@ import RecordTab from "../components/gbh/RecordTab";
 import Header from "../components/gbh/Header";
 import { supabase } from "../lib/supabase";
 import PartnerTab from "../components/gbh/PartnerTab";
+import UrlTab from "../components/gbh/UrlTab";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -92,7 +93,7 @@ export default function Page() {
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
   const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
 
-  const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record">("routine");
+  const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record" | "url">("routine");
 
   // モード(種類)動的管理State
   const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
@@ -425,6 +426,7 @@ export default function Page() {
           { id: "timer", label: "⏱️ 戦術タイマー" },
           { id: "task", label: "✅ タスク管理" },
           { id: "calendar", label: "📅 カレンダー WIN/LOSE" },
+          { id: "url", label: "🔗 有益URL/Lab" },
           { id: "analytics", label: "📊 研究所データ" },
           { id: "partner", label: "🤝 相棒監視" },
           { id: "record", label: "📱 兵站調達" },
@@ -689,6 +691,11 @@ export default function Page() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* 8. 🔗 有益ポータル/Lab (非破壊保持) */}
+      <div style={{ display: tab === "url" ? "block" : "none" }}>
+        <UrlTab />
       </div>
 
       {/* 5. 📊 研究所データ (独立保持) */}
