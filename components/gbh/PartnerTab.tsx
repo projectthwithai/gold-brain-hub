@@ -8,14 +8,11 @@ export default function PartnerTab() {
   const [partnerCodeInput, setPartnerCodeInput] = useState<string>("");
   const [partnershipId, setPartnershipId] = useState<string | null>(null);
   
-  // 自分と相棒の実データState
   const [myData, setMyData] = useState<any>(null);
   const [partnerData, setPartnerData] = useState<any>(null);
   const [isLinked, setIsLinked] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
-
-  // リアルタイム通知ポップアップ State
   const [incomingNotification, setIncomingNotification] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,20 +24,23 @@ export default function PartnerTab() {
       const currentUser = session.user;
       setUser(currentUser);
 
-      // 固定6桁招待コード (ユーザーIDの頭6文字)
+      // 固定6桁招待コード
       const cleanId = currentUser.id.replace(/-/g, "").toUpperCase();
       const code = `GBH-${cleanId.substring(0, 6)}`;
       setMyInviteCode(code);
 
-      // 自分の user_data 取得
+      // 自分の user_data を取得、なければ作成
       const { data: myCloudData } = await supabase
         .from("user_data")
         .select("payload")
         .eq("user_id", currentUser.id)
         .single();
-      if (myCloudData?.payload) setMyData(myCloudData.payload);
+      
+      if (myCloudData?.payload) {
+        setMyData(myCloudData.payload);
+      }
 
-      // 既存の同盟関係 (partnerships) を検索
+      // 既存の同盟(partnerships)を検索
       const { data: partnerships } = await supabase
         .from("partnerships")
         .select("*")
@@ -56,12 +56,20 @@ export default function PartnerTab() {
         if (partnerId) {
           fetchPartnerRealData(partnerId);
         }
+      } else {
+        // 自軍の招待コードを Supabase の partnerships に初期登録
+        await supabase.from("partnerships").upsert({
+          user1_id: currentUser.id,
+          invite_code: code,
+          status: "pending"
+        }, { onConflict: "invite_code" });
       }
     };
 
     initPartnerSystem();
   }, []);
 
+  // 相棒の Supabase データをリアルタイム取得
   const fetchPartnerRealData = async (partnerId: string) => {
     if (!supabase) return;
     setLoading(true);
@@ -81,15 +89,15 @@ export default function PartnerTab() {
     setLoading(false);
   };
 
-  // 📤 1. 招待コードの送信（クリップボードコピー）
+  // 1. 招待コードの送信（コピー）
   const handleCopyInviteCode = () => {
     if (!myInviteCode) return;
-    navigator.clipboard.writeText(`【Gold Brain Hub】同盟を結ぼう！ 俺の招待コード: ${myInviteCode}`);
+    navigator.clipboard.writeText(myInviteCode);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 3000);
   };
 
-  // 📥 2. 招待コードの受信・同盟締結処理
+  // 2. 招待コードの受信・Supabaseでの同盟締結処理
   const handleReceiveInviteCode = async () => {
     if (!partnerCodeInput.trim() || !user || !supabase) return;
 
@@ -102,44 +110,35 @@ export default function PartnerTab() {
       return;
     }
 
-    const { data: existingCode } = await supabase
+    // 入力されたコードを持つ相手の partnerships レコードを検索
+    const { data: targetPartner } = await supabase
       .from("partnerships")
       .select("*")
       .eq("invite_code", code)
       .single();
 
-    if (existingCode) {
+    if (targetPartner) {
+      // 相手のパートナーとして自分(user2_id)を登録して同盟成立！
       const { error } = await supabase
         .from("partnerships")
         .update({ user2_id: user.id, status: "active" })
-        .eq("id", existingCode.id);
+        .eq("id", targetPartner.id);
 
       if (!error) {
-        setPartnershipId(existingCode.id);
+        setPartnershipId(targetPartner.id);
         setIsLinked(true);
-        fetchPartnerRealData(existingCode.user1_id);
-        alert("🤝 同盟締結成功！ 相棒のコードを受信し、実データ共有が開始されました！");
+        fetchPartnerRealData(targetPartner.user1_id);
+        alert("🤝 同盟締結成功！ Supabase経由で相棒との実データ共有が開始されました！");
       } else {
         alert("同盟接続に失敗しました。もう一度試してください。");
       }
     } else {
-      const { data, error } = await supabase.from("partnerships").insert({
-        user1_id: user.id,
-        invite_code: code,
-        status: "active"
-      }).select().single();
-
-      if (!error && data) {
-        setPartnershipId(data.id);
-        setIsLinked(true);
-        alert("🤝 同盟コードを送信登録しました！ 相棒のデータ更新を待機します！");
-      } else {
-        alert("コード登録に失敗しました。");
-      }
+      alert("該当する招待コードが見つかりませんでした。相棒のコードを正しく入力してください。");
     }
     setLoading(false);
   };
 
+  // 同盟解除
   const handleUnlink = async () => {
     if (!partnershipId || !supabase) return;
     if (confirm("本当に同盟を解除しますか？")) {
@@ -151,11 +150,9 @@ export default function PartnerTab() {
     }
   };
 
+  // ワンタップ エール/喝 送信
   const handleSendCheerOrKatsu = async (type: "cheer" | "katsu") => {
-    if (!partnershipId || !supabase) {
-      alert(type === "cheer" ? "🔥 相棒へ応援エールを送信しました！" : "⚡ 相棒へ気合の喝を送信しました！");
-      return;
-    }
+    if (!partnershipId || !supabase) return;
 
     await supabase.from("partnerships").update({
       status: `signal_${type}_${Date.now()}`
@@ -189,7 +186,7 @@ export default function PartnerTab() {
         </div>
       )}
 
-      <h3 style={{ margin: "0 0 15px 0", color: "#C9A84C", fontSize: "16px" }}>🤝 相棒（パートナー）招待コード送信 ＆ リアルタイム監視</h3>
+      <h3 style={{ margin: "0 0 15px 0", color: "#C9A84C", fontSize: "16px" }}>🤝 相棒（パートナー）Supabase実データリアルタイム接続</h3>
 
       {!user ? (
         <div style={{ background: "#151515", padding: "20px", borderRadius: "6px", textAlign: "center", color: "#aaa" }}>
@@ -198,9 +195,9 @@ export default function PartnerTab() {
       ) : !isLinked ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           
-          {/* 📤 1. 招待コードの送信（コピー） */}
+          {/* 1. 招待コードの送信 */}
           <div style={{ background: "#151515", padding: "18px", borderRadius: "8px", border: "1px solid #C9A84C" }}>
-            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "6px" }}>📤 1. あなたの同盟招待コード (相棒へ送る・共有):</span>
+            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "6px" }}>📤 1. あなたの同盟招待コード (相棒へ教える):</span>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <strong style={{ fontSize: "24px", color: "#C9A84C", letterSpacing: "3px", background: "#000", padding: "6px 14px", borderRadius: "4px", border: "1px solid #333" }}>
                 {myInviteCode}
@@ -209,15 +206,12 @@ export default function PartnerTab() {
                 onClick={handleCopyInviteCode}
                 style={{ padding: "10px 18px", background: copySuccess ? "#22c55e" : "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "13px" }}
               >
-                {copySuccess ? "✔ コピー完了！LINE等で送信せよ" : "📋 招待コードをコピー (送信準備)"}
+                {copySuccess ? "✔ コピー完了！LINE等で送信せよ" : "📋 招待コードをコピー"}
               </button>
             </div>
-            <span style={{ fontSize: "11px", color: "#666", display: "block", marginTop: "8px" }}>
-              ※このコードをコピーして相棒に送信し、相手に下の「受信欄」に入力してもらってください。
-            </span>
           </div>
 
-          {/* 📥 2. 招待コードの受信（入力） */}
+          {/* 2. 招待コードの受信 */}
           <div style={{ background: "#151515", padding: "18px", borderRadius: "8px", border: "1px solid #3b82f6" }}>
             <span style={{ fontSize: "12px", color: "#93c5fd", display: "block", marginBottom: "6px" }}>📥 2. 相棒から届いた招待コードを受信・入力:</span>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -233,14 +227,14 @@ export default function PartnerTab() {
                 disabled={loading}
                 style={{ padding: "10px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
               >
-                {loading ? "接続中..." : "🤝 同盟締結 (コード受信)"}
+                {loading ? "接続中..." : "🤝 同盟締結 (Supabase接続)"}
               </button>
             </div>
           </div>
 
         </div>
       ) : (
-        /* ★同盟締結済み: リアルタイム実データ監視画面★ */
+        /* 本物のSupabaseリアルタイム同期画面 */
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           
           <div style={{
@@ -252,7 +246,7 @@ export default function PartnerTab() {
               <span style={{ fontSize: "11px", color: isDoubleWin ? "#fdba74" : "#888", fontWeight: "bold", display: "block" }}>
                 {isDoubleWin ? "🔥×2 DOUBLE WIN 達成中！" : "⚠️ 同盟判定: 警戒中 (2人とも目標達成でダブル勝利)"}
               </span>
-              <strong style={{ fontSize: "20px", color: isDoubleWin ? "#f97316" : "#fff", textShadow: isDoubleWin ? "0 0 10px rgba(249,115,22,0.6)" : "none" }}>
+              <strong style={{ fontSize: "20px", color: isDoubleWin ? "#f97316" : "#fff" }}>
                 共同Streak: {jointStreakDays} 日連続同盟勝利！
               </strong>
             </div>
@@ -279,7 +273,7 @@ export default function PartnerTab() {
 
             <div style={{ background: "#151515", border: "1px solid #3b82f6", padding: "15px", borderRadius: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px", borderBottom: "1px solid #333", paddingBottom: "6px" }}>
-                <strong style={{ color: "#3b82f6" }}>🤝 相棒 (リアルタイム監視)</strong>
+                <strong style={{ color: "#3b82f6" }}>🤝 相棒 (Supabaseリアルタイム同期)</strong>
                 <span style={{ color: isPartnerWin ? "#22c55e" : "#e11d48", fontWeight: "bold", fontSize: "12px" }}>
                   {isPartnerWin ? "WIN 達成中" : "LOSE 警戒中"}
                 </span>
@@ -296,14 +290,14 @@ export default function PartnerTab() {
                 </div>
               ) : (
                 <div style={{ fontSize: "12px", color: "#888", textAlign: "center", padding: "10px" }}>
-                  {loading ? "相棒の最新戦況をクラウド同期中..." : "相棒のデータ待機中..."}
+                  {loading ? "相棒の最新戦況をSupabaseより取得中..." : "相棒のデータ待機中..."}
                 </div>
               )}
             </div>
           </div>
 
           <div style={{ background: "#151515", padding: "15px", borderRadius: "6px", border: "1px solid #222" }}>
-            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "10px" }}>相棒への即時シグナル送信 (相手の画面へ通知):</span>
+            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "10px" }}>相棒への即時シグナル送信 (Supabaseリアルタイム):</span>
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => handleSendCheerOrKatsu("cheer")}
