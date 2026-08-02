@@ -10,9 +10,9 @@ export interface UrlLinkItem {
 }
 
 const DEFAULT_URL_LINKS: UrlLinkItem[] = [
-  { id: "u1", name: "Math Lab", icon: "📐", url: "https://math-lab.example.com", category: "Apex Suite" },
-  { id: "u2", name: "English Lab", icon: "🔤", url: "https://english-lab.example.com", category: "Apex Suite" },
-  { id: "u3", name: "Japanese Lab", icon: "📚", url: "https://japanese-lab.example.com", category: "Apex Suite" },
+  { id: "u1", name: "Math Lab", icon: "📐", url: "https://math-lab-ruby.vercel.app", category: "Apex Suite" },
+  { id: "u2", name: "English Lab", icon: "🔤", url: "https://english-lab-five.vercel.app", category: "Apex Suite" },
+  { id: "u3", name: "Japanese Lab", icon: "📚", url: "https://japanese-lab-omega.vercel.app", category: "Apex Suite" },
   { id: "u4", name: "筑波大学 AC入試 募集要項", icon: "🏛️", url: "https://www.tsukuba.ac.jp/admission/undergraduate/ac/", category: "入試戦術" },
   { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.dev/", category: "AI/開発" },
   { id: "u6", name: "Supabase Console", icon: "⚡", url: "https://supabase.com/dashboard", category: "AI/開発" },
