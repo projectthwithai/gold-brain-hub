@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -29,6 +29,14 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
   const [currentMode, setCurrentMode] = useState<RoutineMode>("weekday");
   const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+
+  // ★追加: ルーティンのカレンダー表示ON/OFF等の変更をリアルタイム共有★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+    }
+  }, [routines]);
+  
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
