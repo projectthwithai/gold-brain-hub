@@ -4,6 +4,7 @@ import TacticalTimer from "../components/gbh/TacticalTimer";
 import TaskManager from "../components/gbh/TaskManager";
 import RecordTab from "../components/gbh/RecordTab";
 import Header from "../components/gbh/Header";
+import { supabase } from "../lib/supabase";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -86,7 +87,7 @@ export default function Page() {
   const [dateNoteInput, setDateNoteInput] = useState("");
 
   // 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)
-  const [streakDays] = useState<number>(0); // 初期値 0日
+  const [streakDays, setStreakDays] = useState<number>(0);
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
   const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
 
@@ -101,7 +102,64 @@ export default function Page() {
   const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // ★全自動クラウド同期エンジン (Auto Cloud Sync)★
+  useEffect(() => {
+    if (!supabase) return;
 
+    const loadCloudData = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data, error } = await supabase
+          .from("user_data")
+          .select("payload")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (data?.payload && !error) {
+          const p = data.payload;
+          if (p.routines) setRoutines(p.routines);
+          if (p.modeOptions) setModeOptions(p.modeOptions);
+          if (p.streakDays !== undefined) setStreakDays(p.streakDays);
+          if (p.streakPct !== undefined) setStreakPct(p.streakPct);
+          if (p.dateNotes) setDateNotes(p.dateNotes);
+        }
+      }
+    };
+
+    loadCloudData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) loadCloudData();
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const timer = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const payload = {
+          routines,
+          modeOptions,
+          streakDays,
+          streakPct,
+          dateNotes,
+          updatedAt: new Date().toISOString()
+        };
+
+        await supabase.from("user_data").upsert({
+          user_id: session.user.id,
+          payload,
+          updated_at: new Date().toISOString()
+        });
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [routines, modeOptions, streakDays, streakPct, dateNotes]);
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
