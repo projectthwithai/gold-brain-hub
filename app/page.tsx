@@ -531,7 +531,10 @@ export default function Page() {
               }
 
               // ★修正: ルーティンとタスクの最新ON/OFFデータをリアルタイム読み込み★
-              const redRoutines = (calendarRoutines || []).filter((r: any) => Boolean(r?.showOnCalendar));
+              // ★ルーティン(赤)とタスク(青)を両方100%リアルタイム読み込み★
+              const savedRoutinesArr = typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : (calendarRoutines || routines || []);
+              const redRoutines = (savedRoutinesArr || []).filter((r: any) => Boolean(r?.showOnCalendar));
+
               const savedTasksArr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks") ? JSON.parse(localStorage.getItem("gbh_tasks")!) : (calendarTasks || tasks || []);
               const blueTasks = (savedTasksArr || []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
               const dateNote = dateNotes[dateStr];
@@ -562,7 +565,7 @@ export default function Page() {
                     </div>
                   )}
 
-                  {redRoutines.map((r) => {
+                  {redRoutines.map((r: any) => {
                     const currentSub = r.hasRotation && r.rotationItems?.length > 0
                       ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
                       : null;
