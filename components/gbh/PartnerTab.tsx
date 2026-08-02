@@ -13,11 +13,11 @@ export default function PartnerTab() {
   const [partnerData, setPartnerData] = useState<any>(null);
   const [isLinked, setIsLinked] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   // リアルタイム通知ポップアップ State
   const [incomingNotification, setIncomingNotification] = useState<string | null>(null);
 
-  // 初期化: セッション & 同盟関係 & 自データ・相手データのロード
   useEffect(() => {
     if (!supabase) return;
 
@@ -27,9 +27,10 @@ export default function PartnerTab() {
       const currentUser = session.user;
       setUser(currentUser);
 
-      // 自軍6桁コード (ユーザーID先頭6文字)
-      const myCode = `GBH-${currentUser.id.substring(0, 6).toUpperCase()}`;
-      setMyInviteCode(myCode);
+      // 固定6桁招待コード (ユーザーIDの頭6文字)
+      const cleanId = currentUser.id.replace(/-/g, "").toUpperCase();
+      const code = `GBH-${cleanId.substring(0, 6)}`;
+      setMyInviteCode(code);
 
       // 自分の user_data 取得
       const { data: myCloudData } = await supabase
@@ -61,7 +62,6 @@ export default function PartnerTab() {
     initPartnerSystem();
   }, []);
 
-  // 相棒の Supabase user_data を定期取得 (機能1: リアルタイム互角監視)
   const fetchPartnerRealData = async (partnerId: string) => {
     if (!supabase) return;
     setLoading(true);
@@ -81,47 +81,82 @@ export default function PartnerTab() {
     setLoading(false);
   };
 
-  // 同盟締結処理 (招待コード接続)
-  const handleLinkPartner = async () => {
+  // 📤 1. 招待コードの送信（クリップボードコピー）
+  const handleCopyInviteCode = () => {
+    if (!myInviteCode) return;
+    navigator.clipboard.writeText(`【Gold Brain Hub】同盟を結ぼう！ 俺の招待コード: ${myInviteCode}`);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 3000);
+  };
+
+  // 📥 2. 招待コードの受信・同盟締結処理
+  const handleReceiveInviteCode = async () => {
     if (!partnerCodeInput.trim() || !user || !supabase) return;
 
     setLoading(true);
     const code = partnerCodeInput.trim().toUpperCase();
 
     if (code === myInviteCode) {
-      alert("自軍のコードではなく、相棒(相手)の招待コードを入力してください！");
+      alert("自軍のコードではなく、相棒から届いた招待コードを入力してください！");
       setLoading(false);
       return;
     }
 
-    const { data, error } = await supabase.from("partnerships").insert({
-      user1_id: user.id,
-      invite_code: code,
-      status: "active"
-    }).select().single();
+    const { data: existingCode } = await supabase
+      .from("partnerships")
+      .select("*")
+      .eq("invite_code", code)
+      .single();
 
-    if (error) {
-      alert("同盟締結に失敗しました。相手のコードが正しいか確認してください。");
+    if (existingCode) {
+      const { error } = await supabase
+        .from("partnerships")
+        .update({ user2_id: user.id, status: "active" })
+        .eq("id", existingCode.id);
+
+      if (!error) {
+        setPartnershipId(existingCode.id);
+        setIsLinked(true);
+        fetchPartnerRealData(existingCode.user1_id);
+        alert("🤝 同盟締結成功！ 相棒のコードを受信し、実データ共有が開始されました！");
+      } else {
+        alert("同盟接続に失敗しました。もう一度試してください。");
+      }
     } else {
-      setPartnershipId(data.id);
-      setIsLinked(true);
-      alert("🔥 同盟締結成功！ 相棒とのリアルタイム実データ同期が開始されました！");
+      const { data, error } = await supabase.from("partnerships").insert({
+        user1_id: user.id,
+        invite_code: code,
+        status: "active"
+      }).select().single();
+
+      if (!error && data) {
+        setPartnershipId(data.id);
+        setIsLinked(true);
+        alert("🤝 同盟コードを送信登録しました！ 相棒のデータ更新を待機します！");
+      } else {
+        alert("コード登録に失敗しました。");
+      }
     }
     setLoading(false);
   };
 
-  // ★機能2: ワンタップ「🔥 エール / ⚡ 喝」リアルタイム通知送信★
+  const handleUnlink = async () => {
+    if (!partnershipId || !supabase) return;
+    if (confirm("本当に同盟を解除しますか？")) {
+      await supabase.from("partnerships").delete().eq("id", partnershipId);
+      setIsLinked(false);
+      setPartnerData(null);
+      setPartnershipId(null);
+      alert("同盟を解除しました。");
+    }
+  };
+
   const handleSendCheerOrKatsu = async (type: "cheer" | "katsu") => {
     if (!partnershipId || !supabase) {
       alert(type === "cheer" ? "🔥 相棒へ応援エールを送信しました！" : "⚡ 相棒へ気合の喝を送信しました！");
       return;
     }
 
-    const message = type === "cheer" 
-      ? "🔥 相棒から応援エールが届きました！ 共に励め！" 
-      : "⚡ 相棒から気合の『喝』が届きました！ 起きて集中せよ！";
-
-    // DBへ通知シグナル更新
     await supabase.from("partnerships").update({
       status: `signal_${type}_${Date.now()}`
     }).eq("id", partnershipId);
@@ -130,7 +165,6 @@ export default function PartnerTab() {
     setTimeout(() => setIncomingNotification(null), 3000);
   };
 
-  // ★機能3: 共同継続Streak (DOUBLE WIN同盟判定) 計算★
   const myStreakPct = myData?.streakPct || 50;
   const myCompletedRoutines = myData?.routines?.filter((r: any) => r.done)?.length || 0;
   const myTotalRoutines = myData?.routines?.length || 1;
@@ -143,59 +177,72 @@ export default function PartnerTab() {
   const partnerProgressPct = Math.round((partnerCompletedRoutines / partnerTotalRoutines) * 100);
   const isPartnerWin = partnerProgressPct >= partnerStreakPct;
 
-  // 二人とも判定ライン超え ➔ DOUBLE WIN！
   const isDoubleWin = isMyWin && isPartnerWin;
   const jointStreakDays = Math.min(myData?.streakDays || 0, partnerData?.streakDays || 0) + (isDoubleWin ? 1 : 0);
 
   return (
     <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff", fontFamily: "sans-serif" }}>
       
-      {/* エール/喝 受信・送信ポップアップ通知 */}
       {incomingNotification && (
-        <div style={{ background: "linear-gradient(135deg, #f97316, #e11d48)", color: "#fff", padding: "12px 18px", borderRadius: "6px", marginBottom: "15px", fontWeight: "bold", fontSize: "14px", boxShadow: "0 0 15px rgba(249,115,22,0.5)", textAlign: "center" }}>
+        <div style={{ background: "linear-gradient(135deg, #f97316, #e11d48)", color: "#fff", padding: "12px 18px", borderRadius: "6px", marginBottom: "15px", fontWeight: "bold", fontSize: "14px", textAlign: "center" }}>
           {incomingNotification}
         </div>
       )}
 
-      <h3 style={{ margin: "0 0 15px 0", color: "#C9A84C", fontSize: "16px" }}>🤝 相棒（パートナー）統制 ＆ 同盟監視ステータスボード</h3>
+      <h3 style={{ margin: "0 0 15px 0", color: "#C9A84C", fontSize: "16px" }}>🤝 相棒（パートナー）招待コード送信 ＆ リアルタイム監視</h3>
 
       {!user ? (
         <div style={{ background: "#151515", padding: "20px", borderRadius: "6px", textAlign: "center", color: "#aaa" }}>
-          ⚠️ 相棒監視機能を利用するには、最上部の <strong>「🔑 Googleでログイン」</strong> を実行してください。
+          ⚠️ 招待コードの発行・受信および相棒監視を利用するには、最上部の <strong>「🔑 Googleでログイン」</strong> を実行してください。
         </div>
       ) : !isLinked ? (
-        /* 未接続時: 招待コード入力・同盟締結UI */
-        <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-          <div style={{ background: "#151515", padding: "15px", borderRadius: "6px", border: "1px solid #222" }}>
-            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>自軍の同盟招待コード (相棒に教えてください):</span>
-            <strong style={{ fontSize: "22px", color: "#C9A84C", letterSpacing: "2px" }}>{myInviteCode}</strong>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          
+          {/* 📤 1. 招待コードの送信（コピー） */}
+          <div style={{ background: "#151515", padding: "18px", borderRadius: "8px", border: "1px solid #C9A84C" }}>
+            <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "6px" }}>📤 1. あなたの同盟招待コード (相棒へ送る・共有):</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <strong style={{ fontSize: "24px", color: "#C9A84C", letterSpacing: "3px", background: "#000", padding: "6px 14px", borderRadius: "4px", border: "1px solid #333" }}>
+                {myInviteCode}
+              </strong>
+              <button
+                onClick={handleCopyInviteCode}
+                style={{ padding: "10px 18px", background: copySuccess ? "#22c55e" : "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "13px" }}
+              >
+                {copySuccess ? "✔ コピー完了！LINE等で送信せよ" : "📋 招待コードをコピー (送信準備)"}
+              </button>
+            </div>
+            <span style={{ fontSize: "11px", color: "#666", display: "block", marginTop: "8px" }}>
+              ※このコードをコピーして相棒に送信し、相手に下の「受信欄」に入力してもらってください。
+            </span>
           </div>
 
-          <div style={{ background: "#151515", padding: "15px", borderRadius: "6px", border: "1px solid #222" }}>
-            <span style={{ fontSize: "12px", color: "#ccc", display: "block", marginBottom: "8px" }}>相棒の招待コードを入力して同盟を締結:</span>
-            <div style={{ display: "flex", gap: "10px" }}>
+          {/* 📥 2. 招待コードの受信（入力） */}
+          <div style={{ background: "#151515", padding: "18px", borderRadius: "8px", border: "1px solid #3b82f6" }}>
+            <span style={{ fontSize: "12px", color: "#93c5fd", display: "block", marginBottom: "6px" }}>📥 2. 相棒から届いた招待コードを受信・入力:</span>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <input
                 type="text"
-                placeholder="例: GBH-A1B2C3"
+                placeholder="相棒のコードを入力 (例: GBH-A1B2C3)"
                 value={partnerCodeInput}
                 onChange={(e) => setPartnerCodeInput(e.target.value)}
-                style={{ flex: 1, padding: "10px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", fontSize: "14px", fontWeight: "bold" }}
+                style={{ flex: 1, minWidth: "200px", padding: "10px", background: "#000", border: "1px solid #3b82f6", color: "#fff", borderRadius: "4px", fontSize: "15px", fontWeight: "bold", letterSpacing: "1px" }}
               />
               <button
-                onClick={handleLinkPartner}
+                onClick={handleReceiveInviteCode}
                 disabled={loading}
-                style={{ padding: "10px 20px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+                style={{ padding: "10px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
               >
-                {loading ? "接続中..." : "同盟締結 🤝"}
+                {loading ? "接続中..." : "🤝 同盟締結 (コード受信)"}
               </button>
             </div>
           </div>
+
         </div>
       ) : (
-        /* ★接続済み: 3大機能完全統合画面★ */
+        /* ★同盟締結済み: リアルタイム実データ監視画面★ */
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           
-          {/* ★機能3: 共同継続Streak (DOUBLE WIN同盟判定) バッジ★ */}
           <div style={{
             background: isDoubleWin ? "linear-gradient(135deg, #1c0d02, #291203)" : "#151515",
             border: `2px solid ${isDoubleWin ? "#f97316" : "#333"}`,
@@ -210,15 +257,12 @@ export default function PartnerTab() {
               </strong>
             </div>
 
-            <span style={{ padding: "6px 12px", background: isDoubleWin ? "#f97316" : "#222", color: isDoubleWin ? "#000" : "#aaa", borderRadius: "4px", fontSize: "12px", fontWeight: "bold" }}>
-              {isDoubleWin ? "🔥 全軍完全勝利" : "片方未達あり"}
-            </span>
+            <button onClick={handleUnlink} style={{ padding: "4px 8px", background: "#222", color: "#888", border: "1px solid #444", borderRadius: "4px", fontSize: "11px", cursor: "pointer" }}>
+              同盟解除
+            </button>
           </div>
 
-          {/* ★機能1: リアルタイム互角監視ステータスボード★ */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "15px" }}>
-            
-            {/* 自軍(自分)の戦況 */}
             <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "15px", borderRadius: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px", borderBottom: "1px solid #333", paddingBottom: "6px" }}>
                 <strong style={{ color: "#C9A84C" }}>🛡️ 自軍 (あなた)</strong>
@@ -233,7 +277,6 @@ export default function PartnerTab() {
               </div>
             </div>
 
-            {/* 相棒(相手)のリアルタイム戦況 */}
             <div style={{ background: "#151515", border: "1px solid #3b82f6", padding: "15px", borderRadius: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px", borderBottom: "1px solid #333", paddingBottom: "6px" }}>
                 <strong style={{ color: "#3b82f6" }}>🤝 相棒 (リアルタイム監視)</strong>
@@ -257,23 +300,21 @@ export default function PartnerTab() {
                 </div>
               )}
             </div>
-
           </div>
 
-          {/* ★機能2: ワンタップ「🔥 エール / ⚡ 喝」送信ボタン群★ */}
           <div style={{ background: "#151515", padding: "15px", borderRadius: "6px", border: "1px solid #222" }}>
             <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "10px" }}>相棒への即時シグナル送信 (相手の画面へ通知):</span>
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => handleSendCheerOrKatsu("cheer")}
-                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg, #f97316, #ea580c)", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "14px", boxShadow: "0 4px 10px rgba(249,115,22,0.3)" }}
+                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg, #f97316, #ea580c)", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "14px" }}
               >
                 🔥 応援エールを送る！
               </button>
 
               <button
                 onClick={() => handleSendCheerOrKatsu("katsu")}
-                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg, #e11d48, #be123c)", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "14px", boxShadow: "0 4px 10px rgba(225,29,72,0.3)" }}
+                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg, #e11d48, #be123c)", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "14px" }}
               >
                 ⚡ 気合の『喝』を入れる！
               </button>
