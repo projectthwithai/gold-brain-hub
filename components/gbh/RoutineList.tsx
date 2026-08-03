@@ -82,17 +82,48 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
 
+  // ★修正: showOnCalendar をデフォルト true に変更★
   const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
     hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1, rotAdvanceType: "check",
-    hasSteps: false, stepMap: {}, showOnCalendar: false
+    hasSteps: false, stepMap: {}, showOnCalendar: true
   });
 
-  // 全画面ステッププレイヤー用State
   const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
   const [playerSteps, setPlayerSteps] = useState<string[]>([]);
   const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
+
+  // ★修復: 読み込み完了ガード用 State★
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // 1. 初回読み込み（一度だけ localStorage からロード）
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedRoutines = localStorage.getItem("gbh_routines");
+      if (savedRoutines) {
+        try { setRoutines(JSON.parse(savedRoutines)); } catch (e) {}
+      }
+      const savedModes = localStorage.getItem("gbh_mode_options");
+      if (savedModes) {
+        try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
+      }
+      setIsLoaded(true); // 読み込み完了フラグをオン
+    }
+  }, []);
+
+  // 2. 読み込み完了後に、ユーザーが変更した時だけ保存（初期値上書きバグを防止）
+  useEffect(() => {
+    if (typeof window !== "undefined" && isLoaded) {
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+    }
+  }, [routines, isLoaded]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && isLoaded) {
+      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
+    }
+  }, [modeOptions, isLoaded]);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDow = new Date().getDay();
@@ -169,7 +200,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     }));
   };
 
-  // 全画面手順プレイヤー起動
   const openStepPlayer = (item: RoutineItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const currentSub = item.hasRotation && item.rotationItems?.length > 0
@@ -245,7 +275,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const currentModeLabel = modeOptions.find((m) => m.id === currentModeId)?.label || "全モード";
 
   const startEdit = (item: RoutineItem) => {
-    setEditingRoutine(item);
+    setEditingRoutine({ ...item, showOnCalendar: item.showOnCalendar ?? true });
     setRotationInputText(item.rotationItems?.join(", ") || "");
     const subs = item.hasRotation && item.rotationItems?.length > 0 ? item.rotationItems : ["デフォルト"];
     const firstSub = subs[0];
@@ -276,12 +306,11 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   return (
     <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff", fontFamily: "sans-serif" }}>
       
-      {/* 1. ヘッダー ＆ ★復元: ⚙️ モード種類管理ボタン★ */}
+      {/* 1. ヘッダー ＆ モード切り替えボタン */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-        <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制 (動的モード創設＆所属選択連動)</h3>
+        <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制</h3>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {/* ★復元1: ⚙️ モード種類管理ボタン★ */}
           <button onClick={() => setIsManagingModes(true)} style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
             ⚙️ モード種類管理
           </button>
@@ -313,7 +342,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         </div>
       </div>
 
-      {/* 2. ★復元: 【平日】本日の日課達成度 プログレスバー★ */}
+      {/* 2. 本日の日課達成度 プログレスバー */}
       <div style={{ background: "#151515", padding: "12px", borderRadius: "6px", marginBottom: "20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px", color: "#ccc" }}>
           <span>【{currentModeLabel}】本日の日課達成度 ({completedCount} / {activeRoutines.length})</span>
@@ -324,7 +353,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         </div>
       </div>
 
-      {/* 3. ★復元: 🔥 【平日】実行日課: セクションタイトル★ */}
+      {/* 3. 実行日課リスト */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
         <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 【{currentModeLabel}】実行日課:</span>
         {activeRoutines.map((item) => {
@@ -376,16 +405,14 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                 </div>
               </div>
 
-              {/* カード右側アクションボタン群 */}
+              {/* カード右側アクションボタン */}
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                {/* ★復元4: 📺 全画面手順 ボタン★ */}
                 {item.hasSteps && (
                   <button onClick={(e) => openStepPlayer(item, e)} style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>
                     📺 全画面手順
                   </button>
                 )}
 
-                {/* ★復元5: スキップ ⏩ ボタン★ */}
                 {item.hasRotation && item.rotationItems?.length > 0 && (
                   <button onClick={(e) => handleSkipRotation(item.id, e)} style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>
                     スキップ ⏩
@@ -433,7 +460,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         </div>
       )}
 
-      {/* ⚙️ モード(種類)動的管理ポップアップモーダル */}
+      {/* ⚙️ モード(種類)管理モーダル */}
       {isManagingModes && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
