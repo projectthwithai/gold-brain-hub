@@ -57,6 +57,28 @@ export default function TaskManager() {
   // カレンダー青色表示用 日付入力State
   const [taskDateInput, setTaskDateInput] = useState<string>("");
 
+  // ★低い場所に配置: アプリ起動時に localStorage からタスクとカテゴリを自動復元★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedTasks = localStorage.getItem("gbh_tasks");
+      if (savedTasks) {
+        try { setTaskList(JSON.parse(savedTasks)); } catch (e) {}
+      }
+      const savedCats = localStorage.getItem("gbh_task_categories");
+      if (savedCats) {
+        try { setCategories(JSON.parse(savedCats)); } catch (e) {}
+      }
+    }
+  }, []);
+
+  // ★タスクやカテゴリの更新時に自動保存★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_tasks", JSON.stringify(taskList));
+      localStorage.setItem("gbh_task_categories", JSON.stringify(categories));
+    }
+  }, [taskList, categories]);
+
   // 24時間パージ
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("gbh_tasks", JSON.stringify(taskList));

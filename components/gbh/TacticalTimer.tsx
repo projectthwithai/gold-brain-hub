@@ -78,6 +78,35 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
 
   const loopAudioIntervalRef = useRef<any>(null);
 
+  // ★低い場所に配置: アプリ起動時にタイマーの選択肢・設定・温存時間を自動復元★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedTaskOpts = localStorage.getItem("gbh_timer_task_options");
+      if (savedTaskOpts) {
+        try { setTaskOptions(JSON.parse(savedTaskOpts)); } catch (e) {}
+      }
+
+      const savedPresets = localStorage.getItem("gbh_timer_presets");
+      if (savedPresets) {
+        try { setTimerPresets(JSON.parse(savedPresets)); } catch (e) {}
+      }
+
+      const savedBreak = localStorage.getItem("gbh_timer_saved_break");
+      if (savedBreak) {
+        setSavedBreakSeconds(Number(savedBreak));
+      }
+    }
+  }, []);
+
+  // ★タイマー設定や温存時間の変更時に自動保存★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_timer_task_options", JSON.stringify(taskOptions));
+      localStorage.setItem("gbh_timer_presets", JSON.stringify(timerPresets));
+      localStorage.setItem("gbh_timer_saved_break", savedBreakSeconds.toString());
+    }
+  }, [taskOptions, timerPresets, savedBreakSeconds]);
+
   useEffect(() => {
     if (initialTask) setCurrentTaskCategory(initialTask);
     if (initialMinutes) setTimeLeft(initialMinutes * 60);
