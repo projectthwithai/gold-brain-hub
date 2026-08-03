@@ -47,7 +47,7 @@ export default function AnalyticsCenter() {
   const [modeOptions, setModeOptions] = useState<any[]>([
     { id: "weekday", label: "平日" },
     { id: "holiday", label: "休日/祝日" },
-    { id: "monk", label: "MONK MODE" },
+    { id: "monk", label: "長期休み" },
   ]);
 
   // ★追加: 全体達成率表示のモード選択 State ★

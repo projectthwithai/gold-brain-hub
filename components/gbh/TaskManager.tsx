@@ -29,7 +29,7 @@ const INITIAL_CATEGORIES: TaskCategoryOption[] = [
 
 const INITIAL_TASKS: TaskItem[] = [
   {
-    id: "1", text: "17歳の野望を開始せよ (筑波AC突破)", category: "Vision", done: false, memo: "情報メディア創成学類合格に向けた実績づくり",
+    id: "1", text: "大学受験合格)", category: "Vision", done: false, memo: "目標達成のための最終目標",
     showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"]
   },
   { id: "2", text: "微分積分 演習問題 10問解く", category: "数学", done: false, memo: "教科書P.45〜P.50" },

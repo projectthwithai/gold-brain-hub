@@ -55,7 +55,7 @@ const translationMap: Record<string, string> = {
   "本日の日課達成度": "Today's Routine Progress",
   "🔥 【平日】実行日課:": "🔥 Active Routines:",
   "🔥 【休日/祝日】実行日課:": "🔥 Active Routines:",
-  "🔥 【MONK MODE】実行日課:": "🔥 Active Routines:",
+  "🔥 【長期休み】実行日課:": "🔥 Active Routines:",
   "💤 本日対象外 (次回準備中の日課):": "💤 Inactive Today (Upcoming):",
   "全画面手順": "Fullscreen Steps",
   "スキップ ⏩": "Skip ⏩",

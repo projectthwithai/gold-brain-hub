@@ -40,12 +40,12 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const INITIAL_MODE_OPTIONS: RoutineModeOption[] = [
   { id: "weekday", label: "平日" },
   { id: "holiday", label: "休日/祝日" },
-  { id: "monk", label: "MONK MODE" },
+  { id: "monk", label: "長期休み" },
 ];
 
 const INITIAL_ROUTINES: RoutineItem[] = [
   {
-    id: "r1", name: "朝5時 帝国学習ローテーション", startTime: "05:00", endTime: "06:30", duration: 90,
+    id: "r1", name: "学習ローテーション", startTime: "05:00", endTime: "06:30", duration: 90,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 1, freqDaysOfWeek: [1, 2, 3, 4, 5], done: false,
     hasRotation: true, rotationItems: ["英語 (SVOC構文)", "数学 (微分積分)", "現代文 (論理読解)"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0, rotAdvanceType: "check",
     hasSteps: true,
@@ -56,7 +56,7 @@ const INITIAL_ROUTINES: RoutineItem[] = [
     showOnCalendar: true
   },
   {
-    id: "r2", name: "肉体兵站 筋トレローテーション", startTime: "06:30", endTime: "07:15", duration: 45,
+    id: "r2", name: "筋トレローテーション", startTime: "06:30", endTime: "07:15", duration: 45,
     modes: ["weekday", "holiday", "monk"], freqType: "interval", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5], done: false,
     hasRotation: true, rotationItems: ["上半身", "下半身"], currentRotationIndex: 0, rotTargetCount: 1, rotCurrentCount: 0, rotAdvanceType: "days",
     hasSteps: true,
