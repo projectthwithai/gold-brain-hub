@@ -49,7 +49,6 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     if (typeof window !== "undefined") localStorage.setItem("gbh_theme", newTheme);
   };
 
-  // 言語辞書による自動翻訳変換
   const t = (jaText: string, enText?: string) => {
     if (lang === "ja") return jaText;
     if (enText) return enText;
@@ -101,77 +100,73 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
 
   return (
     <SettingsContext.Provider value={{ lang, theme, setLang, setTheme, isSettingsOpen, setIsSettingsOpen, t, themeStyles }}>
-      {/* 🎨 アプリ全体の全コンポーネントへ White & Gold / Black & Gold を強制適用させる一括テーマCSS */}
+      {/* 🎨 全要素に対する強力なWhite & Gold適用CSS */}
       <style>{`
         ${theme === "white" ? `
-          body, [data-theme="gbh-root"] {
+          [data-theme="white"],
+          [data-theme="white"] body {
             background-color: #f4f4f6 !important;
             color: #111827 !important;
           }
 
-          /* 黒背景・カードを一括して高級感のあるホワイト＆ライトグレー背景に切り替え */
-          [data-theme="gbh-root"] div[style*="background: #050505"],
-          [data-theme="gbh-root"] div[style*="background: \"#050505\""],
-          [data-theme="gbh-root"] div[style*="background: #0d0d0d"],
-          [data-theme="gbh-root"] div[style*="background: \"#0d0d0d\""],
-          [data-theme="gbh-root"] div[style*="background: #151515"],
-          [data-theme="gbh-root"] div[style*="background: \"#151515\""],
-          [data-theme="gbh-root"] div[style*="background: #111"],
-          [data-theme="gbh-root"] div[style*="background: \"#111\""],
-          [data-theme="gbh-root"] div[style*="background: #1a1a1a"],
-          [data-theme="gbh-root"] div[style*="background: #1f1a08"],
-          [data-theme="gbh-root"] div[style*="background: #222"],
-          [data-theme="gbh-root"] div[style*="background: #181818"],
-          [data-theme="gbh-root"] div[style*="background: #000"] {
+          /* 全てのカード・ブロックの背景をホワイトへ一括強制反転 */
+          [data-theme="white"] div {
             background-color: #ffffff !important;
             border-color: #e5e7eb !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            color: #111827 !important;
           }
 
-          /* 入力フォーム類の背景と文字色補正 */
-          [data-theme="gbh-root"] input,
-          [data-theme="gbh-root"] select,
-          [data-theme="gbh-root"] textarea {
+          /* 特殊背景や最深ブロックの明るさ補正 */
+          [data-theme="white"] div[style*="fixed"],
+          [data-theme="white"] div[style*="absolute"] {
+            background-color: rgba(255,255,255,0.95) !important;
+          }
+
+          /* テキスト全般をくっきり見やすい濃いグレー（#111827）に一括置換 */
+          [data-theme="white"] span,
+          [data-theme="white"] p,
+          [data-theme="white"] h1,
+          [data-theme="white"] h2,
+          [data-theme="white"] h3,
+          [data-theme="white"] h4,
+          [data-theme="white"] strong,
+          [data-theme="white"] label,
+          [data-theme="white"] td,
+          [data-theme="white"] th {
+            color: #111827 !important;
+          }
+
+          /* フォーム入力欄の背景と文字色 */
+          [data-theme="white"] input,
+          [data-theme="white"] select,
+          [data-theme="white"] textarea {
             background-color: #f9fafb !important;
             color: #111827 !important;
             border-color: #d1d5db !important;
           }
 
-          /* 白文字・テキスト色を濃いグレー（#111827）へ反転 */
-          [data-theme="gbh-root"] span,
-          [data-theme="gbh-root"] h3,
-          [data-theme="gbh-root"] h4,
-          [data-theme="gbh-root"] strong,
-          [data-theme="gbh-root"] label,
-          [data-theme="gbh-root"] p,
-          [data-theme="gbh-root"] div {
-            color: #111827;
+          /* ボタン類のカラーテーマ最適化 */
+          [data-theme="white"] button {
+            background-color: #f3f4f6 !important;
+            color: #111827 !important;
+            border-color: #d1d5db !important;
           }
 
-          /* ゴールド文字・枠線を白背景で見やすいダークゴールド（#b48811）に自動補正 */
-          [data-theme="gbh-root"] *[style*="C9A84C"],
-          [data-theme="gbh-root"] *[style*="c9a84c"] {
+          /* ゴールド強調要素を白背景で見やすいダークゴールド(#b48811)に自動補正 */
+          [data-theme="white"] *[style*="C9A84C"],
+          [data-theme="white"] *[style*="c9a84c"] {
             color: #b48811 !important;
             border-color: #b48811 !important;
           }
 
-          /* ボタン背景と文字色の最適化 */
-          [data-theme="gbh-root"] button[style*="background: #C9A84C"],
-          [data-theme="gbh-root"] button[style*="background: \"#C9A84C\""] {
-            background-color: #b48811 !important;
-            color: #ffffff !important;
-          }
-
-          [data-theme="gbh-root"] button[style*="background: #222"],
-          [data-theme="gbh-root"] button[style*="background: #111"] {
-            background-color: #e5e7eb !important;
-            color: #111827 !important;
-            border-color: #d1d5db !important;
+          /* タイマー数字等の金文字テキスト補正 */
+          [data-theme="white"] div[style*="monospace"] {
+            color: #b48811 !important;
           }
         ` : ""}
       `}</style>
 
-      <div data-theme="gbh-root" style={{ background: themeStyles.bgMain, color: themeStyles.textMain, minHeight: "100vh", transition: "all 0.3s ease" }}>
+      <div data-theme={theme} style={{ background: themeStyles.bgMain, color: themeStyles.textMain, minHeight: "100vh", transition: "all 0.3s ease" }}>
         {children}
       </div>
     </SettingsContext.Provider>
