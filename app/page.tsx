@@ -232,20 +232,21 @@ export default function Page() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ★手元(localStorage)でのルーティン・タスク変更を検知して Supabase クラウドに即時バックアップ★
   useEffect(() => {
     if (!supabase || !isDataLoaded) return;
 
     const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // ★手元(localStorage)の最新データを取得してクラウドに送信★
-        const latestRoutines = localStorage.getItem("gbh_routines")
+        // localStorage から手元の最新ルーティン・タスクデータを抽出
+        const latestRoutines = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
           ? JSON.parse(localStorage.getItem("gbh_routines")!)
-          : routines;
+          : (calendarRoutines.length > 0 ? calendarRoutines : routines);
 
-        const latestTasks = localStorage.getItem("gbh_tasks")
+        const latestTasks = typeof window !== "undefined" && localStorage.getItem("gbh_tasks")
           ? JSON.parse(localStorage.getItem("gbh_tasks")!)
-          : [];
+          : (calendarTasks.length > 0 ? calendarTasks : tasks);
 
         const payload = {
           routines: latestRoutines,
@@ -263,10 +264,10 @@ export default function Page() {
           updated_at: new Date().toISOString()
         });
       }
-    }, 1500);
+    }, 1200);
 
     return () => clearTimeout(timer);
-  }, [routines, modeOptions, streakDays, streakPct, dateNotes, isDataLoaded]);
+  }, [calendarRoutines, calendarTasks, routines, tasks, modeOptions, streakDays, streakPct, dateNotes, isDataLoaded]);
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
@@ -284,7 +285,7 @@ export default function Page() {
 
   // タイマーState
   const [quickTask, setQuickTask] = useState("数学 Deep Work");
-  const [quickMin, setQuickMin] = useState(50);
+  const [quickMin, setQuickMin] = useState(45);
 
   // ★リロード時のデータ初期化事故を防止する自動データロード★
   useEffect(() => {
