@@ -86,6 +86,37 @@ export default function Page() {
   const [dateNotes, setDateNotes] = useState<Record<string, string>>({
     "2026-08-15": "筑波AC願書提出準備"
   });
+
+　// ★追加: イベントカウントダウン State ＆ 保存★
+  interface EventCountdown {
+    id: string;
+    date: string;
+    title: string;
+  }
+
+  const [countdowns, setCountdowns] = useState<EventCountdown[]>([
+    { id: "cd1", date: "2026-08-15", title: "筑波大学 AC入試 願書提出" }
+  ]);
+  const [countdownTitleInput, setCountdownTitleInput] = useState("");
+  const [isCountdownOpen, setIsCountdownOpen] = useState<boolean>(true);
+
+  // 初回ロード
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedCd = localStorage.getItem("gbh_countdowns");
+      if (savedCd) {
+        try { setCountdowns(JSON.parse(savedCd)); } catch (e) {}
+      }
+    }
+  }, []);
+
+  // 変更時に localStorage 保存
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_countdowns", JSON.stringify(countdowns));
+    }
+  }, [countdowns]);
+
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [dateNoteInput, setDateNoteInput] = useState("");
 
@@ -452,6 +483,86 @@ export default function Page() {
             ⚙️ 基準設定
           </button>
         </div>
+      </div>
+
+      {/* ⏳ イベントカウントダウン表示エリア（複数対応・開閉可能） */}
+      <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "12px 16px", marginBottom: "15px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "16px" }}>⏳</span>
+            <span style={{ fontSize: "13px", fontWeight: "bold", color: "#C9A84C" }}>
+              イベントカウントダウン ({countdowns.length}件)
+            </span>
+          </div>
+          <button
+            onClick={() => setIsCountdownOpen(!isCountdownOpen)}
+            style={{ padding: "4px 10px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "12px", cursor: "pointer", fontWeight: "bold" }}
+          >
+            {isCountdownOpen ? "▲ 閉じる" : "▼ 開く"}
+          </button>
+        </div>
+
+        {isCountdownOpen && (
+          <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {countdowns.length === 0 ? (
+              <span style={{ fontSize: "12px", color: "#666" }}>登録されているカウントダウンはありません（カレンダーの日付をクリックして追加できます）</span>
+            ) : (
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                {countdowns.map((cd) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const target = new Date(cd.date);
+                  target.setHours(0, 0, 0, 0);
+                  const diffTime = target.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  let daysLabel = "";
+                  let badgeBg = "#1c0d02";
+                  let badgeBorder = "#f97316";
+                  let textColor = "#fdba74";
+
+                  if (diffDays > 0) {
+                    daysLabel = `あと ${diffDays} 日`;
+                  } else if (diffDays === 0) {
+                    daysLabel = "🔥 本日当日！";
+                    badgeBg = "#450a0a";
+                    badgeBorder = "#ef4444";
+                    textColor = "#fca5a5";
+                  } else {
+                    daysLabel = `${Math.abs(diffDays)} 日経過`;
+                    badgeBg = "#111";
+                    badgeBorder = "#444";
+                    textColor = "#888";
+                  }
+
+                  return (
+                    <div
+                      key={cd.id}
+                      style={{
+                        background: badgeBg,
+                        border: `1px solid ${badgeBorder}`,
+                        borderRadius: "6px",
+                        padding: "8px 14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.5)"
+                      }}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "10px", color: "#aaa" }}>📅 {cd.date}</span>
+                        <span style={{ fontSize: "13px", fontWeight: "bold", color: "#fff" }}>{cd.title}</span>
+                      </div>
+                      <span style={{ fontSize: "14px", fontWeight: "900", color: textColor, padding: "2px 8px", background: "rgba(0,0,0,0.4)", borderRadius: "4px", border: `1px solid ${badgeBorder}` }}>
+                        {daysLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 7大メインタブ */}
@@ -946,12 +1057,69 @@ export default function Page() {
         </div>
       )}
 
-      {/* 📅 カレンダー特定日スケジュールメモ入力モーダル (1文字のズレもなく完璧に閉じる！) */}
+      {/* 📅 カレンダー特定日スケジュールメモ ＆ カウントダウン設定モーダル */}
       {selectedCalendarDate && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "320px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
-            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📝 【{selectedCalendarDate}】の予定メモ入力</h4>
-            <textarea rows={4} placeholder="この日の重要な予定・スケジュールを入力..." value={dateNoteInput} onChange={(e) => setDateNoteInput(e.target.value)} style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }} />
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "14px", color: "#fff", maxHeight: "90vh", overflowY: "auto" }}>
+            <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📝 【{selectedCalendarDate}】の予定メモ ＆ カウントダウン</h4>
+
+            {/* 1. 予定メモ */}
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>予定メモ:</span>
+              <textarea rows={3} placeholder="この日の重要な予定・スケジュールを入力..." value={dateNoteInput} onChange={(e) => setDateNoteInput(e.target.value)} style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#f59e0b", borderRadius: "4px", fontSize: "13px", boxSizing: "border-box" }} />
+            </div>
+
+            {/* 2. イベントカウントダウン設定 (任意・複数設定可能) */}
+            <div style={{ background: "#0d0d0d", padding: "12px", borderRadius: "6px", border: "1px solid #222" }}>
+              <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "6px" }}>⏳ この日へのカウントダウン設定:</span>
+              
+              <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+                <input
+                  type="text"
+                  placeholder="イベント名 (例: 筑波AC願書提出)..."
+                  value={countdownTitleInput}
+                  onChange={(e) => setCountdownTitleInput(e.target.value)}
+                  style={{ flex: 1, padding: "6px 8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!countdownTitleInput.trim() || !selectedCalendarDate) return;
+                    const newCd: EventCountdown = {
+                      id: `cd_${Date.now()}`,
+                      date: selectedCalendarDate,
+                      title: countdownTitleInput.trim()
+                    };
+                    setCountdowns([...countdowns, newCd]);
+                    setCountdownTitleInput("");
+                  }}
+                  style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}
+                >
+                  ＋追加
+                </button>
+              </div>
+
+              {/* この日付に設定済みのカウントダウン一覧 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {countdowns.filter((cd) => cd.date === selectedCalendarDate).length === 0 ? (
+                  <span style={{ fontSize: "11px", color: "#666" }}>この日付のカウントダウンはありません</span>
+                ) : (
+                  countdowns.filter((cd) => cd.date === selectedCalendarDate).map((cd) => (
+                    <div key={cd.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", padding: "6px 10px", borderRadius: "4px", border: "1px solid #333" }}>
+                      <span style={{ fontSize: "12px", color: "#fff" }}>🎯 {cd.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCountdowns(countdowns.filter((item) => item.id !== cd.id))}
+                        style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "12px" }}
+                      >
+                        🗑️ 削除
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => {
@@ -965,7 +1133,7 @@ export default function Page() {
               >
                 保存
               </button>
-              <button onClick={() => setSelectedCalendarDate(null)} style={{ flex: 1, padding: "8px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>キャンセル</button>
+              <button onClick={() => { setSelectedCalendarDate(null); setCountdownTitleInput(""); }} style={{ flex: 1, padding: "8px", background: "#333", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>キャンセル</button>
             </div>
           </div>
         </div>
