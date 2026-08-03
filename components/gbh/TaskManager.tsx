@@ -54,7 +54,7 @@ export default function TaskManager() {
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [activeMemoTask, setActiveMemoTask] = useState<TaskItem | null>(null);
 
-  // ★修復: カレンダー青色表示用 日付入力State★
+  // カレンダー青色表示用 日付入力State
   const [taskDateInput, setTaskDateInput] = useState<string>("");
 
   // 24時間パージ
@@ -159,14 +159,15 @@ export default function TaskManager() {
   const completedTasks = filteredAll.filter((t) => t.done);
 
   return (
-    <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff" }}>
+    <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "12px", color: "#fff", boxSizing: "border-box", fontFamily: "sans-serif" }}>
       
+      {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
-        <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>✅ タスク管理ボード (カレンダー青色連動対応)</h3>
+        <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>✅ タスク管理ボード</h3>
 
         <button
           onClick={() => setIsManagingCategories(true)}
-          style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
+          style={{ padding: "6px 10px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}
         >
           🏷️ ジャンル選択肢の管理
         </button>
@@ -228,59 +229,89 @@ export default function TaskManager() {
             placeholder="タスク内容を入力..."
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
-            style={{ flex: 1, minWidth: "180px", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px" }}
+            style={{ flex: 1, minWidth: "160px", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
           />
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <input
             type="text"
             placeholder="メモ (任意)..."
             value={newMemo}
             onChange={(e) => setNewMemo(e.target.value)}
-            style={{ flex: 1, padding: "6px 8px", background: "#000", border: "1px solid #333", color: "#ccc", borderRadius: "4px", fontSize: "12px" }}
+            style={{ flex: 1, minWidth: "160px", padding: "6px 8px", background: "#000", border: "1px solid #333", color: "#ccc", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" }}
           />
           <button
             onClick={handleAddTask}
-            style={{ padding: "6px 16px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+            style={{ padding: "6px 16px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap" }}
           >
             タスク追加
           </button>
         </div>
       </div>
 
-      {/* 未完了タスク一覧 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "25px" }}>
+      {/* 未完了タスク一覧 (📱 スマホレスポンシブ最適化カード) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "25px" }}>
         <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 実行中タスク:</span>
         {activeTasks.length === 0 && <span style={{ fontSize: "12px", color: "#666" }}>タスクはありません</span>}
         {activeTasks.map((t) => (
-          <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #2a2a2a", padding: "10px 12px", borderRadius: "6px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer", width: "18px", height: "18px" }} />
-              <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
-                {t.category}
-              </span>
-              <span style={{ color: "#fff", fontWeight: "bold", fontSize: "14px" }}>{t.text}</span>
+          <div
+            key={t.id}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              background: "#151515",
+              border: "1px solid #2a2a2a",
+              padding: "12px 14px",
+              borderRadius: "8px",
+              boxSizing: "border-box",
+              width: "100%",
+            }}
+          >
+            {/* 上段：チェックボックス ＆ カテゴリ・バッジ・タスク文章 */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", width: "100%" }}>
+              <input
+                type="checkbox"
+                checked={t.done}
+                onChange={() => toggleDone(t.id)}
+                style={{ accentColor: "#C9A84C", cursor: "pointer", width: "20px", height: "20px", marginTop: "2px", flexShrink: 0 }}
+              />
 
-              {/* カレンダー連動青バッジ表示 */}
-              {t.showOnCalendar && (
-                <span style={{ fontSize: "10px", padding: "1px 5px", background: "#1e3a8a", color: "#93c5fd", border: "1px solid #3b82f6", borderRadius: "3px", fontWeight: "bold" }}>
-                  🔵 カレンダー表示ON ({t.calendarDates?.length || 0}日指定)
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* カテゴリ ＆ カレンダーバッジ（折り返し対応） */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px", whiteSpace: "nowrap" }}>
+                    {t.category}
+                  </span>
+
+                  {/* カレンダー連動青バッジ表示 */}
+                  {t.showOnCalendar && (
+                    <span style={{ fontSize: "10px", padding: "1px 5px", background: "#1e3a8a", color: "#93c5fd", border: "1px solid #3b82f6", borderRadius: "3px", fontWeight: "bold", whiteSpace: "nowrap" }}>
+                      🔵 カレンダー表示ON ({t.calendarDates?.length || 0}日指定)
+                    </span>
+                  )}
+                </div>
+
+                {/* タスク名（縦潰れ防止・文章折り返し） */}
+                <span style={{ color: "#fff", fontWeight: "bold", fontSize: "15px", lineHeight: "1.4", wordBreak: "break-word", display: "block" }}>
+                  {t.text}
                 </span>
-              )}
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {/* 下段：ボタン群（幅狭時は自動整理・右寄せ） */}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", borderTop: "1px solid #222", paddingTop: "8px", marginTop: "2px" }}>
               {t.memo && (
                 <button
                   onClick={() => setActiveMemoTask(t)}
-                  style={{ padding: "4px 8px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                  style={{ padding: "5px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold", whiteSpace: "nowrap" }}
                 >
                   📄 メモを開く
                 </button>
               )}
-              <button onClick={() => setEditingTask(t)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
-              <button onClick={() => deleteTask(t.id)} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️ 削除</button>
+              <button onClick={() => setEditingTask(t)} style={{ padding: "5px 10px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>✏️ 編集</button>
+              <button onClick={() => deleteTask(t.id)} style={{ padding: "5px 10px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>🗑️ 削除</button>
             </div>
           </div>
         ))}
@@ -294,20 +325,20 @@ export default function TaskManager() {
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {completedTasks.map((t) => (
-              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", borderRadius: "6px", opacity: 0.5 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer" }} />
-                  <span style={{ fontSize: "10px", padding: "1px 5px", background: "#222", color: "#888", borderRadius: "3px" }}>{t.category}</span>
-                  <span style={{ textDecoration: "line-through", color: "#888", fontSize: "13px" }}>{t.text}</span>
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", borderRadius: "6px", opacity: 0.5, flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                  <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} style={{ accentColor: "#C9A84C", cursor: "pointer", flexShrink: 0 }} />
+                  <span style={{ fontSize: "10px", padding: "1px 5px", background: "#222", color: "#888", borderRadius: "3px", whiteSpace: "nowrap" }}>{t.category}</span>
+                  <span style={{ textDecoration: "line-through", color: "#888", fontSize: "13px", wordBreak: "break-word" }}>{t.text}</span>
                 </div>
 
                 <div style={{ display: "flex", gap: "6px" }}>
                   {t.memo && (
-                    <button onClick={() => setActiveMemoTask(t)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#888", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>
+                    <button onClick={() => setActiveMemoTask(t)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#888", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px", whiteSpace: "nowrap" }}>
                       📄 メモ
                     </button>
                   )}
-                  <button onClick={() => deleteTask(t.id)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#e11d48", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>🗑️</button>
+                  <button onClick={() => deleteTask(t.id)} style={{ padding: "2px 6px", background: "#1a1a1a", color: "#e11d48", border: "1px solid #444", borderRadius: "3px", cursor: "pointer", fontSize: "11px", whiteSpace: "nowrap" }}>🗑️</button>
                 </div>
               </div>
             ))}
@@ -318,7 +349,7 @@ export default function TaskManager() {
       {/* ジャンル管理モーダル */}
       {isManagingCategories && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "12px" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>🏷️ ジャンル選択肢の【追加・編集・削除】</h4>
 
             <div style={{ display: "flex", gap: "8px" }}>
@@ -370,10 +401,10 @@ export default function TaskManager() {
         </div>
       )}
 
-      {/* ✏️ タスク編集モーダル (カレンダー青色表示 ＆ 複数日選択機能完全連動版) */}
+      {/* ✏️ タスク編集モーダル */}
       {editingTask && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #3b82f6", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+          <div style={{ background: "#151515", border: "1px solid #3b82f6", padding: "20px", borderRadius: "8px", width: "360px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "12px", color: "#fff", maxHeight: "90vh", overflowY: "auto" }}>
             <h4 style={{ margin: 0, color: "#3b82f6", fontSize: "16px" }}>✏️ タスク編集 ＆ カレンダー連動</h4>
 
             <div>
@@ -409,7 +440,7 @@ export default function TaskManager() {
               />
             </div>
 
-            {/* ★カレンダー青色表示 ＆ 複数日選択機能 (nullチェック修復完了)★ */}
+            {/* カレンダー青色表示 ＆ 複数日選択機能 */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", color: "#3b82f6", fontWeight: "bold" }}>🔵 カレンダーに青色で表示する:</span>
@@ -469,7 +500,7 @@ export default function TaskManager() {
       {/* 📄 メモ閲覧 ＆ 直接編集モーダル */}
       {activeMemoTask && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #22c55e", padding: "20px", borderRadius: "8px", width: "340px", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
+          <div style={{ background: "#151515", border: "1px solid #22c55e", padding: "20px", borderRadius: "8px", width: "340px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "12px", color: "#fff" }}>
             <h4 style={{ margin: 0, color: "#22c55e", fontSize: "16px" }}>📄 メモの閲覧・直接編集</h4>
             <span style={{ fontSize: "12px", color: "#888" }}>タスク: <strong>{activeMemoTask.text}</strong></span>
 
