@@ -255,14 +255,19 @@ export default function Page() {
 
   const todayDow = new Date().getDay();
 
-  // モードフィルタリング
-  const activeRoutines = routines.filter((r) => {
-    if (!r.modes.includes(currentModeId)) return false;
+  // ★解決: localStorage から最新の完了チェック状態(done)をダイレクト反映★
+  const latestRoutinesList = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
+    ? JSON.parse(localStorage.getItem("gbh_routines")!)
+    : (calendarRoutines || routines || []);
+
+  // 本日実行対象ルーティンのフィルタリング
+  const activeRoutines = latestRoutinesList.filter((r: any) => {
+    if (r.modes && !r.modes.includes(currentModeId)) return false;
     if (r.freqType === "daily") return true;
     if (r.freqType === "weekly") return r.freqDaysOfWeek?.includes(todayDow) ?? true;
     if (r.freqType === "interval") return true;
     return true;
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }).sort((a: any, b: any) => (a.startTime || "").localeCompare(b.startTime || ""));
 
   const upcomingRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentModeId)) return false;
@@ -379,7 +384,7 @@ export default function Page() {
     }
   };
 
-  const completedCount = activeRoutines.filter((r) => r.done).length;
+  const completedCount = activeRoutines.filter((r: any) => Boolean(r?.done)).length;
   const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
   
   // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
