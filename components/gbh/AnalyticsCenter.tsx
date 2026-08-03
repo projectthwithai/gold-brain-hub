@@ -292,14 +292,14 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 3. Studyplus風 直近7日間の作業時間（積層棒グラフ） ＆ 項目別割合（円グラフ） */}
+      {/* 3. 直近7日間の作業時間（積層棒グラフ） ＆ 項目別割合（円グラフ） */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "25px" }}>
         
         {/* A. 日別積層棒グラフ */}
         <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
-              📈 {t("直近7日間の日別集中時間 (Studyplus風)", "7-Day Daily Focus Time")}
+              📈 {t("直近7日間の日別集中時間", "7-Day Daily Focus Time")}
             </span>
             <span style={{ fontSize: "10px", color: themeStyles.textSub }}>単位: 分</span>
           </div>
