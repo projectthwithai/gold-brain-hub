@@ -148,12 +148,28 @@ export default function Page() {
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record" | "url">("routine");
 
   // モード(種類)動的管理State
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_mode_options");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_MODE_OPTIONS;
+  });
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_ROUTINES;
+  });
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -234,19 +250,19 @@ export default function Page() {
 
   // ★手元(localStorage)でのルーティン・タスク変更を検知して Supabase クラウドに即時バックアップ★
   useEffect(() => {
-    if (!supabase || !isDataLoaded) return;
+    if (!supabase) return;
 
     const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // localStorage から手元の最新ルーティン・タスクデータを抽出
+        // ★手元(localStorage)の最新ルーティンとタスクを抽出してクラウド保存★
         const latestRoutines = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
           ? JSON.parse(localStorage.getItem("gbh_routines")!)
-          : (calendarRoutines.length > 0 ? calendarRoutines : routines);
+          : routines;
 
         const latestTasks = typeof window !== "undefined" && localStorage.getItem("gbh_tasks")
           ? JSON.parse(localStorage.getItem("gbh_tasks")!)
-          : (calendarTasks.length > 0 ? calendarTasks : tasks);
+          : tasks;
 
         const payload = {
           routines: latestRoutines,
@@ -264,10 +280,10 @@ export default function Page() {
           updated_at: new Date().toISOString()
         });
       }
-    }, 1200);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [calendarRoutines, calendarTasks, routines, tasks, modeOptions, streakDays, streakPct, dateNotes, isDataLoaded]);
+  }, [routines, tasks, modeOptions, streakDays, streakPct, dateNotes]);
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");

@@ -69,12 +69,28 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_mode_options");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_MODE_OPTIONS;
+  });
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_ROUTINES;
+  });
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 

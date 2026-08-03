@@ -41,26 +41,24 @@ export default function AnalyticsCenter() {
 
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
-  // ★リアルタイムデータ State★
+  // リアルタイムデータ State
   const [timerLogs, setTimerLogs] = useState<any[]>([]);
   const [routinesList, setRoutinesList] = useState<any[]>([]);
   const [modeOptions, setModeOptions] = useState<any[]>([
     { id: "weekday", label: "平日" },
     { id: "holiday", label: "休日/祝日" },
-    { id: "monk", label: "長期休み" },
+    { id: "monk", label: "MONK MODE" },
   ]);
 
-  // ★追加: 全体達成率表示のモード選択 State ★
+  // モード選択 State
   const [selectedOverallModeId, setSelectedOverallModeId] = useState<string>("weekday");
-
-  // 個別ルーティン選択 State
   const [selectedRoutineId, setSelectedRoutineId] = useState<string>("");
 
   // 1. localStorage から本物の実データを0.5秒おきにリアルタイム同期ロード
   useEffect(() => {
     const loadRealData = () => {
       if (typeof window !== "undefined") {
-        // タイマーログ
+        // タイマーの実際の実行記録ログを取得
         const savedTimerLogs = localStorage.getItem("gbh_timer_logs");
         if (savedTimerLogs) {
           try {
@@ -80,7 +78,7 @@ export default function AnalyticsCenter() {
           } catch (e) {}
         }
 
-        // ルーティン一覧
+        // 本物の最新ルーティン一覧を取得
         const savedRoutines = localStorage.getItem("gbh_routines");
         if (savedRoutines) {
           try {
@@ -106,7 +104,22 @@ export default function AnalyticsCenter() {
     };
   }, [selectedRoutineId]);
 
-  // ★1. タイマーの本物記録ログから直近7日間の日別・項目別時間を集計★
+  // ★1. 全タイマーの「全期間 累計総作業時間」の算出★
+  const allTimeTotalMinutes = timerLogs.reduce((acc, log) => {
+    return acc + (Number(log.minutes) || 0);
+  }, 0);
+
+  // ★2. 各タイマー(作業項目別)の「全期間 累計総作業時間」の算出★
+  const allTimeCategoryTotals: Record<string, number> = {};
+  timerLogs.forEach((log) => {
+    const cat = log.category || "その他";
+    const mins = Number(log.minutes) || 0;
+    allTimeCategoryTotals[cat] = (allTimeCategoryTotals[cat] || 0) + mins;
+  });
+
+  const allTimeCategoryEntries = Object.entries(allTimeCategoryTotals).sort((a, b) => b[1] - a[1]);
+
+  // ★3. 直近7日間の日別・項目別時間集計★
   const realStudyData: Record<string, Record<string, number>> = {};
   past7Days.forEach((d) => {
     realStudyData[d.dateStr] = {};
@@ -120,7 +133,7 @@ export default function AnalyticsCenter() {
     }
   });
 
-  // 7日間の総集中時間
+  // 直近7日間の総集中時間
   const past7DaysTotalMinutes = past7Days.reduce((acc, day) => {
     const dayData = realStudyData[day.dateStr] || {};
     const daySum = Object.values(dayData).reduce((a, b) => a + b, 0);
@@ -164,7 +177,7 @@ export default function AnalyticsCenter() {
     return [x, y];
   };
 
-  // ★2. 選択されたモード(selectedOverallModeId)に所属するルーティンの全体リアルタイム達成率(%)算出★
+  // モード別ルーティン全体達成率の算出
   const modeFilteredRoutines = routinesList.filter((r) => {
     if (!r.modes) return true;
     return r.modes.includes(selectedOverallModeId);
@@ -175,10 +188,9 @@ export default function AnalyticsCenter() {
     ? Math.round((modeCompletedCount / modeFilteredRoutines.length) * 100) 
     : 0;
 
-  // 選択されたモードの過去7日間全体達成率推移 (本日のリアルタイム％に接続)
   const overallRoutineHistory = [70, 85, 60, 100, 80, 90, todayModeOverallPct];
 
-  // ★3. 個別の本物ルーティンのリアルタイム達成率算出★
+  // 個別ルーティン達成率の算出
   const selectedRoutine = routinesList.find((r) => r.id === selectedRoutineId) || routinesList[0];
   const isSelectedDone = selectedRoutine ? Boolean(selectedRoutine.done) : false;
   const todayIndividualPct = isSelectedDone ? 100 : 0;
@@ -188,28 +200,37 @@ export default function AnalyticsCenter() {
   return (
     <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, borderRadius: "8px", padding: "16px", color: themeStyles.textMain, fontFamily: "sans-serif", boxSizing: "border-box" }}>
       
-      {/* 1. ヘッダー ＆ 過去7日間サマリー */}
+      {/* 1. ヘッダー ＆ サマリーバッジ */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h3 style={{ margin: 0, color: themeStyles.gold, fontSize: "18px" }}>
             📊 {t("研究所データセンター", "Analytics Data Center")}
           </h3>
           <span style={{ fontSize: "12px", color: themeStyles.textSub }}>
-            {t("直近7日間の学習集中時間 ＆ ルーティン達成率の多角的解析", "7-Day Focus Time & Routine Completion Analytics")}
+            {t("タイマー累計稼働時間 ＆ ルーティン達成率の多角的解析", "Total Focus Time & Routine Completion Analytics")}
           </span>
         </div>
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {/* ★全タイマー全期間累計総作業時間バッジ★ */}
+          <div style={{ background: themeStyles.bgInner, padding: "8px 14px", borderRadius: "6px", border: `1px solid ${themeStyles.gold}`, textAlign: "right" }}>
+            <span style={{ fontSize: "10px", color: themeStyles.gold, display: "block", fontWeight: "bold" }}>
+              🏆 {t("全タイマー累計総作業時間", "All-Time Grand Total")}
+            </span>
+            <strong style={{ fontSize: "18px", color: themeStyles.gold }}>
+              {Math.floor(allTimeTotalMinutes / 60)}時間 {allTimeTotalMinutes % 60}分
+            </strong>
+          </div>
+
           <div style={{ background: themeStyles.bgInner, padding: "8px 14px", borderRadius: "6px", border: `1px solid ${themeStyles.border}`, textAlign: "right" }}>
-            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>{t("直近7日間の総集中時間", "7-Day Total Focus")}</span>
-            <strong style={{ fontSize: "16px", color: themeStyles.gold }}>
+            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>{t("直近7日間集中時間", "7-Day Total Focus")}</span>
+            <strong style={{ fontSize: "16px", color: themeStyles.textMain }}>
               {Math.floor(past7DaysTotalMinutes / 60)}時間 {past7DaysTotalMinutes % 60}分
             </strong>
           </div>
+
           <div style={{ background: themeStyles.bgInner, padding: "8px 14px", borderRadius: "6px", border: `1px solid ${themeStyles.border}`, textAlign: "right" }}>
-            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>
-              本日全体達成率 ({modeOptions.find((m) => m.id === selectedOverallModeId)?.label || "全モード"})
-            </span>
+            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>{t("本日全体達成率", "Today Overall")}</span>
             <strong style={{ fontSize: "16px", color: "#22c55e" }}>
               {todayModeOverallPct}%
             </strong>
@@ -217,7 +238,61 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 2. Studyplus風 直近7日間の作業時間（積層棒グラフ） ＆ 項目別割合（円グラフ） */}
+      {/* 2. ★新規追加: 各タイマー(作業項目別) 累計総作業時間 アーカイブカード★ */}
+      <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px", marginBottom: "25px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold", display: "block" }}>
+              ⏱️ {t("各タイマー別 累計総作業時間記録", "All-Time Focus Totals per Timer")}
+            </span>
+            <span style={{ fontSize: "11px", color: themeStyles.textSub }}>
+              {t("これまでにタイマーで記録されたすべての作業時間の累計集計", "Total focus time recorded for each timer item")}
+            </span>
+          </div>
+
+          <div style={{ fontSize: "12px", color: themeStyles.gold, fontWeight: "bold" }}>
+            全タイマー総計: {Math.floor(allTimeTotalMinutes / 60)}時間 {allTimeTotalMinutes % 60}分
+          </div>
+        </div>
+
+        {/* 各タイマー項目別 累計カードグリッド */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+          {allTimeCategoryEntries.length === 0 ? (
+            <span style={{ fontSize: "12px", color: themeStyles.textSub }}>まだ累計タイマー記録はありません（タイマーで作業完了すると自動蓄積されます）</span>
+          ) : (
+            allTimeCategoryEntries.map(([cat, mins], idx) => {
+              const pct = allTimeTotalMinutes > 0 ? Math.round((mins / allTimeTotalMinutes) * 100) : 0;
+              const color = CATEGORY_COLORS[cat] || PALETTE[idx % PALETTE.length];
+              return (
+                <div key={cat} style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, borderRadius: "6px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "13px", fontWeight: "bold", color: themeStyles.textMain, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "130px" }}>
+                      🎯 {cat}
+                    </span>
+                    <span style={{ fontSize: "10px", padding: "1px 5px", background: "rgba(0,0,0,0.2)", borderRadius: "3px", color: color, fontWeight: "bold" }}>
+                      {pct}%
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontSize: "11px", color: themeStyles.textSub }}>累計総時間:</span>
+                    <strong style={{ fontSize: "15px", color: color }}>
+                      {Math.floor(mins / 60)}時間 {mins % 60}分
+                    </strong>
+                  </div>
+
+                  {/* 割合バー */}
+                  <div style={{ width: "100%", background: "#222", height: "4px", borderRadius: "2px", overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, backgroundColor: color, height: "100%" }} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 3. Studyplus風 直近7日間の作業時間（積層棒グラフ） ＆ 項目別割合（円グラフ） */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "25px" }}>
         
         {/* A. 日別積層棒グラフ */}
@@ -303,7 +378,6 @@ export default function AnalyticsCenter() {
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", justifyContent: "center" }}>
-            {/* SVG ドーナツグラフ */}
             <div style={{ position: "relative", width: "120px", height: "120px" }}>
               {past7DaysTotalMinutes === 0 ? (
                 <div style={{ width: "100%", height: "100%", borderRadius: "50%", border: `4px solid ${themeStyles.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", color: themeStyles.textSub }}>
@@ -332,14 +406,12 @@ export default function AnalyticsCenter() {
                 </svg>
               )}
 
-              {/* ドーナツ中央穴 */}
               <div style={{ position: "absolute", inset: "25%", background: themeStyles.bgInner, borderRadius: "50%", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
-                <span style={{ fontSize: "9px", color: themeStyles.textSub }}>合計</span>
+                <span style={{ fontSize: "9px", color: themeStyles.textSub }}>7日間合計</span>
                 <strong style={{ fontSize: "11px", color: themeStyles.gold }}>{Math.floor(past7DaysTotalMinutes / 60)}h{past7DaysTotalMinutes % 60}m</strong>
               </div>
             </div>
 
-            {/* 凡例リスト */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minWidth: "120px" }}>
               {categoryEntries.length === 0 && <span style={{ fontSize: "11px", color: themeStyles.textSub }}>まだタイマー実行記録がありません</span>}
               {categoryEntries.map(([cat, mins], idx) => {
@@ -360,14 +432,13 @@ export default function AnalyticsCenter() {
 
       </div>
 
-      {/* 3. 直近7日間の【全体】ルーティン達成率（％）推移 (★モード別切り替え機能追加★) */}
+      {/* 4. 直近7日間の【全体】ルーティン達成率（％）推移 (モード別選択) */}
       <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px", marginBottom: "25px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
             📉 {t("直近7日間の【全体】ルーティン達成率（％）推移", "Overall Routine Completion Rate (%)")}
           </span>
 
-          {/* ★モード(種類)選択ドロップダウン連動★ */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "11px", color: themeStyles.textSub }}>対象モード:</span>
             <select
@@ -385,7 +456,6 @@ export default function AnalyticsCenter() {
           </div>
         </div>
 
-        {/* 折れ線グラフ SVG */}
         <div style={{ height: "140px", width: "100%", position: "relative", paddingTop: "10px" }}>
           <svg viewBox="0 0 700 120" style={{ width: "100%", height: "100%", overflow: "visible" }}>
             {[0, 25, 50, 75, 100].map((val) => {
@@ -438,7 +508,7 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 4. 直近7日間の【個々のルーティン】別達成率（％）推移 */}
+      {/* 5. 直近7日間の【個々のルーティン】別達成率（％）推移 */}
       <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
@@ -459,7 +529,6 @@ export default function AnalyticsCenter() {
           </select>
         </div>
 
-        {/* 個別ルーティン折れ線グラフ SVG */}
         <div style={{ height: "140px", width: "100%", position: "relative", paddingTop: "10px" }}>
           <svg viewBox="0 0 700 120" style={{ width: "100%", height: "100%", overflow: "visible" }}>
             {[0, 50, 100].map((val) => {
