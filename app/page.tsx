@@ -123,6 +123,21 @@ export default function Page() {
   // 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)
   const [streakDays, setStreakDays] = useState<number>(0);
   const [streakPct, setStreakPct] = useState<number>(50);  // 継続判定基準ライン (%)
+  // ★追加: 連続記録(Streak)判定対象のモードID ＆ 保存★
+  const [streakModeId, setStreakModeId] = useState<string>("weekday");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedMode = localStorage.getItem("gbh_streak_mode_id");
+      if (savedMode) setStreakModeId(savedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_streak_mode_id", streakModeId);
+    }
+  }, [streakModeId]);
   const [isManagingStreak, setIsManagingStreak] = useState<boolean>(false);
 
   const [tab, setTab] = useState<"routine" | "timer" | "task" | "calendar" | "analytics" | "partner" | "record" | "url">("routine");
@@ -255,19 +270,25 @@ export default function Page() {
 
   const todayDow = new Date().getDay();
 
-  // ★解決: localStorage から最新の完了チェック状態(done)をダイレクト反映★
+  // ★解決: 選択された連続記録対象モード(streakModeId)の完了データから達成率を算出★
   const latestRoutinesList = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
     ? JSON.parse(localStorage.getItem("gbh_routines")!)
     : (calendarRoutines || routines || []);
 
-  // 本日実行対象ルーティンのフィルタリング
-  const activeRoutines = latestRoutinesList.filter((r: any) => {
-    if (r.modes && !r.modes.includes(currentModeId)) return false;
+  // 連続記録判定対象ルーティンのフィルタリング
+  const streakRoutines = latestRoutinesList.filter((r: any) => {
+    if (r.modes && !r.modes.includes(streakModeId)) return false;
     if (r.freqType === "daily") return true;
     if (r.freqType === "weekly") return r.freqDaysOfWeek?.includes(todayDow) ?? true;
     if (r.freqType === "interval") return true;
     return true;
-  }).sort((a: any, b: any) => (a.startTime || "").localeCompare(b.startTime || ""));
+  });
+
+  const completedCount = streakRoutines.filter((r: any) => Boolean(r?.done)).length;
+  const progressPct = streakRoutines.length > 0 ? Math.round((completedCount / streakRoutines.length) * 100) : 0;
+
+  // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
+  const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);
 
   const upcomingRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentModeId)) return false;
@@ -384,12 +405,6 @@ export default function Page() {
     }
   };
 
-  const completedCount = activeRoutines.filter((r: any) => Boolean(r?.done)).length;
-  const progressPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
-  
-  // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
-  const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);
-
   const startEdit = (item: RoutineItem) => {
     setEditingRoutine(item);
     setRotationInputText(item.rotationItems?.join(", ") || "");
@@ -473,12 +488,38 @@ export default function Page() {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ textAlign: "right" }}>
-            <span style={{ fontSize: "11px", color: "#888", display: "block" }}>本日達成度 / 判定基準</span>
+            <span style={{ fontSize: "11px", color: "#888", display: "block" }}>
+              本日達成度 / 判定基準 (対象: <strong style={{ color: "#C9A84C" }}>{modeOptions.find((m) => m.id === streakModeId)?.label || "全モード"}</strong>)
+            </span>
             <span style={{ fontSize: "13px", fontWeight: "bold", color: progressPct >= streakPct ? "#22c55e" : "#38bdf8" }}>
               本日 {progressPct}% / 基準 {streakPct}% ({progressPct >= streakPct ? "🔥 WIN 達成！" : "🧊 凍結中"})
             </span>
+          </div>
+
+          {/* 🎯 連続記録判定対象のモード選択ボタン群（1つだけ選択可） */}
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "#111", padding: "4px", borderRadius: "6px", border: "1px solid #333" }}>
+            <span style={{ fontSize: "10px", color: "#888", padding: "0 4px" }}>判定モード:</span>
+            {modeOptions.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setStreakModeId(m.id)}
+                style={{
+                  padding: "4px 8px",
+                  background: streakModeId === m.id ? "#C9A84C" : "#1a1a1a",
+                  color: streakModeId === m.id ? "#000" : "#aaa",
+                  border: `1px solid ${streakModeId === m.id ? "#C9A84C" : "#333"}`,
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "bold",
+                  cursor: "pointer"
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
 
           <button
@@ -488,7 +529,6 @@ export default function Page() {
             ⚙️ 基準設定
           </button>
         </div>
-      </div>
 
       {/* ⏳ イベントカウントダウン表示エリア（複数対応・開閉可能） */}
       <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "12px 16px", marginBottom: "15px" }}>
@@ -1143,6 +1183,7 @@ export default function Page() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
