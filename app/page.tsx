@@ -565,7 +565,8 @@ export default function Page() {
                     </div>
                   )}
 
-                  {redRoutines.map((r: any) => {
+                  {/* ★解決: 手元で編集された最新の赤色ルーティンをダイレクト読み込み表示★ */}
+                  {(typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : routines).filter((r: any) => Boolean(r?.showOnCalendar)).map((r: any) => {
                     const currentSub = r.hasRotation && r.rotationItems?.length > 0
                       ? r.rotationItems[r.currentRotationIndex % r.rotationItems.length]
                       : null;
@@ -576,11 +577,21 @@ export default function Page() {
                     );
                   })}
 
-                  {blueTasks.map((t: any) => (
-                    <div key={t.id} style={{ fontSize: "9px", background: "#1e3a8a", color: "#93c5fd", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #3b82f6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      🔵 {t.text}
-                    </div>
-                  ))}
+                  {/* ★新機能: カレンダーに自動計算でローテーション予定順序(上半身/下半身...)を刻印★ */}
+                  {routines.filter((r: any) => r.hasRotation && r.rotationItems?.length > 0).map((r: any) => {
+                    const dayDiff = day - (new Date().getDate());
+                    const targetCount = r.rotTargetCount || 1;
+                    const stepsToAdvance = Math.floor(dayDiff / targetCount);
+                    const itemsLen = r.rotationItems.length;
+                    const predictedIndex = (((r.currentRotationIndex + stepsToAdvance) % itemsLen) + itemsLen) % itemsLen;
+                    const predictedSubName = r.rotationItems[predictedIndex];
+
+                    return (
+                      <div key={r.id} style={{ fontSize: "9px", background: "#261c02", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        🔄 {r.name}: {predictedSubName}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
