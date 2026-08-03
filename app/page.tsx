@@ -565,14 +565,37 @@ export default function Page() {
                     </div>
                   )}
 
-                  {/* 赤色表示ルーティン（リアルタイムスキップ & 〇回達成設定 & 非表示日除外対応） */}
+                  {/* 赤色表示ルーティン（非表示日は完全非表示 ＆ 表示日のみローテーション予定シミュレーション） */}
                   {(typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : calendarRoutines || routines)
                     .filter((r: any) => Boolean(r?.showOnCalendar))
                     .map((r: any) => {
+                      const todayDate = new Date().getDate();
+
+                      // 1. その日(day)がこのルーティンの表示予定日かどうか判定する関数
+                      const isDayActive = (checkDay: number) => {
+                        const dObj = new Date(2026, 7, checkDay); // 2026年8月
+                        const dow = dObj.getDay();
+
+                        if (r.freqType === "weekly") {
+                          return r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
+                        }
+                        if (r.freqType === "interval") {
+                          const interval = r.freqIntervalDays || 1;
+                          const diffDays = Math.abs(checkDay - todayDate);
+                          return (diffDays % interval === 0);
+                        }
+                        return true; // daily(毎日)
+                      };
+
+                      // ★表示予定日でない場合、ルーティン名を含め一切何も表示しない★
+                      if (!isDayActive(day)) {
+                        return null;
+                      }
+
+                      // 2. 表示予定日の場合、ローテーション種目を計算
                       let subName = "";
 
                       if (r.hasRotation && r.rotationItems && r.rotationItems.length > 0) {
-                        const todayDate = new Date().getDate();
                         const targetCount = r.rotTargetCount || 1;
                         const itemsLen = r.rotationItems.length;
 
@@ -580,22 +603,9 @@ export default function Page() {
                         let simCount = r.rotCurrentCount || 0;
 
                         if (day >= todayDate) {
-                          // 本日〜未来のシミュレーション（非表示日はカウントせずスキップ）
+                          // 本日〜未来のシミュレーション
                           for (let d = todayDate; d <= day; d++) {
-                            const dObj = new Date(2026, 7, d); // 2026年8月
-                            const dow = dObj.getDay();
-
-                            // ルーティンの非表示日判定（アクティブ日かどうか）
-                            let isActive = true;
-                            if (r.freqType === "weekly") {
-                              isActive = r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
-                            } else if (r.freqType === "interval") {
-                              const diffDays = d - todayDate;
-                              const interval = r.freqIntervalDays || 1;
-                              isActive = (diffDays % interval === 0);
-                            }
-
-                            if (isActive) {
+                            if (isDayActive(d)) {
                               if (d === day) {
                                 subName = r.rotationItems[simIndex % itemsLen];
                                 break;
@@ -608,21 +618,9 @@ export default function Page() {
                             }
                           }
                         } else {
-                          // 過去日の逆算シミュレーション
+                          // 過去日のシミュレーション
                           for (let d = todayDate - 1; d >= day; d--) {
-                            const dObj = new Date(2026, 7, d);
-                            const dow = dObj.getDay();
-
-                            let isActive = true;
-                            if (r.freqType === "weekly") {
-                              isActive = r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
-                            } else if (r.freqType === "interval") {
-                              const diffDays = todayDate - d;
-                              const interval = r.freqIntervalDays || 1;
-                              isActive = (diffDays % interval === 0);
-                            }
-
-                            if (isActive) {
+                            if (isDayActive(d)) {
                               simCount -= 1;
                               if (simCount < 0) {
                                 simIndex = (simIndex - 1 + itemsLen) % itemsLen;
