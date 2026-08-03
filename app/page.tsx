@@ -526,17 +526,13 @@ export default function Page() {
                 resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
               } else if (isPast) {
                 resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
-              } else {
-                resultStatus = null;
               }
 
-              // ★修正: ルーティンとタスクの最新ON/OFFデータをリアルタイム読み込み★
-              // ★ルーティン(赤)とタスク(青)を両方100%リアルタイム読み込み★
-              const savedRoutinesArr = typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : (calendarRoutines || routines || []);
-              const redRoutines = (savedRoutinesArr || []).filter((r: any) => Boolean(r?.showOnCalendar));
+              // ★解決: localStorage からダイレクトにリアルタイム最新ルーティンをロード★
+              const latestRoutines = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
+                ? JSON.parse(localStorage.getItem("gbh_routines")!)
+                : (calendarRoutines || routines || []);
 
-              const savedTasksArr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks") ? JSON.parse(localStorage.getItem("gbh_tasks")!) : (calendarTasks || tasks || []);
-              const blueTasks = (savedTasksArr || []).filter((t: any) => Boolean(t?.showOnCalendar && t?.calendarDates?.includes(dateStr)));
               const dateNote = dateNotes[dateStr];
 
               return (
@@ -565,15 +561,15 @@ export default function Page() {
                     </div>
                   )}
 
-                  {/* 赤色表示ルーティン（非表示日は完全非表示 ＆ 表示日のみローテーション予定シミュレーション） */}
-                  {(typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : calendarRoutines || routines)
+                  {/* 赤色表示ルーティン（リアルタイムスキップ & 〇回達成/〇日自動 & 非表示日完全除外） */}
+                  {latestRoutines
                     .filter((r: any) => Boolean(r?.showOnCalendar))
                     .map((r: any) => {
                       const todayDate = new Date().getDate();
 
-                      // 1. その日(day)がこのルーティンの表示予定日かどうか判定する関数
+                      // 表示対象日かどうかの判定関数
                       const isDayActive = (checkDay: number) => {
-                        const dObj = new Date(2026, 7, checkDay); // 2026年8月
+                        const dObj = new Date(2026, 7, checkDay);
                         const dow = dObj.getDay();
 
                         if (r.freqType === "weekly") {
@@ -584,15 +580,14 @@ export default function Page() {
                           const diffDays = Math.abs(checkDay - todayDate);
                           return (diffDays % interval === 0);
                         }
-                        return true; // daily(毎日)
+                        return true;
                       };
 
-                      // ★表示予定日でない場合、ルーティン名を含め一切何も表示しない★
+                      // 非表示日はルーティン名含め完全非表示
                       if (!isDayActive(day)) {
                         return null;
                       }
 
-                      // 2. 表示予定日の場合、ローテーション種目を計算
                       let subName = "";
 
                       if (r.hasRotation && r.rotationItems && r.rotationItems.length > 0) {
@@ -603,7 +598,6 @@ export default function Page() {
                         let simCount = r.rotCurrentCount || 0;
 
                         if (day >= todayDate) {
-                          // 本日〜未来のシミュレーション
                           for (let d = todayDate; d <= day; d++) {
                             if (isDayActive(d)) {
                               if (d === day) {
@@ -618,7 +612,6 @@ export default function Page() {
                             }
                           }
                         } else {
-                          // 過去日のシミュレーション
                           for (let d = todayDate - 1; d >= day; d--) {
                             if (isDayActive(d)) {
                               simCount -= 1;
