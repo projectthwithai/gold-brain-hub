@@ -365,12 +365,12 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         </div>
       )}
 
-      {/* パラメータ状態バッジ表示 ＆ 🎒 休憩温存モードトグル */}
+      {/* パラメータ状態バッジ表示 ＆ 🎒 休憩温存モードトグル ＆ 🗑️ リセットボタン */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", fontSize: "12px", color: "#888", marginBottom: "20px", flexWrap: "wrap" }}>
         <span>🔔 中間アラート: <strong style={{ color: activePreset.hasMidAlert ? "#C9A84C" : "#555" }}>{activePreset.hasMidAlert && activePreset.midAlertMinutesList?.length > 0 ? `${activePreset.midAlertMinutesList.join("分, ")}分経過時` : "OFF"}</strong></span>
         <span>🔊 アラーム: <strong style={{ color: "#C9A84C" }}>{activePreset.alarmMode === "silent" ? "無音" : activePreset.alarmMode === "once" ? "1回だけ" : "連射停止"}</strong></span>
 
-        {/* 🎒 休憩温存機能トグル＆プール状態 */}
+        {/* 🎒 休憩温存機能トグル＆プール状態 ＆ 🗑️ リセットボタン */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#181818", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
           <span style={{ color: enableBreakCarryover ? "#38bdf8" : "#666", fontWeight: "bold" }}>
             🎒 休憩温存: {enableBreakCarryover ? "ON" : "OFF"}
@@ -383,12 +383,55 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             切替
           </button>
           {enableBreakCarryover && (
-            <span style={{ color: "#7dd3fc", fontWeight: "bold", marginLeft: "4px" }}>
-              (プール: {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒)
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
+              <span style={{ color: "#7dd3fc", fontWeight: "bold" }}>
+                (プール: {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒)
+              </span>
+              {savedBreakSeconds > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSavedBreakSeconds(0)}
+                  style={{ padding: "2px 6px", background: "#e11d48", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
+                  title="温存された休憩時間を0分0秒にリセット"
+                >
+                  🗑️ リセット
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+        {/* 🎒 休憩温存機能トグル＆プール状態 ＆ 🗑️ リセットボタン */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#181818", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
+          <span style={{ color: enableBreakCarryover ? "#38bdf8" : "#666", fontWeight: "bold" }}>
+            🎒 休憩温存: {enableBreakCarryover ? "ON" : "OFF"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEnableBreakCarryover(!enableBreakCarryover)}
+            style={{ padding: "2px 6px", background: enableBreakCarryover ? "#0284c7" : "#333", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
+          >
+            切替
+          </button>
+          {enableBreakCarryover && (
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
+              <span style={{ color: "#7dd3fc", fontWeight: "bold" }}>
+                (プール: {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒)
+              </span>
+              {savedBreakSeconds > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSavedBreakSeconds(0)}
+                  style={{ padding: "2px 6px", background: "#e11d48", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
+                  title="温存された休憩時間を0分0秒にリセット"
+                >
+                  🗑️ リセット
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
       {/* 操作ボタン */}
       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
@@ -396,9 +439,9 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
           {isRunning ? "一時停止" : (timerMode === "work" ? "集中開始" : "休憩開始")}
         </button>
         <button onClick={handleStopOrComplete} style={{ padding: "12px 20px", background: "#333", color: "#fff", border: "1px solid #555", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
-          作業完了 ➔ 実作業の1/5自動休憩へ
+          {timerMode === "work" ? "作業完了 ➔ 実作業の1/5自動休憩へ" : "作業へ戻る ➔"}
         </button>
-      </div>
+        </div>
 
       {/* モーダル群 (作業選択肢管理 ＆ タイマー設定) */}
       {isManagingTaskOpts && (
