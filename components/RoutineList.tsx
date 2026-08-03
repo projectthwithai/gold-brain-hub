@@ -69,12 +69,31 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
+  // ★1. useState 宣言群 (消えていた定義の復元 & 安全初期化)★
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_mode_options");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_MODE_OPTIONS;
+  });
+
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_ROUTINES;
+  });
+
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -86,36 +105,20 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
     hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1, rotAdvanceType: "check",
-    hasSteps: false, stepMap: {}, showOnCalendar: false
+    hasSteps: false, stepMap: {}, showOnCalendar: true
   });
 
-  // 全画面ステッププレイヤー用State
   const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
   const [playerSteps, setPlayerSteps] = useState<string[]>([]);
   const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
 
-  // 初回読み込み時に localStorage からロード
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedRoutines = localStorage.getItem("gbh_routines");
-      if (savedRoutines) {
-        try { setRoutines(JSON.parse(savedRoutines)); } catch (e) {}
-      }
-      const savedModes = localStorage.getItem("gbh_mode_options");
-      if (savedModes) {
-        try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
-      }
-    }
-  }, []);
-
-  // routines が変更されるたびに localStorage へ即座にリアルタイム保存
+  // ★2. 自動保存 useEffect (整理)★
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
     }
   }, [routines]);
 
-  // modeOptions が変更されるたびに localStorage へ保存
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
