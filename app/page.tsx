@@ -331,6 +331,63 @@ export default function Page() {
     setTab("timer");
   };
 
+  // ★日付切り替え検知: ルーティンチェック自動消去 ＆ 連続記録(Streak)判定（クリアで+1 / 未達成で0リセット）★
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkDateChange = () => {
+      const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 形式
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+
+      // 初回または日付が変わった場合
+      if (lastResetDate && lastResetDate !== todayStr) {
+        const savedRoutines = localStorage.getItem("gbh_routines");
+        if (savedRoutines) {
+          try {
+            const routinesArr = JSON.parse(savedRoutines);
+            const savedModeId = localStorage.getItem("gbh_streak_mode_id") || "weekday";
+            const savedPctTarget = Number(localStorage.getItem("gbh_streak_pct")) || 50;
+            const currentStreak = Number(localStorage.getItem("gbh_streak_days")) || 0;
+
+            const modeRoutines = routinesArr.filter((r: any) => !r.modes || r.modes.includes(savedModeId));
+            const completedCount = modeRoutines.filter((r: any) => Boolean(r.done)).length;
+            const yesterdayPct = modeRoutines.length > 0 ? Math.round((completedCount / modeRoutines.length) * 100) : 0;
+
+            // ★達成で +1 加算、未達成なら 0日 へリセット！★
+            if (yesterdayPct >= savedPctTarget) {
+              const newStreak = currentStreak + 1;
+              setStreakDays(newStreak);
+              localStorage.setItem("gbh_streak_days", newStreak.toString());
+            } else {
+              // 基準未達成で日付跨ぎ ➔ 0日にリセット
+              setStreakDays(0);
+              localStorage.setItem("gbh_streak_days", "0");
+            }
+          } catch (e) {}
+        }
+
+        // 本日のルーティンチェック(done)を自動で全消去 (done: false)
+        const savedRoutinesForReset = localStorage.getItem("gbh_routines");
+        if (savedRoutinesForReset) {
+          try {
+            const routinesArr = JSON.parse(savedRoutinesForReset);
+            const resetRoutines = routinesArr.map((r: any) => ({ ...r, done: false }));
+            setRoutines(resetRoutines);
+            localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
+          } catch (e) {}
+        }
+      }
+
+      // 今日の日付を記録
+      localStorage.setItem("gbh_last_reset_date", todayStr);
+    };
+
+    checkDateChange();
+    const interval = setInterval(checkDateChange, 60000); // 1分ごとに日付跨ぎをチェック
+
+    return () => clearInterval(interval);
+  }, []);
+
   const todayDow = new Date().getDay();
 
   // ★解決: 選択された連続記録対象モード(streakModeId)の完了データから達成率を算出★
