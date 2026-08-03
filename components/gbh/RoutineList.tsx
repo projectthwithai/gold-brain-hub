@@ -82,7 +82,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
 
-  // ★修正: showOnCalendar をデフォルト true に変更★
   const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
     name: "", startTime: "07:00", endTime: "08:00", duration: 60,
     modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
@@ -94,10 +93,8 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const [playerSteps, setPlayerSteps] = useState<string[]>([]);
   const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
 
-  // ★修復: 読み込み完了ガード用 State★
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 1. 初回読み込み（一度だけ localStorage からロード）
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedRoutines = localStorage.getItem("gbh_routines");
@@ -108,11 +105,10 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
       if (savedModes) {
         try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
       }
-      setIsLoaded(true); // 読み込み完了フラグをオン
+      setIsLoaded(true);
     }
   }, []);
 
-  // 2. 読み込み完了後に、ユーザーが変更した時だけ保存（初期値上書きバグを防止）
   useEffect(() => {
     if (typeof window !== "undefined" && isLoaded) {
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
@@ -128,7 +124,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDow = new Date().getDay();
 
-  // 表示日数経過による動的ローテーション歩進
   useEffect(() => {
     let updated = false;
     const newRoutines = routines.map((r) => {
@@ -304,18 +299,18 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   };
 
   return (
-    <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "20px", color: "#fff", fontFamily: "sans-serif" }}>
+    <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "12px", color: "#fff", fontFamily: "sans-serif", boxSizing: "border-box" }}>
       
       {/* 1. ヘッダー ＆ モード切り替えボタン */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
         <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>📜 日課ルーティン統制</h3>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button onClick={() => setIsManagingModes(true)} style={{ padding: "6px 12px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <button onClick={() => setIsManagingModes(true)} style={{ padding: "6px 10px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "11px" }}>
             ⚙️ モード種類管理
           </button>
 
-          <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); setEditingSubTab("デフォルト"); }} style={{ padding: "6px 12px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+          <button onClick={() => { setIsCreating(true); setStepInputText(""); setRotationInputText(""); setEditingSubTab("デフォルト"); }} style={{ padding: "6px 10px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "11px" }}>
             ＋ 新規日課作成
           </button>
 
@@ -325,13 +320,13 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                 key={m.id}
                 onClick={() => setCurrentModeId(m.id)}
                 style={{
-                  padding: "6px 10px",
+                  padding: "6px 8px",
                   background: currentModeId === m.id ? "#C9A84C" : "#1b1b1b",
                   color: currentModeId === m.id ? "#000" : "#888",
                   border: "1px solid #C9A84C",
                   borderRadius: "4px",
                   cursor: "pointer",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   fontWeight: "bold",
                 }}
               >
@@ -353,8 +348,8 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         </div>
       </div>
 
-      {/* 3. 実行日課リスト */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "30px" }}>
+      {/* 3. 実行日課リスト (📱 スマホレスポンシブ最適化カード) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "30px" }}>
         <span style={{ fontSize: "13px", color: "#C9A84C", fontWeight: "bold" }}>🔥 【{currentModeLabel}】実行日課:</span>
         {activeRoutines.map((item) => {
           const currentSubItem = item.hasRotation && item.rotationItems?.length > 0
@@ -362,28 +357,44 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
             : null;
 
           return (
-            <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", border: "1px solid #222", padding: "12px 15px", borderRadius: "6px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              key={item.id}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                background: "#151515",
+                border: "1px solid #222",
+                padding: "12px 14px",
+                borderRadius: "8px",
+                boxSizing: "border-box",
+                width: "100%",
+              }}
+            >
+              {/* 上段：チェックボックス ＆ 状態・タイトルエリア */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", width: "100%" }}>
                 <input
                   type="checkbox"
                   checked={item.done}
                   onChange={() => handleCheckRoutine(item.id)}
-                  style={{ accentColor: "#C9A84C", cursor: "pointer", width: "18px", height: "18px" }}
+                  style={{ accentColor: "#C9A84C", cursor: "pointer", width: "20px", height: "20px", marginTop: "2px", flexShrink: 0 }}
                 />
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>⏰ {item.startTime} - {item.endTime}</span>
-                    <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px" }}>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* 時間・頻度・モードバッジ（自然折り返し） */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", whiteSpace: "nowrap" }}>⏰ {item.startTime} - {item.endTime}</span>
+                    <span style={{ fontSize: "10px", padding: "2px 6px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "3px", whiteSpace: "nowrap" }}>
                       {item.freqType === "daily" && "📅 毎日"}
                       {item.freqType === "interval" && `🔄 ${item.freqIntervalDays || 2}日に1回`}
                       {item.freqType === "weekly" && `📆 曜日: ${item.freqDaysOfWeek?.map((d) => WEEKDAYS[d]).join(",")}`}
                     </span>
 
-                    <div style={{ display: "flex", gap: "2px" }}>
+                    <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
                       {item.modes.map((mid) => {
                         const opt = modeOptions.find((o) => o.id === mid);
                         return opt ? (
-                          <span key={mid} style={{ fontSize: "9px", padding: "1px 4px", background: "#111", color: "#aaa", border: "1px solid #333", borderRadius: "2px" }}>
+                          <span key={mid} style={{ fontSize: "9px", padding: "1px 4px", background: "#111", color: "#aaa", border: "1px solid #333", borderRadius: "2px", whiteSpace: "nowrap" }}>
                             {opt.label}
                           </span>
                         ) : null;
@@ -391,37 +402,40 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ textDecoration: item.done ? "line-through" : "none", color: item.done ? "#888" : "#fff", fontWeight: "bold", fontSize: "15px" }}>
+                  {/* ルーティン名（縦潰れ防止・文章折り返し） ＆ ターゲット現在 */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ textDecoration: item.done ? "line-through" : "none", color: item.done ? "#888" : "#fff", fontWeight: "bold", fontSize: "15px", lineHeight: "1.3", wordBreak: "break-word" }}>
                       {item.name}
                     </span>
 
                     {item.hasRotation && currentSubItem && (
-                      <span style={{ padding: "2px 8px", background: "#111", border: "1px solid #C9A84C", color: "#C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold" }}>
-                        🎯 現在: {currentSubItem}
-                      </span>
+                      <div style={{ display: "inline-block" }}>
+                        <span style={{ padding: "2px 8px", background: "#111", border: "1px solid #C9A84C", color: "#C9A84C", borderRadius: "4px", fontSize: "12px", fontWeight: "bold", display: "inline-block", wordBreak: "break-word" }}>
+                          🎯 現在: {currentSubItem}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* カード右側アクションボタン */}
-              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              {/* 下段：アクションボタン群（幅狭時は自動整然折り返し） */}
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", borderTop: "1px solid #222", paddingTop: "8px", marginTop: "2px" }}>
                 {item.hasSteps && (
-                  <button onClick={(e) => openStepPlayer(item, e)} style={{ padding: "4px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>
+                  <button onClick={(e) => openStepPlayer(item, e)} style={{ padding: "5px 10px", background: "#222", color: "#22c55e", border: "1px solid #22c55e", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold", whiteSpace: "nowrap" }}>
                     📺 全画面手順
                   </button>
                 )}
 
                 {item.hasRotation && item.rotationItems?.length > 0 && (
-                  <button onClick={(e) => handleSkipRotation(item.id, e)} style={{ padding: "4px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>
+                  <button onClick={(e) => handleSkipRotation(item.id, e)} style={{ padding: "5px 8px", background: "#222", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold", whiteSpace: "nowrap" }}>
                     スキップ ⏩
                   </button>
                 )}
 
-                <button onClick={() => onQuickTimer && onQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "4px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>⏱️ 起動</button>
-                <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>✏️ 編集</button>
-                <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "4px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>🗑️</button>
+                <button onClick={() => onQuickTimer && onQuickTimer(currentSubItem ? `${item.name} (${currentSubItem})` : item.name, item.duration)} style={{ padding: "5px 8px", background: "#222", color: "#C9A84C", border: "1px solid #C9A84C", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>⏱️ 起動</button>
+                <button onClick={() => startEdit(item)} style={{ padding: "5px 8px", background: "#222", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>✏️ 編集</button>
+                <button onClick={() => setRoutines(routines.filter((r) => r.id !== item.id))} style={{ padding: "5px 8px", background: "#222", color: "#e11d48", border: "1px solid #e11d48", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>🗑️</button>
               </div>
             </div>
           );
@@ -436,21 +450,21 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
             {upcomingRoutines.map((item) => {
               const daysLeft = getDaysUntilNext(item);
               return (
-                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1f1f1f", padding: "10px 15px", borderRadius: "6px", opacity: 0.45 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <input type="checkbox" disabled checked={false} style={{ cursor: "not-allowed", width: "16px", height: "16px" }} />
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
-                        <span style={{ fontSize: "11px", color: "#666" }}>⏰ {item.startTime} - {item.endTime}</span>
-                        <span style={{ fontSize: "10px", padding: "2px 6px", background: "#221100", color: "#f59e0b", border: "1px solid #78350f", borderRadius: "3px", fontWeight: "bold" }}>
+                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1f1f1f", padding: "10px 14px", borderRadius: "6px", opacity: 0.45, flexWrap: "wrap", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                    <input type="checkbox" disabled checked={false} style={{ cursor: "not-allowed", width: "16px", height: "16px", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "11px", color: "#666", whiteSpace: "nowrap" }}>⏰ {item.startTime} - {item.endTime}</span>
+                        <span style={{ fontSize: "10px", padding: "2px 6px", background: "#221100", color: "#f59e0b", border: "1px solid #78350f", borderRadius: "3px", fontWeight: "bold", whiteSpace: "nowrap" }}>
                           ⏳ あと {daysLeft} 日後に表示
                         </span>
                       </div>
-                      <span style={{ color: "#aaa", fontSize: "14px" }}>{item.name}</span>
+                      <span style={{ color: "#aaa", fontSize: "14px", wordBreak: "break-word" }}>{item.name}</span>
                     </div>
                   </div>
 
-                  <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px" }}>
+                  <button onClick={() => startEdit(item)} style={{ padding: "4px 8px", background: "#1a1a1a", color: "#666", border: "1px solid #333", borderRadius: "4px", cursor: "pointer", fontSize: "11px", whiteSpace: "nowrap" }}>
                     ✏️ 編集
                   </button>
                 </div>
@@ -463,7 +477,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
       {/* ⚙️ モード(種類)管理モーダル */}
       {isManagingModes && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "360px", display: "flex", flexDirection: "column", gap: "12px", maxWidth: "90vw" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>⚙️ ルーティンモード(種類)の管理</h4>
             <div style={{ display: "flex", gap: "8px" }}>
               <input type="text" placeholder="新しいモード名 (例: テスト期間)..." value={newModeLabelInput} onChange={(e) => setNewModeLabelInput(e.target.value)} style={{ flex: 1, padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px" }} />
@@ -513,7 +527,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
       {/* ✏️ 編集 / 新規作成モーダル */}
       {(isCreating || editingRoutine) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "400px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ background: "#151515", border: "1px solid #C9A84C", padding: "20px", borderRadius: "8px", width: "400px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "90vh", overflowY: "auto" }}>
             <h4 style={{ margin: 0, color: "#C9A84C", fontSize: "16px" }}>{isCreating ? "＋ 日課新規追加" : "✏️ 日課・所属モード＆設定変更"}</h4>
 
             <div>
