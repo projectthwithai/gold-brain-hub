@@ -402,37 +402,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         </div>
       </div>
 
-        {/* 🎒 休憩温存機能トグル＆プール状態 ＆ 🗑️ リセットボタン */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#181818", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
-          <span style={{ color: enableBreakCarryover ? "#38bdf8" : "#666", fontWeight: "bold" }}>
-            🎒 休憩温存: {enableBreakCarryover ? "ON" : "OFF"}
-          </span>
-          <button
-            type="button"
-            onClick={() => setEnableBreakCarryover(!enableBreakCarryover)}
-            style={{ padding: "2px 6px", background: enableBreakCarryover ? "#0284c7" : "#333", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
-          >
-            切替
-          </button>
-          {enableBreakCarryover && (
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
-              <span style={{ color: "#7dd3fc", fontWeight: "bold" }}>
-                (プール: {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒)
-              </span>
-              {savedBreakSeconds > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSavedBreakSeconds(0)}
-                  style={{ padding: "2px 6px", background: "#e11d48", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
-                  title="温存された休憩時間を0分0秒にリセット"
-                >
-                  🗑️ リセット
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
       {/* 操作ボタン */}
       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
         <button onClick={() => setIsRunning(!isRunning)} style={{ padding: "12px 28px", background: isRunning ? "#e11d48" : (timerMode === "work" ? "#C9A84C" : "#22c55e"), color: isRunning ? "#fff" : "#000", border: "none", borderRadius: "6px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
