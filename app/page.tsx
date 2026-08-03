@@ -10,6 +10,7 @@ import UrlTab from "../components/gbh/UrlTab";
 import RoutineList from "@/components/gbh/RoutineList";
 import { SettingsProvider, useSettings } from "../components/gbh/SettingsContext";
 import SettingsModal, { SettingsOpenButton } from "../components/gbh/SettingsModal";
+import AnalyticsCenter from "../components/gbh/AnalyticsCenter";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -838,7 +839,7 @@ export default function Page() {
 
       {/* 5. 📊 研究所データ (独立保持) */}
       <div style={{ display: tab === "analytics" ? "block" : "none" }}>
-        <div style={{ padding: "20px", background: "#0d0d0d", borderRadius: "8px", border: "1px solid #C9A84C" }}>📊 研究所データセンター (稼働中)</div>
+        <AnalyticsCenter />
       </div>
 
       {/* 6. 🤝 相棒監視 (本物コンポーネント呼び出し) */}
