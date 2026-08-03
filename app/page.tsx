@@ -529,6 +529,7 @@ export default function Page() {
             ⚙️ 基準設定
           </button>
         </div>
+         </div>
 
       {/* ⏳ イベントカウントダウン表示エリア（複数対応・開閉可能） */}
       <div style={{ background: "#0d0d0d", border: "1px solid #C9A84C", borderRadius: "8px", padding: "12px 16px", marginBottom: "15px" }}>
@@ -1183,7 +1184,6 @@ export default function Page() {
           </div>
         </div>
       )}
-    </div>
     </div>
   );
 }
