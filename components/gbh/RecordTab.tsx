@@ -12,15 +12,15 @@ export interface IncomeLog {
 // 兵站目標物資型 (達成フラグ & 達成日時追加)
 export interface SupplyTarget {
   id: string;
-  name: string;         // 例: "Galaxy S26 Ultra"
+  name: string;         // 例: "最新のスマホ"
   targetAmount: number; // 例: 180000
   done?: boolean;       // 達成フラグ
   completedAt?: number; // 達成日時タイムスタンプ
 }
 
 const INITIAL_TARGETS: SupplyTarget[] = [
-  { id: "st1", name: "Galaxy S26 Ultra", targetAmount: 180000, done: false },
-  { id: "st2", name: "パートナー用PC", targetAmount: 120000, done: false },
+  { id: "st1", name: "最新のスマホ", targetAmount: 180000, done: false },
+  { id: "st2", name: "最新のPC", targetAmount: 120000, done: false },
 ];
 
 const INITIAL_INCOME_LOGS: IncomeLog[] = [
@@ -339,7 +339,7 @@ export default function RecordTab() {
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>物資名 (目標):</span>
               <input
                 type="text"
-                placeholder="例: 最新のスマホ, パートナーPC..."
+                placeholder="例: 最新のスマホ, 最新のPC..."
                 value={isCreatingTarget ? newTargetName : editingTarget?.name || ""}
                 onChange={(e) => isCreatingTarget ? setNewTargetName(e.target.value) : editingTarget && setEditingTarget({ ...editingTarget, name: e.target.value })}
                 style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}

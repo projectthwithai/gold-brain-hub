@@ -87,7 +87,7 @@ export default function Page() {
 
   // カレンダー特定日メモ State
   const [dateNotes, setDateNotes] = useState<Record<string, string>>({
-    "2026-08-15": "筑波AC願書提出準備"
+    "2026-08-15": "テスト"
   });
 
 　// ★追加: イベントカウントダウン State ＆ 保存★
@@ -1137,7 +1137,7 @@ export default function Page() {
               <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
                 <input
                   type="text"
-                  placeholder="イベント名 (例: 筑波AC願書提出)..."
+                  placeholder="イベント名 (例: テスト)..."
                   value={countdownTitleInput}
                   onChange={(e) => setCountdownTitleInput(e.target.value)}
                   style={{ flex: 1, padding: "6px 8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", fontSize: "12px" }}

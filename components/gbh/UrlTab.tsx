@@ -27,7 +27,7 @@ const DEFAULT_URL_LINKS: UrlLinkItem[] = [
   { id: "u2", name: "English Lab", icon: "🔤", url: "https://english-lab-five.vercel.app", category: "Apex Suite" },
   { id: "u3", name: "Japanese Lab", icon: "📚", url: "https://japanese-lab-omega.vercel.app", category: "Apex Suite" },
   { id: "u4", name: "Duolingo", icon: "🦉", url: "https://ja.duolingo.com/", category: "学習" },
-  { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.dev/", category: "AI/開発" },
+  { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.com/prompts/new_chat", category: "AI/開発" },
   { id: "u6", name: "Supabase Console", icon: "⚡", url: "https://supabase.com/dashboard", category: "AI/開発" },
   { id: "u7", name: "Vercel Dashboard", icon: "▲", url: "https://vercel.com/dashboard", category: "AI/開発" },
 ];
@@ -175,7 +175,7 @@ export default function UrlTab() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
         <div>
           <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "18px" }}>🔗 有益ポータル ＆ サイトURLナビゲーター</h3>
-          <span style={{ fontSize: "12px", color: "#888" }}>Apex Suite・筑波ACポータル・AI兵器へのワンタップ爆速アクセス</span>
+          <span style={{ fontSize: "12px", color: "#888" }}>Apex Suite・学習・AI兵器へのワンタップ爆速アクセス</span>
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
