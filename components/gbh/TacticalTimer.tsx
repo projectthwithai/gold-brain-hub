@@ -67,6 +67,9 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   const [timeLeft, setTimeLeft] = useState((initialMinutes || activePreset.workMinutes) * 60);
   const [elapsedSeconds, setElapsedSeconds] = useState(0); // ★実際の稼働秒数を正確にカウント★
   const [isRunning, setIsRunning] = useState(false);
+  // ★要件4: 休憩時間の温存（繰り越し・加算）機能用 State★
+  const [enableBreakCarryover, setEnableBreakCarryover] = useState<boolean>(true); // 機能の ON/OFF
+  const [savedBreakSeconds, setSavedBreakSeconds] = useState<number>(0); // 温存された休憩プール(秒)
   const [timerMode, setTimerMode] = useState<"work" | "break">("work");
   const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
 
@@ -115,26 +118,42 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   };
 
   // ★要件完全修正: 予定時間ではなく【実際の稼働時間(elapsedSeconds)】に対して 5:1 (設定比率) の自動休憩時間を算出★
+  // ★要件3 & 4: 端数繰り上げお得休憩計算 ＆ 未消化休憩の温存プール加算★
   const handleStopOrComplete = () => {
     setIsRunning(false);
     stopLoopAlarm();
 
     if (timerMode === "work") {
-      // 稼働秒数 ÷ 比率 (デフォルト5) ➔ 1/5 の休憩秒数を動的算定！ (最小1分/60秒保証)
-      const calculatedBreakSeconds = Math.max(60, Math.floor(elapsedSeconds / activePreset.ratioWorkToBreak));
+      // 1. 端数繰り上げ（5分0秒➔1分, 5分1秒➔2分）で休憩秒数を計算
+      const ratioSec = activePreset.ratioWorkToBreak * 60;
+      const newBreakSeconds = Math.max(60, Math.ceil(elapsedSeconds / ratioSec) * 60);
+
+      // 2. 温存プールからの加算
+      const carryover = enableBreakCarryover ? savedBreakSeconds : 0;
+      const totalBreakSeconds = newBreakSeconds + carryover;
+
       const actualWorkedMins = Math.floor(elapsedSeconds / 60);
-      const breakMins = Math.floor(calculatedBreakSeconds / 60);
+      const totalBreakMins = Math.floor(totalBreakSeconds / 60);
 
       sendNotification(
-        "【作業完了】1/5自動休憩開始",
-        `実作業時間: ${actualWorkedMins}分${elapsedSeconds % 60}秒 ➔ 自動設定の休憩時間: ${breakMins}分`
+        "【作業完了】お得1/5自動休憩開始",
+        `実作業: ${actualWorkedMins}分${elapsedSeconds % 60}秒 ➔ 休憩: ${totalBreakMins}分${carryover > 0 ? ` (温存分 ${Math.floor(carryover / 60)}分${carryover % 60}秒 加算!)` : ""}`
       );
       playBeep(true);
 
+      // プール分を消費
+      if (enableBreakCarryover && savedBreakSeconds > 0) {
+        setSavedBreakSeconds(0);
+      }
+
       setTimerMode("break");
-      setTimeLeft(calculatedBreakSeconds);
+      setTimeLeft(totalBreakSeconds);
     } else {
-      // 休憩終了 ➔ 作業モードへリセット
+      // 3. 休憩モードから作業に戻る際、未消化の休憩時間をプールに温存！
+      if (enableBreakCarryover && timeLeft > 0) {
+        setSavedBreakSeconds((prev) => prev + timeLeft);
+      }
+
       setTimerMode("work");
       setTimeLeft(activePreset.workMinutes * 60);
       setElapsedSeconds(0);
@@ -163,7 +182,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
           // 中間アラート音（開始から〇分経過時に判定）
           if (timerMode === "work" && activePreset.hasMidAlert && activePreset.midAlertMinutesList) {
             const currentWorkedSec = elapsedSeconds + 1;
-            // ちょうど〇分0秒の瞬間に判定
             if (currentWorkedSec > 0 && currentWorkedSec % 60 === 0) {
               const currentWorkedMins = currentWorkedSec / 60;
               if (activePreset.midAlertMinutesList.includes(currentWorkedMins)) {
@@ -184,10 +202,18 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             }
 
             if (timerMode === "work") {
-              // 完走時も【実作業時間(elapsedSeconds)】の 1/5 で休憩時間を正確計算！
-              const calculatedBreakSeconds = Math.max(60, Math.floor((elapsedSeconds + 1) / activePreset.ratioWorkToBreak));
+              // 完走時も端数繰り上げ＆温存分を加算！
+              const ratioSec = activePreset.ratioWorkToBreak * 60;
+              const newBreakSeconds = Math.max(60, Math.ceil((elapsedSeconds + 1) / ratioSec) * 60);
+              const carryover = enableBreakCarryover ? savedBreakSeconds : 0;
+              const totalBreakSeconds = newBreakSeconds + carryover;
+
+              if (enableBreakCarryover && savedBreakSeconds > 0) {
+                setSavedBreakSeconds(0);
+              }
+
               setTimerMode("break");
-              return calculatedBreakSeconds;
+              return totalBreakSeconds;
             } else {
               setTimerMode("work");
               setElapsedSeconds(0);
@@ -204,8 +230,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       if (interval) clearInterval(interval);
       if (wakeLock) wakeLock.release();
     };
-  }, [isRunning, timeLeft, timerMode, activePreset, elapsedSeconds]);
-
+  }, [isRunning, timeLeft, timerMode, activePreset, elapsedSeconds, enableBreakCarryover, savedBreakSeconds]);
   const handleAddTaskOption = () => {
     if (!newTaskOptInput.trim()) return;
     const newOpt: TaskOption = { id: `t_${Date.now()}`, label: newTaskOptInput.trim() };
@@ -325,20 +350,44 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         {`${Math.floor(timeLeft / 60).toString().padStart(2, "0")}:${(timeLeft % 60).toString().padStart(2, "0")}`}
       </div>
 
-      {/* ★実作業時間のリアルタイム表示★ */}
+      {/* ⏱️ 実作業時間 ＆ 端数繰り上げお得休憩のリアルタイム表示 */}
       {timerMode === "work" && (
-        <div style={{ textAlign: "center", fontSize: "13px", color: "#aaa", marginBottom: "15px", background: "#111", padding: "8px", borderRadius: "4px", border: "1px solid #222" }}>
-          ⏱️ 現在の実作業時間: <strong style={{ color: "#C9A84C", fontSize: "15px" }}>{Math.floor(elapsedSeconds / 60)}分 {elapsedSeconds % 60}秒</strong> 
-          <span style={{ color: "#888", marginLeft: "10px" }}>
-            (※今停止すると ➔ <strong style={{ color: "#22c55e" }}>{Math.max(1, Math.floor(Math.floor(elapsedSeconds / 60) / activePreset.ratioWorkToBreak))}分</strong> の自動休憩になります)
-          </span>
+        <div style={{ textAlign: "center", fontSize: "13px", color: "#aaa", marginBottom: "15px", background: "#111", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
+          <span>⏱️ 現在の実作業時間: <strong style={{ color: "#C9A84C", fontSize: "16px" }}>{Math.floor(elapsedSeconds / 60)}分 {elapsedSeconds % 60}秒</strong></span>
+          <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+            💡 今停止した場合のお得休憩: <strong style={{ color: "#22c55e", fontSize: "14px" }}>{Math.max(1, Math.ceil(elapsedSeconds / (activePreset.ratioWorkToBreak * 60)))} 分</strong>
+            {enableBreakCarryover && savedBreakSeconds > 0 && (
+              <span style={{ color: "#38bdf8", marginLeft: "8px", fontWeight: "bold" }}>
+                (＋温存プール {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒 加算予定!)
+              </span>
+            )}
+          </div>
         </div>
       )}
 
-      {/* パラメータ状態バッジ表示 */}
-      <div style={{ display: "flex", justifyContent: "center", gap: "12px", fontSize: "12px", color: "#888", marginBottom: "20px", flexWrap: "wrap" }}>
+      {/* パラメータ状態バッジ表示 ＆ 🎒 休憩温存モードトグル */}
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", fontSize: "12px", color: "#888", marginBottom: "20px", flexWrap: "wrap" }}>
         <span>🔔 中間アラート: <strong style={{ color: activePreset.hasMidAlert ? "#C9A84C" : "#555" }}>{activePreset.hasMidAlert && activePreset.midAlertMinutesList?.length > 0 ? `${activePreset.midAlertMinutesList.join("分, ")}分経過時` : "OFF"}</strong></span>
-        <span>🔊 アラームモード: <strong style={{ color: "#C9A84C" }}>{activePreset.alarmMode === "silent" ? "無音" : activePreset.alarmMode === "once" ? "1回だけ" : "止めるまで連射"}</strong></span>
+        <span>🔊 アラーム: <strong style={{ color: "#C9A84C" }}>{activePreset.alarmMode === "silent" ? "無音" : activePreset.alarmMode === "once" ? "1回だけ" : "連射停止"}</strong></span>
+
+        {/* 🎒 休憩温存機能トグル＆プール状態 */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#181818", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
+          <span style={{ color: enableBreakCarryover ? "#38bdf8" : "#666", fontWeight: "bold" }}>
+            🎒 休憩温存: {enableBreakCarryover ? "ON" : "OFF"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEnableBreakCarryover(!enableBreakCarryover)}
+            style={{ padding: "2px 6px", background: enableBreakCarryover ? "#0284c7" : "#333", color: "#fff", border: "none", borderRadius: "3px", fontSize: "10px", cursor: "pointer", fontWeight: "bold" }}
+          >
+            切替
+          </button>
+          {enableBreakCarryover && (
+            <span style={{ color: "#7dd3fc", fontWeight: "bold", marginLeft: "4px" }}>
+              (プール: {Math.floor(savedBreakSeconds / 60)}分{savedBreakSeconds % 60}秒)
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 操作ボタン */}
