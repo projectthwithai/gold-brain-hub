@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { sendNotification, playBeepSound } from "../../utils/notification";
+import { sendNotification } from "../../utils/notification";
 
 export type AlarmMode = "silent" | "once" | "loop";
 
@@ -11,14 +11,9 @@ export interface TimerPreset {
   workMinutes: number;
   ratioWorkToBreak: number;
   hasMidAlert: boolean;
-  midAlertMinutesList: number[]; // 例: [10, 20, 30] (開始から10分後、20分後、30分後に鳴らす)
+  midAlertMinutesList: number[];
   alarmMode: AlarmMode;
 }
-
-const INITIAL_TIMER_PRESETS: TimerPreset[] = [
-  { id: "p1", name: "標準 Deep Work (50分/10分)", taskCategory: "数学 Deep Work", workMinutes: 50, ratioWorkToBreak: 5, hasMidAlert: true, midAlertMinutesList: [25, 45], alarmMode: "once" },
-  { id: "p2", name: "短期スプリント (25分/5分)", taskCategory: "英語 SVOC 精読", workMinutes: 25, ratioWorkToBreak: 5, hasMidAlert: false, midAlertMinutesList: [15], alarmMode: "loop" },
-];
 
 export interface TaskOption {
   id: string;
@@ -31,6 +26,11 @@ const INITIAL_TASK_OPTIONS: TaskOption[] = [
   { id: "t3", label: "現代文 論理デバッグ" },
   { id: "t4", label: "プログラミング" },
   { id: "t5", label: "肉体兵站筋トレ" },
+];
+
+const INITIAL_TIMER_PRESETS: TimerPreset[] = [
+  { id: "p1", name: "標準 Deep Work (50分/10分)", taskCategory: "数学 Deep Work", workMinutes: 50, ratioWorkToBreak: 5, hasMidAlert: true, midAlertMinutesList: [25, 45], alarmMode: "once" },
+  { id: "p2", name: "短期スプリント (25分/5分)", taskCategory: "英語 SVOC 精読", workMinutes: 25, ratioWorkToBreak: 5, hasMidAlert: false, midAlertMinutesList: [15], alarmMode: "loop" },
 ];
 
 interface TacticalTimerProps {
@@ -59,19 +59,30 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     alarmMode: "once"
   });
 
-  // ★追加: アラート分数の一時入力用 State★
   const [midAlertInput, setMidAlertInput] = useState<number | "">(10);
 
   const activePreset = timerPresets.find((p) => p.id === selectedPresetId) || timerPresets[0];
   const [currentTaskCategory, setCurrentTaskCategory] = useState(initialTask || activePreset.taskCategory);
   const [timeLeft, setTimeLeft] = useState((initialMinutes || activePreset.workMinutes) * 60);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0); // ★実際の稼働秒数を正確にカウント★
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  // ★要件4: 休憩時間の温存（繰り越し・加算）機能用 State★
-  const [enableBreakCarryover, setEnableBreakCarryover] = useState<boolean>(true); // 機能の ON/OFF
-  const [savedBreakSeconds, setSavedBreakSeconds] = useState<number>(0); // 温存された休憩プール(秒)
-  // ★追加: 研究データ(アナリティクス)への記録 ON/OFF State ★
+  const [timerMode, setTimerMode] = useState<"work" | "break">("work");
+  const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
+
+  // 休憩温存機能 State
+  const [enableBreakCarryover, setEnableBreakCarryover] = useState<boolean>(true);
+  const [savedBreakSeconds, setSavedBreakSeconds] = useState<number>(0);
+
+  // 研究データへの自動記録 ON/OFF State
   const [recordToAnalytics, setRecordToAnalytics] = useState<boolean>(true);
+
+  const loopAudioIntervalRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (initialTask) setCurrentTaskCategory(initialTask);
+    if (initialMinutes) setTimeLeft(initialMinutes * 60);
+    setElapsedSeconds(0);
+  }, [initialTask, initialMinutes]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -90,9 +101,25 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     }
   };
 
-  // 研究データ(アナリティクス)への作業ログ記録関数
+  const playBeep = (isShort = true) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(isShort ? 880 : 587, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + (isShort ? 0.3 : 1.2));
+    } catch (e) {}
+  };
+
   const saveAnalyticsLog = (category: string, workedSecs: number) => {
-    if (!recordToAnalytics || workedSecs < 10) return; // 10秒未満は除外
+    if (!recordToAnalytics || workedSecs < 10) return;
     const workedMins = Math.max(1, Math.floor(workedSecs / 60));
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -112,33 +139,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
 
       localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
     }
-  };
-  const [timerMode, setTimerMode] = useState<"work" | "break">("work");
-  const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
-
-  const loopAudioIntervalRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (initialTask) setCurrentTaskCategory(initialTask);
-    if (initialMinutes) setTimeLeft(initialMinutes * 60);
-    setElapsedSeconds(0);
-  }, [initialTask, initialMinutes]);
-
-  const playBeep = (isShort = true) => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(isShort ? 880 : 587, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + (isShort ? 0.3 : 1.2));
-    } catch (e) {}
   };
 
   const stopLoopAlarm = () => {
@@ -160,40 +160,46 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     setTimerMode("work");
   };
 
-  // ★要件完全修正: 予定時間ではなく【実際の稼働時間(elapsedSeconds)】に対して 5:1 (設定比率) の自動休憩時間を算出★
-  // ★要件3 & 4: 端数繰り上げお得休憩計算 ＆ 未消化休憩の温存プール加算★
+  // 作業完了・休憩切り替え (Android安全動作 ＆ 端数繰り上げ ＆ 温存プール)
   const handleStopOrComplete = () => {
     setIsRunning(false);
     stopLoopAlarm();
 
     if (timerMode === "work") {
-      // 1. 端数繰り上げ（5分0秒➔1分, 5分1秒➔2分）で休憩秒数を計算
-       saveAnalyticsLog(currentTaskCategory, elapsedSeconds);
+      saveAnalyticsLog(currentTaskCategory, elapsedSeconds);
+
       const ratioSec = activePreset.ratioWorkToBreak * 60;
       const newBreakSeconds = Math.max(60, Math.ceil(elapsedSeconds / ratioSec) * 60);
 
-      // 2. 温存プールからの加算
       const carryover = enableBreakCarryover ? savedBreakSeconds : 0;
       const totalBreakSeconds = newBreakSeconds + carryover;
 
       const actualWorkedMins = Math.floor(elapsedSeconds / 60);
       const totalBreakMins = Math.floor(totalBreakSeconds / 60);
 
-      sendNotification(
-        "【作業完了】お得1/5自動休憩開始",
-        `実作業: ${actualWorkedMins}分${elapsedSeconds % 60}秒 ➔ 休憩: ${totalBreakMins}分${carryover > 0 ? ` (温存分 ${Math.floor(carryover / 60)}分${carryover % 60}秒 加算!)` : ""}`
-      );
-      playBeep(true);
-
-      // プール分を消費
       if (enableBreakCarryover && savedBreakSeconds > 0) {
         setSavedBreakSeconds(0);
       }
 
+      // 先に状態更新を確実に実行
       setTimerMode("break");
       setTimeLeft(totalBreakSeconds);
+
+      // 通知・音は安全に非同期処理
+      setTimeout(() => {
+        try {
+          sendNotification(
+            "【作業完了】お得1/5自動休憩開始",
+            `実作業: ${actualWorkedMins}分${elapsedSeconds % 60}秒 ➔ 休憩: ${totalBreakMins}分`
+          );
+        } catch (e) {}
+
+        try {
+          playBeep(true);
+        } catch (e) {}
+      }, 0);
+
     } else {
-      // 3. 休憩モードから作業に戻る際、未消化の休憩時間をプールに温存！
       if (enableBreakCarryover && timeLeft > 0) {
         setSavedBreakSeconds((prev) => prev + timeLeft);
       }
@@ -204,7 +210,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     }
   };
 
-  // タイマーカウントダウン ＆ 稼働秒数カウント ＆ 自動1/5休憩計算
+  // タイマーカウントダウン
   useEffect(() => {
     let interval: any = null;
     let wakeLock: any = null;
@@ -218,12 +224,10 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         setTimeLeft((prev) => {
           const nextSec = prev - 1;
 
-          // 実作業時間を秒単位で正確に加算カウント
           if (timerMode === "work") {
             setElapsedSeconds((e) => e + 1);
           }
 
-          // 中間アラート音（開始から〇分経過時に判定）
           if (timerMode === "work" && activePreset.hasMidAlert && activePreset.midAlertMinutesList) {
             const currentWorkedSec = elapsedSeconds + 1;
             if (currentWorkedSec > 0 && currentWorkedSec % 60 === 0) {
@@ -234,7 +238,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             }
           }
 
-          // タイマー完走 (0秒到達) 時の処理
           if (nextSec <= 0) {
             setIsRunning(false);
 
@@ -247,7 +250,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
 
             if (timerMode === "work") {
               saveAnalyticsLog(currentTaskCategory, elapsedSeconds + 1);
-              // 完走時も端数繰り上げ＆温存分を加算！
+
               const ratioSec = activePreset.ratioWorkToBreak * 60;
               const newBreakSeconds = Math.max(60, Math.ceil((elapsedSeconds + 1) / ratioSec) * 60);
               const carryover = enableBreakCarryover ? savedBreakSeconds : 0;
@@ -276,6 +279,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       if (wakeLock) wakeLock.release();
     };
   }, [isRunning, timeLeft, timerMode, activePreset, elapsedSeconds, enableBreakCarryover, savedBreakSeconds]);
+
   const handleAddTaskOption = () => {
     if (!newTaskOptInput.trim()) return;
     const newOpt: TaskOption = { id: `t_${Date.now()}`, label: newTaskOptInput.trim() };
@@ -475,15 +479,53 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         </div>
       </div>
 
-      {/* 操作ボタン */}
-      <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-        <button onClick={() => setIsRunning(!isRunning)} style={{ padding: "12px 28px", background: isRunning ? "#e11d48" : (timerMode === "work" ? "#C9A84C" : "#22c55e"), color: isRunning ? "#fff" : "#000", border: "none", borderRadius: "6px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
+      {/* 操作ボタン (Android スマホ タップ完全反応・最前面化仕様) */}
+      <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative", zIndex: 99, pointerEvents: "auto", marginTop: "10px" }}>
+        <button
+          type="button"
+          onClick={() => setIsRunning(!isRunning)}
+          style={{
+            padding: "12px 24px",
+            background: isRunning ? "#e11d48" : (timerMode === "work" ? "#C9A84C" : "#22c55e"),
+            color: isRunning ? "#fff" : "#000",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "bold",
+            fontSize: "15px",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            position: "relative",
+            zIndex: 99,
+            WebkitTapHighlightColor: "transparent"
+          }}
+        >
           {isRunning ? "一時停止" : (timerMode === "work" ? "集中開始" : "休憩開始")}
         </button>
-        <button onClick={handleStopOrComplete} style={{ padding: "12px 20px", background: "#333", color: "#fff", border: "1px solid #555", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleStopOrComplete();
+          }}
+          style={{
+            padding: "12px 20px",
+            background: "#333",
+            color: "#fff",
+            border: "1px solid #555",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            fontSize: "14px",
+            touchAction: "manipulation",
+            position: "relative",
+            zIndex: 99,
+            WebkitTapHighlightColor: "transparent"
+          }}
+        >
           {timerMode === "work" ? "作業完了 ➔ 実作業の1/5自動休憩へ" : "作業へ戻る ➔"}
         </button>
-        </div>
+      </div>
 
       {/* モーダル群 (作業選択肢管理 ＆ タイマー設定) */}
       {isManagingTaskOpts && (
@@ -554,7 +596,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               />
             </div>
 
-            {/* 作業時間 (分) - 0が残らない入力改善済み */}
+            {/* 作業時間 (分) */}
             <div>
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>作業時間 (分):</span>
               <input
@@ -570,7 +612,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               />
             </div>
 
-            {/* 作業:休憩の比率 - 0が残らない入力改善済み */}
+            {/* 作業:休憩の比率 */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "6px" }}>⚖️ 作業:休憩の比率 (デフォルト 5:1):</span>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
@@ -649,7 +691,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
                             if (isCreatingPreset) {
                               setNewPreset({ ...newPreset, midAlertMinutesList: newPreset.midAlertMinutesList.filter((x) => x !== m) });
                             } else if (editingPreset) {
-                              setEditingPreset({ ...editingPreset, midAlertMinutesList: editingPreset.midAlertMinutesList.filter((x) => x !== m) });
+                              setNewPreset({ ...newPreset, midAlertMinutesList: editingPreset.midAlertMinutesList.filter((x) => x !== m) });
                             }
                           }}
                           style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: "bold" }}
