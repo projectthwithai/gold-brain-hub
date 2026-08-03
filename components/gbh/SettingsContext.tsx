@@ -23,6 +23,110 @@ interface SettingsContextType {
   };
 }
 
+// 🌐 アプリ全体対応のUI翻訳辞書 (日本語 ⇄ 英語)
+const translationMap: Record<string, string> = {
+  // 7大メインタブ
+  "📜 ルーティン": "📜 Routines",
+  "⏱️ 戦術タイマー": "⏱️ Tactical Timer",
+  "✅ タスク管理": "✅ Task Board",
+  "📅 カレンダー WIN/LOSE": "📅 Calendar WIN/LOSE",
+  "🔗 有益URL/Lab": "🔗 Useful Portal",
+  "📊 研究所データ": "📊 Analytics Data",
+  "🤝 相棒監視": "🤝 Partner Monitor",
+  "📱 兵站調達": "📱 Logistics",
+
+  // 最上部 Streak & カウントダウン
+  "日連続達成中": " Days Streak",
+  "本日達成度 / 判定基準": "Today's Progress / Target",
+  "判定モード:": "Target Mode:",
+  "⚙️ 基準設定": "⚙️ Target Settings",
+  "イベントカウントダウン": "Event Countdown",
+  "▲ 閉じる": "▲ Close",
+  "▼ 開く": "▼ Open",
+  "あと": "In ",
+  "日": " Days",
+  "🔥 本日当日！": "🔥 Today!",
+  "日経過": " Days Ago",
+
+  // 1. ルーティン統制 (RoutineList)
+  "📜 日課ルーティン統制": "📜 Routine Control Center",
+  "⚙️ モード種類管理": "⚙️ Manage Modes",
+  "＋ 新規日課作成": "＋ New Routine",
+  "本日の日課達成度": "Today's Routine Progress",
+  "🔥 【平日】実行日課:": "🔥 Active Routines:",
+  "🔥 【休日/祝日】実行日課:": "🔥 Active Routines:",
+  "🔥 【MONK MODE】実行日課:": "🔥 Active Routines:",
+  "💤 本日対象外 (次回準備中の日課):": "💤 Inactive Today (Upcoming):",
+  "全画面手順": "Fullscreen Steps",
+  "スキップ ⏩": "Skip ⏩",
+  "⏱️ 起動": "⏱️ Start",
+  "✏️ 編集": "✏️ Edit",
+  "🗑️ 削除": "🗑️ Delete",
+  "📅 毎日": "📅 Daily",
+  "日に1回": "Days Interval",
+  "📆 曜日:": "📆 Days:",
+  "🎯 現在:": "🎯 Current:",
+
+  // 2. 戦術タイマー (TacticalTimer)
+  "⏱️ 戦術的タイマー (実稼働1/5動的ポモドーロ計算)": "⏱️ Tactical Timer (1/5 Auto Break)",
+  "☕ 自動計算 1/5 休憩タイマー": "☕ 1/5 Auto Break Timer",
+  "🏷️ 作業選択肢の管理": "🏷️ Task Options",
+  "＋ 新規タイマー作成": "＋ New Timer",
+  "🎯 作業項目を選択:": "🎯 Select Task:",
+  "設定比率:": "Ratio:",
+  "⏱️ 現在の実作業時間:": "⏱️ Actual Work Time:",
+  "💡 今停止した場合のお得休憩:": "💡 Break Time If Stopped Now:",
+  "🔔 中間アラート:": "🔔 Mid-Alert:",
+  "🔊 アラーム:": "🔊 Alarm:",
+  "🎒 休憩温存:": "🎒 Break Saved:",
+  "切替": "Toggle",
+  "一時停止": "Pause",
+  "集中開始": "Start Focus",
+  "休憩開始": "Start Break",
+  "作業完了 ➔ 実作業の1/5自動休憩へ": "Complete Work ➔ 1/5 Auto Break",
+  "作業へ戻る ➔": "Return to Work ➔",
+  "🗑️ リセット": "🗑️ Reset",
+  "1回だけ": "Once",
+  "無音": "Silent",
+  "連射停止": "Continuous",
+  "経過時": " Elapsed",
+
+  // 3. タスク管理 (TaskManager)
+  "✅ タスク管理ボード (カレンダー青色連動対応)": "✅ Task Control Board",
+  "🏷️ ジャンル選択肢の管理": "🏷️ Categories",
+  "＋ 新規タスク追加:": "＋ Add Task:",
+  "タスク追加": "Add Task",
+  "🔥 実行中タスク:": "🔥 Active Tasks:",
+  "タスクはありません": "No tasks available",
+  "📄 メモを開く": "📄 Open Note",
+  "✔ 本日完了タスク (※24時間後に自動消去されます):": "✔ Completed Today (Auto-cleared in 24h):",
+  "🔵 カレンダー表示ON": "🔵 Calendar ON",
+
+  // 4. カレンダー (Calendar)
+  "📅 カレンダー審判 (WIN/LOSE ＆ 赤:ルーティン / 青:タスク連動)": "📅 Calendar Judgement (WIN/LOSE)",
+  "※日付マスをクリックすると特定日の予定メモを書けます": "* Click a date cell to add schedule notes or countdowns",
+  "予定メモ:": "Schedule Note:",
+  "⏳ この日へのカウントダウン設定:": "⏳ Countdown Setup:",
+  "この日付のカウントダウンはありません": "No countdowns for this date",
+
+  // モーダル & ボタン共通
+  "環境設定": "System Settings",
+  "表示言語": "Language",
+  "カラーテーマ": "Color Theme",
+  "設定を適用して閉じる": "Apply & Close",
+  "保存": "Save",
+  "保存する": "Save",
+  "キャンセル": "Cancel",
+  "閉じる": "Close",
+  "完了": "Done",
+};
+
+// 逆引き辞書 (英語 ➔ 日本語)
+const reverseMap: Record<string, string> = {};
+Object.entries(translationMap).forEach(([ja, en]) => {
+  reverseMap[en] = ja;
+});
+
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
@@ -52,33 +156,59 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
   const t = (jaText: string, enText?: string) => {
     if (lang === "ja") return jaText;
     if (enText) return enText;
+    return translationMap[jaText] || jaText;
+  };
 
-    const dict: Record<string, string> = {
-      "📜 ルーティン": "📜 Routines",
-      "⏱️ 戦術タイマー": "⏱️ Tactical Timer",
-      "✅ タスク管理": "✅ Tasks",
-      "📅 カレンダー WIN/LOSE": "📅 Calendar WIN/LOSE",
-      "🔗 有益URL/Lab": "🔗 Useful URLs/Lab",
-      "📊 研究所データ": "📊 Analytics Data",
-      "🤝 相棒監視": "🤝 Partner Panel",
-      "📱 兵站調達": "📱 Equipment",
-      "⚙️ モード種類管理": "⚙️ Modes",
-      "＋ 新規日課作成": "＋ Create Routine",
-      "本日の日課達成度": "Today's Routine Progress",
-      "実行日課:": "Active Routines:",
-      "全画面手順": "Fullscreen Steps",
-      "スキップ ⏩": "Skip ⏩",
-      "⏱️ 起動": "⏱️ Start",
-      "✏️ 編集": "✏️ Edit",
-      "🗑️ 削除": "🗑️ Delete",
-      "保存する": "Save",
-      "キャンセル": "Cancel",
-      "閉じる": "Close",
-      "環境設定": "Settings"
+  // 🌐 DOM テキストノード自動置換（ユーザー入力以外を英語/日本語へ自動変換）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const translateDOM = () => {
+      const root = document.querySelector('[data-theme]');
+      if (!root) return;
+
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      let node: Node | null = walker.nextNode();
+
+      while (node) {
+        const text = node.nodeValue?.trim();
+        const parent = node.parentElement;
+
+        // ユーザーの直接入力エリア (input, textarea) は自動置換から除外
+        const isInput = parent && (parent.tagName === "INPUT" || parent.tagName === "TEXTAREA" || parent.isContentEditable);
+
+        if (text && !isInput) {
+          if (lang === "en") {
+            if (translationMap[text]) {
+              node.nodeValue = node.nodeValue!.replace(text, translationMap[text]);
+            } else {
+              Object.entries(translationMap).forEach(([ja, en]) => {
+                if (text.includes(ja)) {
+                  node!.nodeValue = node!.nodeValue!.replace(ja, en);
+                }
+              });
+            }
+          } else {
+            if (reverseMap[text]) {
+              node.nodeValue = node.nodeValue!.replace(text, reverseMap[text]);
+            } else {
+              Object.entries(reverseMap).forEach(([en, ja]) => {
+                if (text.includes(en)) {
+                  node!.nodeValue = node!.nodeValue!.replace(en, ja);
+                }
+              });
+            }
+          }
+        }
+        node = walker.nextNode();
+      }
     };
 
-    return dict[jaText] || jaText;
-  };
+    translateDOM();
+    const interval = setInterval(translateDOM, 400); // 動的更新対応
+
+    return () => clearInterval(interval);
+  }, [lang]);
 
   const themeStyles = theme === "black" ? {
     bgMain: "#050505",
@@ -100,67 +230,58 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
 
   return (
     <SettingsContext.Provider value={{ lang, theme, setLang, setTheme, isSettingsOpen, setIsSettingsOpen, t, themeStyles }}>
-      {/* 🎨 全要素に対する強力なWhite & Gold適用CSS */}
       <style>{`
         ${theme === "white" ? `
-          [data-theme="white"],
-          [data-theme="white"] body {
+          body, [data-theme] {
             background-color: #f4f4f6 !important;
             color: #111827 !important;
           }
 
-          /* 全てのカード・ブロックの背景をホワイトへ一括強制反転 */
-          [data-theme="white"] div {
+          [data-theme] div {
             background-color: #ffffff !important;
             border-color: #e5e7eb !important;
             color: #111827 !important;
           }
 
-          /* 特殊背景や最深ブロックの明るさ補正 */
-          [data-theme="white"] div[style*="fixed"],
-          [data-theme="white"] div[style*="absolute"] {
+          [data-theme] div[style*="fixed"],
+          [data-theme] div[style*="absolute"] {
             background-color: rgba(255,255,255,0.95) !important;
           }
 
-          /* テキスト全般をくっきり見やすい濃いグレー（#111827）に一括置換 */
-          [data-theme="white"] span,
-          [data-theme="white"] p,
-          [data-theme="white"] h1,
-          [data-theme="white"] h2,
-          [data-theme="white"] h3,
-          [data-theme="white"] h4,
-          [data-theme="white"] strong,
-          [data-theme="white"] label,
-          [data-theme="white"] td,
-          [data-theme="white"] th {
+          [data-theme] span,
+          [data-theme] p,
+          [data-theme] h1,
+          [data-theme] h2,
+          [data-theme] h3,
+          [data-theme] h4,
+          [data-theme] strong,
+          [data-theme] label,
+          [data-theme] td,
+          [data-theme] th {
             color: #111827 !important;
           }
 
-          /* フォーム入力欄の背景と文字色 */
-          [data-theme="white"] input,
-          [data-theme="white"] select,
-          [data-theme="white"] textarea {
+          [data-theme] input,
+          [data-theme] select,
+          [data-theme] textarea {
             background-color: #f9fafb !important;
             color: #111827 !important;
             border-color: #d1d5db !important;
           }
 
-          /* ボタン類のカラーテーマ最適化 */
-          [data-theme="white"] button {
+          [data-theme] button {
             background-color: #f3f4f6 !important;
             color: #111827 !important;
             border-color: #d1d5db !important;
           }
 
-          /* ゴールド強調要素を白背景で見やすいダークゴールド(#b48811)に自動補正 */
-          [data-theme="white"] *[style*="C9A84C"],
-          [data-theme="white"] *[style*="c9a84c"] {
+          [data-theme] *[style*="C9A84C"],
+          [data-theme] *[style*="c9a84c"] {
             color: #b48811 !important;
             border-color: #b48811 !important;
           }
 
-          /* タイマー数字等の金文字テキスト補正 */
-          [data-theme="white"] div[style*="monospace"] {
+          [data-theme] div[style*="monospace"] {
             color: #b48811 !important;
           }
         ` : ""}
