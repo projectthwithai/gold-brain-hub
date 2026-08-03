@@ -565,18 +565,76 @@ export default function Page() {
                     </div>
                   )}
 
-                  {/* 赤色表示ルーティン（ローテーション予定も統合表示） */}
+                  {/* 赤色表示ルーティン（リアルタイムスキップ & 〇回達成設定 & 非表示日除外対応） */}
                   {(typeof window !== "undefined" && localStorage.getItem("gbh_routines") ? JSON.parse(localStorage.getItem("gbh_routines")!) : calendarRoutines || routines)
                     .filter((r: any) => Boolean(r?.showOnCalendar))
                     .map((r: any) => {
                       let subName = "";
+
                       if (r.hasRotation && r.rotationItems && r.rotationItems.length > 0) {
-                        const dayDiff = day - new Date().getDate();
+                        const todayDate = new Date().getDate();
                         const targetCount = r.rotTargetCount || 1;
-                        const stepsToAdvance = Math.floor(dayDiff / targetCount);
                         const itemsLen = r.rotationItems.length;
-                        const predictedIndex = (((r.currentRotationIndex + stepsToAdvance) % itemsLen) + itemsLen) % itemsLen;
-                        subName = r.rotationItems[predictedIndex];
+
+                        let simIndex = r.currentRotationIndex || 0;
+                        let simCount = r.rotCurrentCount || 0;
+
+                        if (day >= todayDate) {
+                          // 本日〜未来のシミュレーション（非表示日はカウントせずスキップ）
+                          for (let d = todayDate; d <= day; d++) {
+                            const dObj = new Date(2026, 7, d); // 2026年8月
+                            const dow = dObj.getDay();
+
+                            // ルーティンの非表示日判定（アクティブ日かどうか）
+                            let isActive = true;
+                            if (r.freqType === "weekly") {
+                              isActive = r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
+                            } else if (r.freqType === "interval") {
+                              const diffDays = d - todayDate;
+                              const interval = r.freqIntervalDays || 1;
+                              isActive = (diffDays % interval === 0);
+                            }
+
+                            if (isActive) {
+                              if (d === day) {
+                                subName = r.rotationItems[simIndex % itemsLen];
+                                break;
+                              }
+                              simCount += 1;
+                              if (simCount >= targetCount) {
+                                simIndex = (simIndex + 1) % itemsLen;
+                                simCount = 0;
+                              }
+                            }
+                          }
+                        } else {
+                          // 過去日の逆算シミュレーション
+                          for (let d = todayDate - 1; d >= day; d--) {
+                            const dObj = new Date(2026, 7, d);
+                            const dow = dObj.getDay();
+
+                            let isActive = true;
+                            if (r.freqType === "weekly") {
+                              isActive = r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
+                            } else if (r.freqType === "interval") {
+                              const diffDays = todayDate - d;
+                              const interval = r.freqIntervalDays || 1;
+                              isActive = (diffDays % interval === 0);
+                            }
+
+                            if (isActive) {
+                              simCount -= 1;
+                              if (simCount < 0) {
+                                simIndex = (simIndex - 1 + itemsLen) % itemsLen;
+                                simCount = targetCount - 1;
+                              }
+                              if (d === day) {
+                                subName = r.rotationItems[simIndex % itemsLen];
+                                break;
+                              }
+                            }
+                          }
+                        }
                       }
 
                       return (
