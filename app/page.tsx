@@ -79,6 +79,7 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function Page() {
+  const [isDataLoaded, setIsDataLoaded] = useState(true);
   // ★カレンダー青色表示用 タスクデータState★
   const [tasks] = useState<any[]>([
     { id: "t1", text: "模試の復習", category: "Vision", done: false, showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"] },
@@ -204,7 +205,16 @@ export default function Page() {
 
         if (data?.payload && !error) {
           const p = data.payload;
-          if (p.routines) setRoutines(p.routines);
+
+          // ★手元(localStorage)に最新データがあればそれを優先復元。無ければクラウドから復元★
+          const localRoutines = localStorage.getItem("gbh_routines");
+          if (!localRoutines && p.routines) {
+            setRoutines(p.routines);
+            localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
+          } else if (localRoutines) {
+            try { setRoutines(JSON.parse(localRoutines)); } catch (e) {}
+          }
+
           if (p.modeOptions) setModeOptions(p.modeOptions);
           if (p.streakDays !== undefined) setStreakDays(p.streakDays);
           if (p.streakPct !== undefined) setStreakPct(p.streakPct);
@@ -223,14 +233,23 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
-    if (routines === INITIAL_ROUTINES && typeof window !== "undefined" && localStorage.getItem("gbh_routines")) return;
-    
+    if (!supabase || !isDataLoaded) return;
+
     const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        // ★手元(localStorage)の最新データを取得してクラウドに送信★
+        const latestRoutines = localStorage.getItem("gbh_routines")
+          ? JSON.parse(localStorage.getItem("gbh_routines")!)
+          : routines;
+
+        const latestTasks = localStorage.getItem("gbh_tasks")
+          ? JSON.parse(localStorage.getItem("gbh_tasks")!)
+          : [];
+
         const payload = {
-          routines,
+          routines: latestRoutines,
+          tasks: latestTasks,
           modeOptions,
           streakDays,
           streakPct,
@@ -247,7 +266,7 @@ export default function Page() {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [routines, modeOptions, streakDays, streakPct, dateNotes]);
+  }, [routines, modeOptions, streakDays, streakPct, dateNotes, isDataLoaded]);
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
