@@ -70,6 +70,49 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   // ★要件4: 休憩時間の温存（繰り越し・加算）機能用 State★
   const [enableBreakCarryover, setEnableBreakCarryover] = useState<boolean>(true); // 機能の ON/OFF
   const [savedBreakSeconds, setSavedBreakSeconds] = useState<number>(0); // 温存された休憩プール(秒)
+  // ★追加: 研究データ(アナリティクス)への記録 ON/OFF State ★
+  const [recordToAnalytics, setRecordToAnalytics] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_timer_record_enabled");
+      if (saved !== null) {
+        setRecordToAnalytics(saved === "true");
+      }
+    }
+  }, []);
+
+  const toggleRecordToAnalytics = () => {
+    const nextVal = !recordToAnalytics;
+    setRecordToAnalytics(nextVal);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_timer_record_enabled", String(nextVal));
+    }
+  };
+
+  // 研究データ(アナリティクス)への作業ログ記録関数
+  const saveAnalyticsLog = (category: string, workedSecs: number) => {
+    if (!recordToAnalytics || workedSecs < 10) return; // 10秒未満は除外
+    const workedMins = Math.max(1, Math.floor(workedSecs / 60));
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gbh_timer_logs");
+      let logs: any[] = [];
+      if (saved) {
+        try { logs = JSON.parse(saved); } catch (e) {}
+      }
+
+      logs.push({
+        id: `tlog_${Date.now()}`,
+        date: todayStr,
+        category: category || "その他",
+        minutes: workedMins,
+      });
+
+      localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
+    }
+  };
   const [timerMode, setTimerMode] = useState<"work" | "break">("work");
   const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
 
@@ -125,6 +168,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
 
     if (timerMode === "work") {
       // 1. 端数繰り上げ（5分0秒➔1分, 5分1秒➔2分）で休憩秒数を計算
+       saveAnalyticsLog(currentTaskCategory, elapsedSeconds);
       const ratioSec = activePreset.ratioWorkToBreak * 60;
       const newBreakSeconds = Math.max(60, Math.ceil(elapsedSeconds / ratioSec) * 60);
 
@@ -202,6 +246,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             }
 
             if (timerMode === "work") {
+              saveAnalyticsLog(currentTaskCategory, elapsedSeconds + 1);
               // 完走時も端数繰り上げ＆温存分を加算！
               const ratioSec = activePreset.ratioWorkToBreak * 60;
               const newBreakSeconds = Math.max(60, Math.ceil((elapsedSeconds + 1) / ratioSec) * 60);
@@ -344,6 +389,34 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
           </div>
         </div>
       )}
+
+      {/* 📊 研究データ記録 ON/OFF 切替トグル */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#151515", padding: "8px 12px", borderRadius: "6px", marginBottom: "15px", border: "1px solid #222", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "14px" }}>📊</span>
+          <span style={{ fontSize: "12px", color: recordToAnalytics ? "#22c55e" : "#888", fontWeight: "bold" }}>
+            研究データへの自動記録: {recordToAnalytics ? "ON (研究データに分析記録する)" : "OFF (今回は記録しない)"}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleRecordToAnalytics}
+          style={{
+            padding: "4px 12px",
+            background: recordToAnalytics ? "#22c55e" : "#333",
+            color: recordToAnalytics ? "#000" : "#fff",
+            border: "none",
+            borderRadius: "4px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            transition: "all 0.2s ease"
+          }}
+        >
+          {recordToAnalytics ? "🟢 ON (記録する)" : "⚪ OFF (記録しない)"}
+        </button>
+      </div>
 
       {/* カウント表示 */}
       <div style={{ fontSize: "56px", fontWeight: "bold", textAlign: "center", color: timerMode === "work" ? "#C9A84C" : "#22c55e", fontFamily: "monospace", margin: "15px 0" }}>
