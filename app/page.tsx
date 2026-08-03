@@ -450,8 +450,8 @@ export default function Page() {
       <div
         style={{
           display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+          justifyContent: "space-between",
+          alignItems: "center",
           background: progressPct >= streakPct ? "linear-gradient(135deg, #1c0d02, #0d0d0d)" : "linear-gradient(135deg, #031f38, #0d0d0d)",
           border: `1px solid ${progressPct >= streakPct ? "#f97316" : "#38bdf8"}`,
           boxShadow: progressPct >= streakPct ? "0 0 18px rgba(249, 115, 22, 0.4)" : "0 0 18px rgba(56, 189, 248, 0.25)",
