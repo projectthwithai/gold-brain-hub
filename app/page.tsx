@@ -8,6 +8,8 @@ import { supabase } from "../lib/supabase";
 import PartnerTab from "../components/gbh/PartnerTab";
 import UrlTab from "../components/gbh/UrlTab";
 import RoutineList from "@/components/gbh/RoutineList";
+import { SettingsProvider, useSettings } from "../components/gbh/SettingsContext";
+import SettingsModal, { SettingsOpenButton } from "../components/gbh/SettingsModal";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -444,8 +446,16 @@ export default function Page() {
   const currentModeLabel = modeOptions.find((m) => m.id === currentModeId)?.label || "全モード";
 
   return (
-    <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
-<Header />
+    <SettingsProvider>
+      <div style={{ padding: "20px", color: "#fff", background: "#050505", minHeight: "100vh", fontFamily: "sans-serif" }}>
+        
+        {/* ★追加: 設定モーダルと画面右上の設定ボタン★ */}
+        <SettingsModal />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
+          <SettingsOpenButton />
+        </div>
+
+        <Header />
       {/* 画面最上部: 連続記録 (Streak) 氷 ➔ 炎 動的エフェクトバッジ */}
       <div
         style={{
@@ -1185,5 +1195,6 @@ export default function Page() {
         </div>
       )}
     </div>
+    </SettingsProvider>
   );
 }
