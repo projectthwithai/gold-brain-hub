@@ -121,6 +121,7 @@ export default function Page() {
   }, [countdowns]);
 
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  
   const [dateNoteInput, setDateNoteInput] = useState("");
 
   // 連続記録 (Streak) ＆ 継続判定基準ライン (streakPct)
@@ -223,7 +224,8 @@ export default function Page() {
 
   useEffect(() => {
     if (!supabase) return;
-
+    if (routines === INITIAL_ROUTINES && typeof window !== "undefined" && localStorage.getItem("gbh_routines")) return;
+    
     const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -263,7 +265,29 @@ export default function Page() {
 
   // タイマーState
   const [quickTask, setQuickTask] = useState("数学 Deep Work");
-  const [quickMin, setQuickMin] = useState(45);
+  const [quickMin, setQuickMin] = useState(50);
+
+  // ★リロード時のデータ初期化事故を防止する自動データロード★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedRoutines = localStorage.getItem("gbh_routines");
+      if (savedRoutines) {
+        try { setRoutines(JSON.parse(savedRoutines)); } catch (e) {}
+      }
+      const savedModes = localStorage.getItem("gbh_mode_options");
+      if (savedModes) {
+        try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
+      }
+      const savedStreak = localStorage.getItem("gbh_streak_days");
+      if (savedStreak) setStreakDays(Number(savedStreak));
+
+      const savedPct = localStorage.getItem("gbh_streak_pct");
+      if (savedPct) setStreakPct(Number(savedPct));
+
+      const savedMode = localStorage.getItem("gbh_streak_mode_id");
+      if (savedMode) setStreakModeId(savedMode);
+    }
+  }, []);
 
   const handleQuickTimer = (name: string, duration: number) => {
     setQuickTask(name);
