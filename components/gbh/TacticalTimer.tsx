@@ -11,9 +11,14 @@ export interface TimerPreset {
   workMinutes: number;
   ratioWorkToBreak: number;
   hasMidAlert: boolean;
-  midAlertMinutesBeforeEnd: number;
+  midAlertMinutesList: number[]; // 例: [10, 20, 30] (開始から10分後、20分後、30分後に鳴らす)
   alarmMode: AlarmMode;
 }
+
+const INITIAL_TIMER_PRESETS: TimerPreset[] = [
+  { id: "p1", name: "標準 Deep Work (50分/10分)", taskCategory: "数学 Deep Work", workMinutes: 50, ratioWorkToBreak: 5, hasMidAlert: true, midAlertMinutesList: [25, 45], alarmMode: "once" },
+  { id: "p2", name: "短期スプリント (25分/5分)", taskCategory: "英語 SVOC 精読", workMinutes: 25, ratioWorkToBreak: 5, hasMidAlert: false, midAlertMinutesList: [15], alarmMode: "loop" },
+];
 
 export interface TaskOption {
   id: string;
@@ -26,11 +31,6 @@ const INITIAL_TASK_OPTIONS: TaskOption[] = [
   { id: "t3", label: "現代文 論理デバッグ" },
   { id: "t4", label: "プログラミング" },
   { id: "t5", label: "肉体兵站筋トレ" },
-];
-
-const INITIAL_TIMER_PRESETS: TimerPreset[] = [
-  { id: "p1", name: "標準 Deep Work (50分/10分)", taskCategory: "数学 Deep Work", workMinutes: 50, ratioWorkToBreak: 5, hasMidAlert: true, midAlertMinutesBeforeEnd: 5, alarmMode: "once" },
-  { id: "p2", name: "短期スプリント (25分/5分)", taskCategory: "英語 SVOC 精読", workMinutes: 25, ratioWorkToBreak: 5, hasMidAlert: false, midAlertMinutesBeforeEnd: 3, alarmMode: "loop" },
 ];
 
 interface TacticalTimerProps {
@@ -55,9 +55,12 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     workMinutes: 45,
     ratioWorkToBreak: 5,
     hasMidAlert: true,
-    midAlertMinutesBeforeEnd: 5,
+    midAlertMinutesList: [15, 30],
     alarmMode: "once"
   });
+
+  // ★追加: アラート分数の一時入力用 State★
+  const [midAlertInput, setMidAlertInput] = useState<number | "">(10);
 
   const activePreset = timerPresets.find((p) => p.id === selectedPresetId) || timerPresets[0];
   const [currentTaskCategory, setCurrentTaskCategory] = useState(initialTask || activePreset.taskCategory);
@@ -157,11 +160,15 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
             setElapsedSeconds((e) => e + 1);
           }
 
-          // 中間アラート音
-          if (timerMode === "work" && activePreset.hasMidAlert) {
-            const alertSec = activePreset.midAlertMinutesBeforeEnd * 60;
-            if (nextSec === alertSec) {
-              playBeep(true);
+          // 中間アラート音（開始から〇分経過時に判定）
+          if (timerMode === "work" && activePreset.hasMidAlert && activePreset.midAlertMinutesList) {
+            const currentWorkedSec = elapsedSeconds + 1;
+            // ちょうど〇分0秒の瞬間に判定
+            if (currentWorkedSec > 0 && currentWorkedSec % 60 === 0) {
+              const currentWorkedMins = currentWorkedSec / 60;
+              if (activePreset.midAlertMinutesList.includes(currentWorkedMins)) {
+                playBeep(true);
+              }
             }
           }
 
@@ -330,7 +337,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
 
       {/* パラメータ状態バッジ表示 */}
       <div style={{ display: "flex", justifyContent: "center", gap: "12px", fontSize: "12px", color: "#888", marginBottom: "20px", flexWrap: "wrap" }}>
-        <span>🔔 中間アラート: <strong style={{ color: activePreset.hasMidAlert ? "#C9A84C" : "#555" }}>{activePreset.hasMidAlert ? `残り${activePreset.midAlertMinutesBeforeEnd}分前に1回` : "OFF"}</strong></span>
+        <span>🔔 中間アラート: <strong style={{ color: activePreset.hasMidAlert ? "#C9A84C" : "#555" }}>{activePreset.hasMidAlert && activePreset.midAlertMinutesList?.length > 0 ? `${activePreset.midAlertMinutesList.join("分, ")}分経過時` : "OFF"}</strong></span>
         <span>🔊 アラームモード: <strong style={{ color: "#C9A84C" }}>{activePreset.alarmMode === "silent" ? "無音" : activePreset.alarmMode === "once" ? "1回だけ" : "止めるまで連射"}</strong></span>
       </div>
 
@@ -423,23 +430,46 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               />
             </div>
 
+            {/* 作業時間 (分) - 0が残らない入力改善済み */}
+            <div>
+              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>作業時間 (分):</span>
+              <input
+                type="number" min="1" max="300"
+                value={isCreatingPreset ? (newPreset.workMinutes || "") : (editingPreset?.workMinutes || "")}
+                onChange={(e) => {
+                  const val = e.target.value === "" ? 0 : Number(e.target.value);
+                  if (isCreatingPreset) setNewPreset({ ...newPreset, workMinutes: val });
+                  else if (editingPreset) setEditingPreset({ ...editingPreset, workMinutes: val });
+                }}
+                placeholder="45"
+                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px", fontWeight: "bold", boxSizing: "border-box" }}
+              />
+            </div>
+
+            {/* 作業:休憩の比率 - 0が残らない入力改善済み */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold", display: "block", marginBottom: "6px" }}>⚖️ 作業:休憩の比率 (デフォルト 5:1):</span>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                 <span>実作業時間分に対して 1/</span>
                 <input
                   type="number" min="1" max="10"
-                  value={isCreatingPreset ? newPreset.ratioWorkToBreak : editingPreset?.ratioWorkToBreak || 5}
-                  onChange={(e) => isCreatingPreset ? setNewPreset({ ...newPreset, ratioWorkToBreak: Number(e.target.value) }) : editingPreset && setEditingPreset({ ...editingPreset, ratioWorkToBreak: Number(e.target.value) })}
+                  value={isCreatingPreset ? (newPreset.ratioWorkToBreak || "") : (editingPreset?.ratioWorkToBreak || "")}
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? 0 : Number(e.target.value);
+                    if (isCreatingPreset) setNewPreset({ ...newPreset, ratioWorkToBreak: val });
+                    else if (editingPreset) setEditingPreset({ ...editingPreset, ratioWorkToBreak: val });
+                  }}
+                  placeholder="5"
                   style={{ width: "60px", padding: "6px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center", fontWeight: "bold" }}
                 />
                 <span>を自動休憩にする</span>
               </div>
             </div>
 
+            {/* 複数中間アラート設定UI */}
             <div style={{ background: "#0d0d0d", padding: "10px", borderRadius: "6px", border: "1px solid #222" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>🔔 中間アラート音 (1回だけ短く鳴る):</span>
+                <span style={{ fontSize: "12px", color: "#C9A84C", fontWeight: "bold" }}>🔔 中間アラート音 (開始から〇分経過時に通知):</span>
                 <label style={{ fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
                   <input
                     type="checkbox"
@@ -451,15 +481,60 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               </div>
 
               {(isCreatingPreset ? newPreset.hasMidAlert : editingPreset?.hasMidAlert) && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                  <span>終了の残り</span>
-                  <input
-                    type="number" min="1" max="60"
-                    value={isCreatingPreset ? newPreset.midAlertMinutesBeforeEnd : editingPreset?.midAlertMinutesBeforeEnd || 5}
-                    onChange={(e) => isCreatingPreset ? setNewPreset({ ...newPreset, midAlertMinutesBeforeEnd: Number(e.target.value) }) : editingPreset && setEditingPreset({ ...editingPreset, midAlertMinutesBeforeEnd: Number(e.target.value) })}
-                    style={{ width: "60px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center" }}
-                  />
-                  <span>分前に音を鳴らす</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>開始から</span>
+                    <input
+                      type="number" min="1" max="300"
+                      value={midAlertInput}
+                      onChange={(e) => setMidAlertInput(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="10"
+                      style={{ width: "60px", padding: "4px", background: "#000", border: "1px solid #C9A84C", color: "#fff", borderRadius: "4px", textAlign: "center" }}
+                    />
+                    <span>分経過時に鳴らす</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof midAlertInput !== "number" || midAlertInput <= 0) return;
+                        if (isCreatingPreset) {
+                          const current = newPreset.midAlertMinutesList || [];
+                          if (!current.includes(midAlertInput)) {
+                            setNewPreset({ ...newPreset, midAlertMinutesList: [...current, midAlertInput].sort((a, b) => a - b) });
+                          }
+                        } else if (editingPreset) {
+                          const current = editingPreset.midAlertMinutesList || [];
+                          if (!current.includes(midAlertInput)) {
+                            setEditingPreset({ ...editingPreset, midAlertMinutesList: [...current, midAlertInput].sort((a, b) => a - b) });
+                          }
+                        }
+                      }}
+                      style={{ padding: "4px 8px", background: "#C9A84C", color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "11px" }}
+                    >
+                      ＋追加
+                    </button>
+                  </div>
+
+                  {/* 設定済みのアラート分数タグ一覧 */}
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {((isCreatingPreset ? newPreset.midAlertMinutesList : editingPreset?.midAlertMinutesList) || []).map((m) => (
+                      <span key={m} style={{ fontSize: "11px", background: "#222", color: "#fdba74", padding: "2px 6px", borderRadius: "3px", border: "1px solid #f97316", display: "flex", alignItems: "center", gap: "4px" }}>
+                        🔔 {m}分後
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isCreatingPreset) {
+                              setNewPreset({ ...newPreset, midAlertMinutesList: newPreset.midAlertMinutesList.filter((x) => x !== m) });
+                            } else if (editingPreset) {
+                              setEditingPreset({ ...editingPreset, midAlertMinutesList: editingPreset.midAlertMinutesList.filter((x) => x !== m) });
+                            }
+                          }}
+                          style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: "bold" }}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
