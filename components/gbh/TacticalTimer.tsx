@@ -420,16 +420,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
               />
             </div>
 
-            <div>
-              <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>作業時間 (分):</span>
-              <input
-                type="number" min="1" max="300"
-                value={isCreatingPreset ? newPreset.workMinutes : editingPreset?.workMinutes || 45}
-                onChange={(e) => isCreatingPreset ? setNewPreset({ ...newPreset, workMinutes: Number(e.target.value) }) : editingPreset && setEditingPreset({ ...editingPreset, workMinutes: Number(e.target.value) })}
-                style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#C9A84C", borderRadius: "4px", fontWeight: "bold", boxSizing: "border-box" }}
-              />
-            </div>
-
             {/* 作業時間 (分) - 0が残らない入力改善済み */}
             <div>
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>作業時間 (分):</span>
