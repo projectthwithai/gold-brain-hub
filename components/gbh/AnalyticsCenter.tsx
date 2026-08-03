@@ -44,34 +44,55 @@ export default function AnalyticsCenter() {
   // ★リアルタイムデータ State★
   const [timerLogs, setTimerLogs] = useState<any[]>([]);
   const [routinesList, setRoutinesList] = useState<any[]>([]);
+  const [modeOptions, setModeOptions] = useState<any[]>([
+    { id: "weekday", label: "平日" },
+    { id: "holiday", label: "休日/祝日" },
+    { id: "monk", label: "MONK MODE" },
+  ]);
+
+  // ★追加: 全体達成率表示のモード選択 State ★
+  const [selectedOverallModeId, setSelectedOverallModeId] = useState<string>("weekday");
+
+  // 個別ルーティン選択 State
   const [selectedRoutineId, setSelectedRoutineId] = useState<string>("");
 
   // 1. localStorage から本物の実データを0.5秒おきにリアルタイム同期ロード
   useEffect(() => {
     const loadRealData = () => {
-      if (typeof window === "undefined") return;
+      if (typeof window !== "undefined") {
+        // タイマーログ
+        const savedTimerLogs = localStorage.getItem("gbh_timer_logs");
+        if (savedTimerLogs) {
+          try {
+            const parsed = JSON.parse(savedTimerLogs);
+            if (Array.isArray(parsed)) setTimerLogs(parsed);
+          } catch (e) {}
+        }
 
-      // タイマーの実際の実行記録ログを取得
-      const savedTimerLogs = localStorage.getItem("gbh_timer_logs");
-      if (savedTimerLogs) {
-        try {
-          const parsed = JSON.parse(savedTimerLogs);
-          if (Array.isArray(parsed)) setTimerLogs(parsed);
-        } catch (e) {}
-      }
-
-      // 本物の最新ルーティン一覧を取得
-      const savedRoutines = localStorage.getItem("gbh_routines");
-      if (savedRoutines) {
-        try {
-          const parsed = JSON.parse(savedRoutines);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRoutinesList(parsed);
-            if (!selectedRoutineId) {
-              setSelectedRoutineId(parsed[0].id);
+        // ルーティンモード一覧
+        const savedModes = localStorage.getItem("gbh_mode_options");
+        if (savedModes) {
+          try {
+            const parsedModes = JSON.parse(savedModes);
+            if (Array.isArray(parsedModes) && parsedModes.length > 0) {
+              setModeOptions(parsedModes);
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
+
+        // ルーティン一覧
+        const savedRoutines = localStorage.getItem("gbh_routines");
+        if (savedRoutines) {
+          try {
+            const parsed = JSON.parse(savedRoutines);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRoutinesList(parsed);
+              if (!selectedRoutineId) {
+                setSelectedRoutineId(parsed[0].id);
+              }
+            }
+          } catch (e) {}
+        }
       }
     };
 
@@ -85,7 +106,7 @@ export default function AnalyticsCenter() {
     };
   }, [selectedRoutineId]);
 
-  // ★1. タイマーの本物記録ログから直近7日間の日別・項目別時間を動的自動集計★
+  // ★1. タイマーの本物記録ログから直近7日間の日別・項目別時間を集計★
   const realStudyData: Record<string, Record<string, number>> = {};
   past7Days.forEach((d) => {
     realStudyData[d.dateStr] = {};
@@ -99,7 +120,7 @@ export default function AnalyticsCenter() {
     }
   });
 
-  // 7日間の総集中時間 (本物データ合算)
+  // 7日間の総集中時間
   const past7DaysTotalMinutes = past7Days.reduce((acc, day) => {
     const dayData = realStudyData[day.dateStr] || {};
     const daySum = Object.values(dayData).reduce((a, b) => a + b, 0);
@@ -143,20 +164,25 @@ export default function AnalyticsCenter() {
     return [x, y];
   };
 
-  // ★2. 本物ルーティンデータから全体のリアルタイム達成率(%)を算出★
-  const activeRoutines = routinesList.filter((r) => Boolean(r));
-  const completedCount = activeRoutines.filter((r) => Boolean(r?.done)).length;
-  const todayOverallPct = activeRoutines.length > 0 ? Math.round((completedCount / activeRoutines.length) * 100) : 0;
+  // ★2. 選択されたモード(selectedOverallModeId)に所属するルーティンの全体リアルタイム達成率(%)算出★
+  const modeFilteredRoutines = routinesList.filter((r) => {
+    if (!r.modes) return true;
+    return r.modes.includes(selectedOverallModeId);
+  });
 
-  // 全体の過去7日間推移 (本日のリアルタイム％に接続)
-  const overallRoutineHistory = [70, 85, 60, 100, 80, 90, todayOverallPct];
+  const modeCompletedCount = modeFilteredRoutines.filter((r) => Boolean(r?.done)).length;
+  const todayModeOverallPct = modeFilteredRoutines.length > 0 
+    ? Math.round((modeCompletedCount / modeFilteredRoutines.length) * 100) 
+    : 0;
+
+  // 選択されたモードの過去7日間全体達成率推移 (本日のリアルタイム％に接続)
+  const overallRoutineHistory = [70, 85, 60, 100, 80, 90, todayModeOverallPct];
 
   // ★3. 個別の本物ルーティンのリアルタイム達成率算出★
   const selectedRoutine = routinesList.find((r) => r.id === selectedRoutineId) || routinesList[0];
   const isSelectedDone = selectedRoutine ? Boolean(selectedRoutine.done) : false;
   const todayIndividualPct = isSelectedDone ? 100 : 0;
 
-  // 個別ルーティンの過去7日間推移 (本日の完了状態 100% / 0% に即時連動)
   const individualRoutineHistory = [100, 0, 100, 100, 0, 100, todayIndividualPct];
 
   return (
@@ -181,9 +207,11 @@ export default function AnalyticsCenter() {
             </strong>
           </div>
           <div style={{ background: themeStyles.bgInner, padding: "8px 14px", borderRadius: "6px", border: `1px solid ${themeStyles.border}`, textAlign: "right" }}>
-            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>{t("本日全体達成率", "Today Overall Completion")}</span>
+            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>
+              本日全体達成率 ({modeOptions.find((m) => m.id === selectedOverallModeId)?.label || "全モード"})
+            </span>
             <strong style={{ fontSize: "16px", color: "#22c55e" }}>
-              {todayOverallPct}%
+              {todayModeOverallPct}%
             </strong>
           </div>
         </div>
@@ -332,15 +360,29 @@ export default function AnalyticsCenter() {
 
       </div>
 
-      {/* 3. 直近7日間の【全体】ルーティン達成率（％）推移 */}
+      {/* 3. 直近7日間の【全体】ルーティン達成率（％）推移 (★モード別切り替え機能追加★) */}
       <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px", marginBottom: "25px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
             📉 {t("直近7日間の【全体】ルーティン達成率（％）推移", "Overall Routine Completion Rate (%)")}
           </span>
-          <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
-            本日リアルタイム: {todayOverallPct}%
-          </span>
+
+          {/* ★モード(種類)選択ドロップダウン連動★ */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "11px", color: themeStyles.textSub }}>対象モード:</span>
+            <select
+              value={selectedOverallModeId}
+              onChange={(e) => setSelectedOverallModeId(e.target.value)}
+              style={{ padding: "4px 8px", background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, color: themeStyles.textMain, borderRadius: "4px", fontSize: "11px", fontWeight: "bold" }}
+            >
+              {modeOptions.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
+              本日: {todayModeOverallPct}%
+            </span>
+          </div>
         </div>
 
         {/* 折れ線グラフ SVG */}
@@ -396,14 +438,13 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 4. 直近7日間の【個々のルーティン】別達成率（％）推移 (★本物ドロップダウン選択肢連動★) */}
+      {/* 4. 直近7日間の【個々のルーティン】別達成率（％）推移 */}
       <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
             📌 {t("直近7日間の【個々のルーティン】別達成率推移", "Individual Routine Completion Rate (%)")}
           </span>
 
-          {/* ★本物のルーティン一覧から動的生成されるドロップダウン★ */}
           <select
             value={selectedRoutineId}
             onChange={(e) => setSelectedRoutineId(e.target.value)}
