@@ -515,128 +515,147 @@ export default function Page() {
               <div key={d} style={{ textAlign: "center", padding: "6px", fontSize: "12px", fontWeight: "bold", color: i === 0 ? "#e11d48" : i === 6 ? "#3b82f6" : "#888" }}>{d}</div>
             ))}
 
-            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-              const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
-              const todayNum = new Date().getDate(); 
-              const isToday = day === todayNum;
-              const isPast = day < todayNum;
-
-              let resultStatus: "WIN" | "LOSE" | null = null;
-              if (isToday) {
-                resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
-              } else if (isPast) {
-                resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
-              }
-
-              // ★解決: localStorage からダイレクトにリアルタイム最新ルーティンをロード★
-              const latestRoutines = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
+            {(() => {
+              // リアルタイムで最新のルーティン＆タスクデータを localStorage からダイレクト取得
+              const currentRoutinesList = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
                 ? JSON.parse(localStorage.getItem("gbh_routines")!)
                 : (calendarRoutines || routines || []);
 
-              const dateNote = dateNotes[dateStr];
+              const currentTasksList = typeof window !== "undefined" && localStorage.getItem("gbh_tasks")
+                ? JSON.parse(localStorage.getItem("gbh_tasks")!)
+                : (calendarTasks || tasks || []);
 
-              return (
-                <div
-                  key={day}
-                  onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
-                  style={{
-                    background: isToday ? "#1f1a08" : "#111",
-                    border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
-                    borderRadius: "6px", minHeight: "90px", padding: "6px",
-                    cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
-                    {resultStatus && (
-                      <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
-                        {resultStatus}
-                      </span>
-                    )}
-                  </div>
+              return Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
+                const todayNum = new Date().getDate(); 
+                const isToday = day === todayNum;
+                const isPast = day < todayNum;
 
-                  {dateNote && (
-                    <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      📝 {dateNote}
+                let resultStatus: "WIN" | "LOSE" | null = null;
+                if (isToday) {
+                  resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
+                } else if (isPast) {
+                  resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
+                }
+
+                // 🔵 青色表示対象のタスク（カレンダー表示ON ＆ 該当日のタスク）
+                const blueTasks = (currentTasksList || []).filter((t: any) =>
+                  Boolean(t?.showOnCalendar) && Boolean(t?.calendarDates?.includes(dateStr))
+                );
+
+                const dateNote = dateNotes[dateStr];
+
+                return (
+                  <div
+                    key={day}
+                    onClick={() => { setSelectedCalendarDate(dateStr); setDateNoteInput(dateNotes[dateStr] || ""); }}
+                    style={{
+                      background: isToday ? "#1f1a08" : "#111",
+                      border: `1px solid ${isToday ? "#C9A84C" : "#222"}`,
+                      borderRadius: "6px", minHeight: "90px", padding: "6px",
+                      cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "bold", color: isToday ? "#C9A84C" : "#ccc" }}>{day}日</span>
+                      {resultStatus && (
+                        <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", fontWeight: "bold", background: resultStatus === "WIN" ? "#14532d" : "#450a0a", color: resultStatus === "WIN" ? "#22c55e" : "#ef4444" }}>
+                          {resultStatus}
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  {/* 赤色表示ルーティン（リアルタイムスキップ & 〇回達成/〇日自動 & 非表示日完全除外） */}
-                  {latestRoutines
-                    .filter((r: any) => Boolean(r?.showOnCalendar))
-                    .map((r: any) => {
-                      const todayDate = new Date().getDate();
+                    {/* 特定日の予定メモ */}
+                    {dateNote && (
+                      <div style={{ fontSize: "9px", background: "#222", color: "#f59e0b", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #f59e0b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        📝 {dateNote}
+                      </div>
+                    )}
 
-                      // 表示対象日かどうかの判定関数
-                      const isDayActive = (checkDay: number) => {
-                        const dObj = new Date(2026, 7, checkDay);
-                        const dow = dObj.getDay();
+                    {/* 🔴 赤色表示ルーティン（最新編集内容・スキップ・目標回数・非表示日除外を100%リアルタイム反映） */}
+                    {currentRoutinesList
+                      .filter((r: any) => Boolean(r?.showOnCalendar))
+                      .map((r: any) => {
+                        const todayDate = new Date().getDate();
 
-                        if (r.freqType === "weekly") {
-                          return r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
+                        // 表示対象日かどうかの判定関数
+                        const isDayActive = (checkDay: number) => {
+                          const dObj = new Date(2026, 7, checkDay);
+                          const dow = dObj.getDay();
+
+                          if (r.freqType === "weekly") {
+                            return r.freqDaysOfWeek ? r.freqDaysOfWeek.includes(dow) : true;
+                          }
+                          if (r.freqType === "interval") {
+                            const interval = r.freqIntervalDays || 1;
+                            const diffDays = Math.abs(checkDay - todayDate);
+                            return (diffDays % interval === 0);
+                          }
+                          return true;
+                        };
+
+                        // 非表示日はルーティン名含め完全非表示
+                        if (!isDayActive(day)) {
+                          return null;
                         }
-                        if (r.freqType === "interval") {
-                          const interval = r.freqIntervalDays || 1;
-                          const diffDays = Math.abs(checkDay - todayDate);
-                          return (diffDays % interval === 0);
-                        }
-                        return true;
-                      };
 
-                      // 非表示日はルーティン名含め完全非表示
-                      if (!isDayActive(day)) {
-                        return null;
-                      }
+                        let subName = "";
 
-                      let subName = "";
+                        if (r.hasRotation && r.rotationItems && r.rotationItems.length > 0) {
+                          const targetCount = r.rotTargetCount || 1;
+                          const itemsLen = r.rotationItems.length;
 
-                      if (r.hasRotation && r.rotationItems && r.rotationItems.length > 0) {
-                        const targetCount = r.rotTargetCount || 1;
-                        const itemsLen = r.rotationItems.length;
+                          let simIndex = r.currentRotationIndex || 0;
+                          let simCount = r.rotCurrentCount || 0;
 
-                        let simIndex = r.currentRotationIndex || 0;
-                        let simCount = r.rotCurrentCount || 0;
-
-                        if (day >= todayDate) {
-                          for (let d = todayDate; d <= day; d++) {
-                            if (isDayActive(d)) {
-                              if (d === day) {
-                                subName = r.rotationItems[simIndex % itemsLen];
-                                break;
+                          if (day >= todayDate) {
+                            for (let d = todayDate; d <= day; d++) {
+                              if (isDayActive(d)) {
+                                if (d === day) {
+                                  subName = r.rotationItems[simIndex % itemsLen];
+                                  break;
+                                }
+                                simCount += 1;
+                                if (simCount >= targetCount) {
+                                  simIndex = (simIndex + 1) % itemsLen;
+                                  simCount = 0;
+                                }
                               }
-                              simCount += 1;
-                              if (simCount >= targetCount) {
-                                simIndex = (simIndex + 1) % itemsLen;
-                                simCount = 0;
+                            }
+                          } else {
+                            for (let d = todayDate - 1; d >= day; d--) {
+                              if (isDayActive(d)) {
+                                simCount -= 1;
+                                if (simCount < 0) {
+                                  simIndex = (simIndex - 1 + itemsLen) % itemsLen;
+                                  simCount = targetCount - 1;
+                                }
+                                if (d === day) {
+                                  subName = r.rotationItems[simIndex % itemsLen];
+                                  break;
+                                }
                               }
                             }
                           }
-                        } else {
-                          for (let d = todayDate - 1; d >= day; d--) {
-                            if (isDayActive(d)) {
-                              simCount -= 1;
-                              if (simCount < 0) {
-                                simIndex = (simIndex - 1 + itemsLen) % itemsLen;
-                                simCount = targetCount - 1;
-                              }
-                              if (d === day) {
-                                subName = r.rotationItems[simIndex % itemsLen];
-                                break;
-                              }
-                            }
-                          }
                         }
-                      }
 
-                      return (
-                        <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          🔴 {r.name}{subName ? ` (${subName})` : ""}
-                        </div>
-                      );
-                    })}
-                </div>
-              );
-            })}
+                        return (
+                          <div key={r.id} style={{ fontSize: "9px", background: "#450a0a", color: "#fca5a5", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            🔴 {r.name}{subName ? ` (${subName})` : ""}
+                          </div>
+                        );
+                      })}
+
+                    {/* 🔵 青色表示タスク（復活！カレンダー表示ON ＆ 該当日のタスク） */}
+                    {blueTasks.map((t: any) => (
+                      <div key={t.id} style={{ fontSize: "9px", background: "#0c4a6e", color: "#7dd3fc", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #38bdf8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        🔵 {t.text}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
