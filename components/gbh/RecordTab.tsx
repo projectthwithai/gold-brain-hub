@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 // 資金獲得・副収入ログ型
 export interface IncomeLog {
   id: string;
-  source: string; // 例: "クラウドワークス 動画編集代行"
+  source: string; // 例: "バイト", "SNS収益"
   amount: number; // 例: 15000
   date: string;   // 例: "2026-08-01"
 }
@@ -24,8 +24,8 @@ const INITIAL_TARGETS: SupplyTarget[] = [
 ];
 
 const INITIAL_INCOME_LOGS: IncomeLog[] = [
-  { id: "i1", source: "クラウドワークス 動画編集代行案件 #1", amount: 25000, date: "2026-07-25" },
-  { id: "i2", source: "AI導入支援コンサル代行", amount: 30000, date: "2026-08-01" },
+  { id: "i1", source: "バイト", amount: 25000, date: "2026-07-25" },
+  { id: "i2", source: "SNS収益", amount: 30000, date: "2026-08-01" },
 ];
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間
@@ -170,7 +170,7 @@ export default function RecordTab() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h3 style={{ margin: 0, color: "#C9A84C", fontSize: "18px" }}>📱 兵站調達 ＆ 資金獲得ダッシュボード</h3>
-          <span style={{ fontSize: "12px", color: "#888" }}>クラウドワークス副収入・機材調達進捗の完全管理</span>
+          <span style={{ fontSize: "12px", color: "#888" }}>収入・機材調達進捗の完全管理</span>
         </div>
 
         {/* 💰 所持資金 & 累計資金の2連表示 */}
@@ -276,13 +276,13 @@ export default function RecordTab() {
         </div>
       )}
 
-      {/* 3. クラウドワークス副収入・資金入力フォーム */}
+      {/* 3. 収入・資金入力フォーム */}
       <div style={{ background: "#151515", padding: "14px", borderRadius: "8px", marginBottom: "25px", border: "1px solid #222" }}>
-        <span style={{ fontSize: "13px", color: "#22c55e", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💰 資金獲得ログの記録 (クラウドワークス案件・副収入):</span>
+        <span style={{ fontSize: "13px", color: "#22c55e", fontWeight: "bold", display: "block", marginBottom: "10px" }}>💰 資金獲得ログの記録 (収入):</span>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <input
             type="text"
-            placeholder="収入源 (例: クラウドワークス 動画編集代行 #2)..."
+            placeholder="収入源 (例: バイト, SNS収益)..."
             value={newIncomeSource}
             onChange={(e) => setNewIncomeSource(e.target.value)}
             style={{ flex: 2, minWidth: "180px", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}
@@ -339,7 +339,7 @@ export default function RecordTab() {
               <span style={{ fontSize: "12px", color: "#888", display: "block", marginBottom: "4px" }}>物資名 (目標):</span>
               <input
                 type="text"
-                placeholder="例: Galaxy S26 Ultra, パートナーPC..."
+                placeholder="例: 最新のスマホ, パートナーPC..."
                 value={isCreatingTarget ? newTargetName : editingTarget?.name || ""}
                 onChange={(e) => isCreatingTarget ? setNewTargetName(e.target.value) : editingTarget && setEditingTarget({ ...editingTarget, name: e.target.value })}
                 style={{ width: "100%", padding: "8px", background: "#000", border: "1px solid #333", color: "#fff", borderRadius: "4px", boxSizing: "border-box" }}

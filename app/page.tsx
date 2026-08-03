@@ -81,7 +81,7 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 export default function Page() {
   // ★カレンダー青色表示用 タスクデータState★
   const [tasks] = useState<any[]>([
-    { id: "t1", text: "筑波大学 AC入試 願書実績整理", category: "Vision", done: false, showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"] },
+    { id: "t1", text: "大学入試 願書整理", category: "Vision", done: false, showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"] },
     { id: "t2", text: "微分積分 演習問題 10問解く", category: "数学", done: false, showOnCalendar: true, calendarDates: ["2026-08-02", "2026-08-20"] }
   ]);
 

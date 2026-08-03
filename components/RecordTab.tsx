@@ -32,7 +32,7 @@ export default function RecordTab({ tasks, sched, TH }: any) {
         </div>
 
         <div style={{ marginTop: 25, borderTop: `1px solid ${TH.border}`, paddingTop: 20 }}>
-          <p style={{ fontSize: 10, color: TH.gold, marginBottom: 10 }}>PROJECT: GALAXY S26 ULTRA</p>
+          <p style={{ fontSize: 10, color: TH.gold, marginBottom: 10 }}>PROJECT: 最新のスマホ</p>
           <div style={{ height: 6, background: '#222', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{ width: '65%', height: '100%', background: TH.gold }}></div>
           </div>
