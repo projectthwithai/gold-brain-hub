@@ -82,15 +82,54 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
+  // ★解決: 起動の1ミリ秒目に日付跨ぎを判定し、日付が変わっていれば即座に未チェック(done: false)にリセット！★
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
     if (typeof window !== "undefined") {
+      const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD" 形式
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+
       const saved = localStorage.getItem("gbh_routines");
       if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
+        try {
+          const parsed: RoutineItem[] = JSON.parse(saved);
+
+          // ★日付が変わっていたら一括で未チェック(done: false)にリセット！★
+          if (lastResetDate && lastResetDate !== todayStr) {
+            const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
+            localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
+            localStorage.setItem("gbh_last_reset_date", todayStr);
+            return resetRoutines;
+          }
+
+          return parsed;
+        } catch (e) {}
       }
+      localStorage.setItem("gbh_last_reset_date", todayStr);
     }
     return INITIAL_ROUTINES;
   });
+
+  // アプリを開いたまま深夜0時（日付跨ぎ）を迎えた場合のリアルタイム監視
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkMidnight = () => {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+
+      if (lastResetDate && lastResetDate !== todayStr) {
+        setRoutines((prev) => {
+          const updated = prev.map((r) => ({ ...r, done: false }));
+          localStorage.setItem("gbh_routines", JSON.stringify(updated));
+          return updated;
+        });
+        localStorage.setItem("gbh_last_reset_date", todayStr);
+      }
+    };
+
+    const interval = setInterval(checkMidnight, 30000); // 30秒ごとに日跨ぎチェック
+    return () => clearInterval(interval);
+  }, []);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
