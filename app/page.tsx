@@ -331,62 +331,53 @@ export default function Page() {
     setTab("timer");
   };
 
-  // ★日付切り替え検知: ルーティンチェック自動消去 ＆ 連続記録(Streak)判定（クリアで+1 / 未達成で0リセット）★
+  // ★2. 23:59 / 日付跨ぎ時に【先に昨日のStreakを確定】➔ その後に本日のルーティンをリセット★
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !isDataLoaded) return;
 
-    const checkDateChange = () => {
-      const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 形式
+    const checkDateChangeAndFinalizeStreak = () => {
+      const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
       const lastResetDate = localStorage.getItem("gbh_last_reset_date");
 
-      // 初回または日付が変わった場合
+      // 昨日から今日へ日付が変わった場合
       if (lastResetDate && lastResetDate !== todayStr) {
+        // ① 昨日のWIN判定結果を取得 (昨日の 23:59 時点の実績)
+        const yesterdayWinStatus = localStorage.getItem(`gbh_daily_win_${lastResetDate}`);
+        const currentStreak = Number(localStorage.getItem("gbh_streak_days")) || 0;
+
+        if (yesterdayWinStatus === "true") {
+          // 昨日WIN達成 ➔ 連続記録を +1 加算確定！
+          const newStreak = currentStreak + 1;
+          setStreakDays(newStreak);
+          localStorage.setItem("gbh_streak_days", newStreak.toString());
+        } else {
+          // 昨日未達成 ➔ 連続記録を 0日 にリセット
+          setStreakDays(0);
+          localStorage.setItem("gbh_streak_days", "0");
+        }
+
+        // ② Streak(連続記録)の確定完了後に、本日のためにルーティンチェックを未チェック(done: false)にリセット
         const savedRoutines = localStorage.getItem("gbh_routines");
         if (savedRoutines) {
           try {
             const routinesArr = JSON.parse(savedRoutines);
-            const savedModeId = localStorage.getItem("gbh_streak_mode_id") || "weekday";
-            const savedPctTarget = Number(localStorage.getItem("gbh_streak_pct")) || 50;
-            const currentStreak = Number(localStorage.getItem("gbh_streak_days")) || 0;
-
-            const modeRoutines = routinesArr.filter((r: any) => !r.modes || r.modes.includes(savedModeId));
-            const completedCount = modeRoutines.filter((r: any) => Boolean(r.done)).length;
-            const yesterdayPct = modeRoutines.length > 0 ? Math.round((completedCount / modeRoutines.length) * 100) : 0;
-
-            // ★達成で +1 加算、未達成なら 0日 へリセット！★
-            if (yesterdayPct >= savedPctTarget) {
-              const newStreak = currentStreak + 1;
-              setStreakDays(newStreak);
-              localStorage.setItem("gbh_streak_days", newStreak.toString());
-            } else {
-              // 基準未達成で日付跨ぎ ➔ 0日にリセット
-              setStreakDays(0);
-              localStorage.setItem("gbh_streak_days", "0");
-            }
-          } catch (e) {}
-        }
-
-        // 本日のルーティンチェック(done)を自動で全消去 (done: false)
-        const savedRoutinesForReset = localStorage.getItem("gbh_routines");
-        if (savedRoutinesForReset) {
-          try {
-            const routinesArr = JSON.parse(savedRoutinesForReset);
             const resetRoutines = routinesArr.map((r: any) => ({ ...r, done: false }));
             setRoutines(resetRoutines);
             localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
           } catch (e) {}
         }
-      }
 
-      // 今日の日付を記録
-      localStorage.setItem("gbh_last_reset_date", todayStr);
+        localStorage.setItem("gbh_last_reset_date", todayStr);
+      } else if (!lastResetDate) {
+        localStorage.setItem("gbh_last_reset_date", todayStr);
+      }
     };
 
-    checkDateChange();
-    const interval = setInterval(checkDateChange, 60000); // 1分ごとに日付跨ぎをチェック
+    checkDateChangeAndFinalizeStreak();
+    const interval = setInterval(checkDateChangeAndFinalizeStreak, 30000); // 30秒ごとに日付跨ぎを監視
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isDataLoaded]);
 
   const todayDow = new Date().getDay();
 
@@ -406,6 +397,14 @@ export default function Page() {
 
   const completedCount = streakRoutines.filter((r: any) => Boolean(r?.done)).length;
   const progressPct = streakRoutines.length > 0 ? Math.round((completedCount / streakRoutines.length) * 100) : 0;
+
+  // ★1. 本日のWIN判定結果をリアルタイムで日付別ログにロック記録★
+  useEffect(() => {
+    if (typeof window === "undefined" || !isDataLoaded) return;
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const isWin = progressPct >= streakPct;
+    localStorage.setItem(`gbh_daily_win_${todayStr}`, isWin ? "true" : "false");
+  }, [progressPct, streakPct, isDataLoaded]);
 
   // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
   const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);

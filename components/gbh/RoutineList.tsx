@@ -83,7 +83,32 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
   // ★解決: 起動の1ミリ秒目に日付跨ぎを判定し、日付が変わっていれば即座に未チェック(done: false)にリセット！★
+  // ★日付が変わっていたら起動の瞬間に done: false に一括リセットしてロード★
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+
+      const saved = localStorage.getItem("gbh_routines");
+      if (saved) {
+        try {
+          const parsed: RoutineItem[] = JSON.parse(saved);
+
+          if (lastResetDate && lastResetDate !== todayStr) {
+            const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
+            localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
+            localStorage.setItem("gbh_last_reset_date", todayStr);
+            return resetRoutines;
+          }
+
+          return parsed;
+        } catch (e) {}
+      }
+      localStorage.setItem("gbh_last_reset_date", todayStr);
+    }
+    return INITIAL_ROUTINES;
+  });
+
     if (typeof window !== "undefined") {
       const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD" 形式
       const lastResetDate = localStorage.getItem("gbh_last_reset_date");
@@ -199,6 +224,28 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     });
     if (updated) setRoutines(newRoutines);
   }, [currentModeId, todayStr]);
+
+  // アプリを開いたまま深夜0時（日付跨ぎ）を迎えた場合のリアルタイム監視
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkMidnight = () => {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+
+      if (lastResetDate && lastResetDate !== todayStr) {
+        setRoutines((prev) => {
+          const updated = prev.map((r) => ({ ...r, done: false }));
+          localStorage.setItem("gbh_routines", JSON.stringify(updated));
+          return updated;
+        });
+        localStorage.setItem("gbh_last_reset_date", todayStr);
+      }
+    };
+
+    const interval = setInterval(checkMidnight, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const activeRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentModeId)) return false;
