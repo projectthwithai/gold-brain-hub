@@ -303,18 +303,17 @@ export default function Page() {
 
       if (data?.payload && !error) {
         const p = data.payload;
-        if (p.routines && Array.isArray(p.routines) && p.routines.length > 0) {
-          setRoutines(p.routines);
-          localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(p.routines));
-          localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
-        }
-        // ★修正: 手元(localStorage)にすでにタスクがある場合は、クラウドの空データで絶対上書きさせない！★
-        if (p.tasks && Array.isArray(p.tasks) && p.tasks.length > 0) {
-          const keyTasks = `gbh_tasks_${userId}`;
-          const localTasks = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
-          if (!localTasks) {
-            localStorage.setItem(keyTasks, JSON.stringify(p.tasks));
-            localStorage.setItem("gbh_tasks", JSON.stringify(p.tasks));
+        // ★修正: 手元(localStorage)にデータがある場合は、クラウドの古いデータで復活・上書きさせない！★
+        if (p.routines && Array.isArray(p.routines)) {
+          const keyRoutines = `gbh_routines_${userId}`;
+          const localRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+          
+          if (!localRoutines) {
+            setRoutines(p.routines);
+            localStorage.setItem(keyRoutines, JSON.stringify(p.routines));
+            localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
+          } else {
+            try { setRoutines(JSON.parse(localRoutines)); } catch (e) {}
           }
         }
         if (p.modeOptions) setModeOptions(p.modeOptions);
