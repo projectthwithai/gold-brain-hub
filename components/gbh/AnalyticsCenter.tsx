@@ -170,17 +170,26 @@ export default function AnalyticsCenter() {
     }
   }, [growthItems, growthLogs, userId, isLoaded]);
 
-  // リアルタイム同期タイマー (最新ログ・ルーティンの反映)
+  // リアルタイム同期タイマー（最新ログ・ルーティンの反映）
   useEffect(() => {
     const loadRealData = () => {
       if (typeof window !== "undefined") {
+        // ★アカウント専用キー(gbh_timer_logs_uId)のみを参照★
         const uId = userId || "guest";
         const keyTimer = `gbh_timer_logs_${uId}`;
-        const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
-        if (savedTimerLogs) { try { setTimerLogs(JSON.parse(savedTimerLogs)); } catch (e) {} }
+        const savedTimerLogs = localStorage.getItem(keyTimer);
+        if (savedTimerLogs) {
+          try {
+            const parsed = JSON.parse(savedTimerLogs);
+            if (Array.isArray(parsed)) setTimerLogs(parsed);
+          } catch (e) { setTimerLogs([]); }
+        } else {
+          setTimerLogs([]);
+        }
 
+        // アカウント専用ルーティン
         const keyRoutines = `gbh_routines_${uId}`;
-        const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+        const savedRoutines = localStorage.getItem(keyRoutines);
         if (savedRoutines) {
           try {
             const parsed = JSON.parse(savedRoutines);
@@ -190,10 +199,10 @@ export default function AnalyticsCenter() {
       }
     };
 
+    loadRealData();
     const interval = setInterval(loadRealData, 500);
     return () => clearInterval(interval);
   }, [userId]);
-
   // 成長記録への新記録追加
   const handleAddGrowthLog = () => {
     const num = Number(newLogValueInput);

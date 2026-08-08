@@ -161,14 +161,16 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     } catch (e) {}
   };
 
+  // ★修正: アカウント専用キー(gbh_timer_logs_userId)にのみ記録を保存★
   const saveAnalyticsLog = (category: string, workedSecs: number) => {
     if (!recordToAnalytics || workedSecs < 10) return;
     const workedMins = Math.max(1, Math.floor(workedSecs / 60));
     const todayStr = new Date().toISOString().split("T")[0];
 
     if (typeof window !== "undefined") {
-      const keyLogs = `gbh_timer_logs_${userId}`;
-      const saved = localStorage.getItem(keyLogs) || localStorage.getItem("gbh_timer_logs");
+      const uId = userId || "guest";
+      const keyLogs = `gbh_timer_logs_${uId}`;
+      const saved = localStorage.getItem(keyLogs);
       let logs: any[] = [];
       if (saved) {
         try { logs = JSON.parse(saved); } catch (e) {}
@@ -182,7 +184,6 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       });
 
       localStorage.setItem(keyLogs, JSON.stringify(logs));
-      localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
     }
   };
 
