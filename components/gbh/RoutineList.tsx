@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSettings } from "./SettingsContext";
 
 export type RoutineMode = "weekday" | "holiday" | "monk";
 export type FrequencyType = "daily" | "interval" | "weekly";
@@ -69,14 +70,40 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  // ★1. シンプルで安全な State 宣言群★
-  // ★1. シンプルで安全な State 宣言群★
+  const { userId } = useSettings(); // ★ログインアカウントIDを取得★
+
   const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
   const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+
+  // ★アカウント(userId)切り替え検知 ➔ そのアカウント専用データにパッと切り替え★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_routines_${userId}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setRoutines(parsed);
+        } catch (e) {
+          setRoutines(INITIAL_ROUTINES);
+        }
+      } else {
+        setRoutines(INITIAL_ROUTINES);
+      }
+    }
+  }, [userId]);
+
+  // ★変更時にアカウント専用キー(gbh_routines_ユーザーID)へ保存★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(routines));
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+    }
+  }, [routines, userId]);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 

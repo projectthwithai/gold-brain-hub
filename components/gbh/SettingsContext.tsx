@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "../../lib/supabase";
 
 export type Language = "ja" | "en";
 export type Theme = "black" | "white";
@@ -7,6 +8,7 @@ export type Theme = "black" | "white";
 interface SettingsContextType {
   lang: Language;
   theme: Theme;
+  userId: string; // ★全タブ連動用 ログインアカウントID ("guest" または ユーザーID)
   setLang: (lang: Language) => void;
   setTheme: (theme: Theme) => void;
   isSettingsOpen: boolean;
@@ -132,7 +134,23 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const [lang, setLangState] = useState<Language>("ja");
   const [theme, setThemeState] = useState<Theme>("black");
+  const [userId, setUserId] = useState<string>("guest"); // ★追加: アカウントID★
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+// ★全タブ連動用 ログインアカウント(userId)のリアルタイム監視★
+  useEffect(() => {
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }: any) => {
+      setUserId(data?.session?.user?.id || "guest");
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      setUserId(session?.user?.id || "guest");
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -229,7 +247,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   return (
-    <SettingsContext.Provider value={{ lang, theme, setLang, setTheme, isSettingsOpen, setIsSettingsOpen, t, themeStyles }}>
+    <SettingsContext.Provider value={{ lang, theme, userId, setLang, setTheme, isSettingsOpen, setIsSettingsOpen, t, themeStyles }}>
       <style>{`
         ${theme === "white" ? `
           body, [data-theme] {
@@ -300,6 +318,7 @@ export const useSettings = () => {
     return {
       lang: "ja" as Language,
       theme: "black" as Theme,
+      userId: "guest",
       setLang: () => {},
       setTheme: () => {},
       isSettingsOpen: false,
