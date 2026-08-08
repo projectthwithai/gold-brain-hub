@@ -1,85 +1,90 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSettings } from "./SettingsContext"; // ★アカウントID取得★
 
-// 資金獲得・副収入ログ型
 export interface IncomeLog {
   id: string;
-  source: string; // 例: "バイト", "SNS収益"
-  amount: number; // 例: 15000
-  date: string;   // 例: "2026-08-01"
+  source: string;
+  amount: number;
+  date: string;
 }
 
-// 兵站目標物資型 (達成フラグ & 達成日時追加)
 export interface SupplyTarget {
   id: string;
-  name: string;         // 例: "最新のスマホ"
-  targetAmount: number; // 例: 180000
-  done?: boolean;       // 達成フラグ
-  completedAt?: number; // 達成日時タイムスタンプ
+  name: string;
+  targetAmount: number;
+  done?: boolean;
+  completedAt?: number;
 }
 
 const INITIAL_TARGETS: SupplyTarget[] = [
-  { id: "st1", name: "最新のスマホ", targetAmount: 180000, done: false },
-  { id: "st2", name: "最新のPC", targetAmount: 120000, done: false },
+  { id: "st1", name: "Galaxy S26 Ultra", targetAmount: 180000, done: false },
+  { id: "st2", name: "パートナー用PC", targetAmount: 120000, done: false },
 ];
 
 const INITIAL_INCOME_LOGS: IncomeLog[] = [
-  { id: "i1", source: "バイト", amount: 25000, date: "2026-07-25" },
-  { id: "i2", source: "SNS収益", amount: 30000, date: "2026-08-01" },
+  { id: "i1", source: "クラウドワークス 動画編集代行案件 #1", amount: 25000, date: "2026-07-25" },
+  { id: "i2", source: "AI導入支援コンサル代行", amount: 30000, date: "2026-08-01" },
 ];
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function RecordTab() {
-  // 兵站目標物資リスト
-  const [targets, setTargets] = useState<SupplyTarget[]>(INITIAL_TARGETS);
+  const { userId } = useSettings(); // ★アカウントID取得★
 
-  // 収入・資金獲得ログリスト
-  const [incomeLogs, setIncomeLogs] = useState<IncomeLog[]>(INITIAL_INCOME_LOGS);
+  // ★アカウント(userId)対応の即時初期化 State★
+  const [targets, setTargets] = useState<SupplyTarget[]>(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_supply_targets_${userId || "guest"}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_supply_targets");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_TARGETS;
+  });
 
-  // ★追加: 累計消費資金 (達成ボタンで使った金額の合計) ★
-  const [spentAmount, setSpentAmount] = useState<number>(0);
+  const [incomeLogs, setIncomeLogs] = useState<IncomeLog[]>(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_income_logs_${userId || "guest"}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_income_logs");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_INCOME_LOGS;
+  });
 
-  // 読み込み完了ガード
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [spentAmount, setSpentAmount] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_spent_amount_${userId || "guest"}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_spent_amount");
+      if (saved) return Number(saved);
+    }
+    return 0;
+  });
 
-  // モーダル編集 State
   const [editingTarget, setEditingTarget] = useState<SupplyTarget | null>(null);
   const [isCreatingTarget, setIsCreatingTarget] = useState(false);
   const [newTargetName, setNewTargetName] = useState("");
   const [newTargetAmount, setNewTargetAmount] = useState<number>(180000);
 
-  // 新規収入ログ入力 State
   const [newIncomeSource, setNewIncomeSource] = useState("");
   const [newIncomeAmount, setNewIncomeAmount] = useState<number>(10000);
 
-  // 1. 初回データロード (localStorage から復元)
+  // ★アカウント(userId)別の自動保存 ＆ 24時間パージ★
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedTargets = localStorage.getItem("gbh_supply_targets");
-      if (savedTargets) { try { setTargets(JSON.parse(savedTargets)); } catch (e) {} }
-
-      const savedLogs = localStorage.getItem("gbh_income_logs");
-      if (savedLogs) { try { setIncomeLogs(JSON.parse(savedLogs)); } catch (e) {} }
-
-      const savedSpent = localStorage.getItem("gbh_spent_amount");
-      if (savedSpent) { setSpentAmount(Number(savedSpent)); }
-
-      setIsLoaded(true);
-    }
-  }, []);
-
-  // 2. データ変更時に localStorage へ即座に保存
-  useEffect(() => {
-    if (typeof window !== "undefined" && isLoaded) {
+      localStorage.setItem(`gbh_supply_targets_${userId || "guest"}`, JSON.stringify(targets));
       localStorage.setItem("gbh_supply_targets", JSON.stringify(targets));
+
+      localStorage.setItem(`gbh_income_logs_${userId || "guest"}`, JSON.stringify(incomeLogs));
       localStorage.setItem("gbh_income_logs", JSON.stringify(incomeLogs));
+
+      localStorage.setItem(`gbh_spent_amount_${userId || "guest"}`, spentAmount.toString());
       localStorage.setItem("gbh_spent_amount", spentAmount.toString());
     }
-  }, [targets, incomeLogs, spentAmount, isLoaded]);
 
-  // 3. 達成済み目標の24時間パージ (自動消去)
-  useEffect(() => {
     const now = Date.now();
     const validTargets = targets.filter((t) => {
       if (!t.done || !t.completedAt) return true;
@@ -89,7 +94,7 @@ export default function RecordTab() {
     if (validTargets.length !== targets.length) {
       setTargets(validTargets);
     }
-  }, [targets]);
+  }, [targets, incomeLogs, spentAmount, userId]);
 
   // 累計獲得資金の計算
   const totalIncome = incomeLogs.reduce((acc, log) => acc + log.amount, 0);

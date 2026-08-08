@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSettings } from "./SettingsContext"; // ★アカウントID取得★
 
-// カテゴリオプション型
 export interface UrlCategoryOption {
   id: string;
   label: string;
@@ -12,12 +12,12 @@ export interface UrlLinkItem {
   name: string;    // サイト名 (例: "Math Lab")
   icon: string;    // アイコン絵文字 (例: "📐")
   url: string;     // 遷移先URL (例: "https://...")
-  category: string;// カテゴリ (例: "Apex Suite", "学習", "AI/開発")
+  category: string;// カテゴリ (例: "Apex Suite", "入試戦術", "AI/開発")
 }
 
 const DEFAULT_CATEGORIES: UrlCategoryOption[] = [
   { id: "uc1", label: "Apex Suite" },
-  { id: "uc2", label: "学習" },
+  { id: "uc2", label: "入試戦術" },
   { id: "uc3", label: "AI/開発" },
   { id: "uc4", label: "その他" },
 ];
@@ -26,24 +26,44 @@ const DEFAULT_URL_LINKS: UrlLinkItem[] = [
   { id: "u1", name: "Math Lab", icon: "📐", url: "https://math-lab-ruby.vercel.app", category: "Apex Suite" },
   { id: "u2", name: "English Lab", icon: "🔤", url: "https://english-lab-five.vercel.app", category: "Apex Suite" },
   { id: "u3", name: "Japanese Lab", icon: "📚", url: "https://japanese-lab-omega.vercel.app", category: "Apex Suite" },
-  { id: "u4", name: "Duolingo", icon: "🦉", url: "https://ja.duolingo.com/", category: "学習" },
-  { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.com/prompts/new_chat", category: "AI/開発" },
+  { id: "u4", name: "筑波大学 AC入試 募集要項", icon: "🏛️", url: "https://www.tsukuba.ac.jp/admission/undergraduate/ac/", category: "入試戦術" },
+  { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.dev/", category: "AI/開発" },
   { id: "u6", name: "Supabase Console", icon: "⚡", url: "https://supabase.com/dashboard", category: "AI/開発" },
   { id: "u7", name: "Vercel Dashboard", icon: "▲", url: "https://vercel.com/dashboard", category: "AI/開発" },
 ];
 
 export default function UrlTab() {
-  const [links, setLinks] = useState<UrlLinkItem[]>(DEFAULT_URL_LINKS);
-  const [categories, setCategories] = useState<UrlCategoryOption[]>(DEFAULT_CATEGORIES);
+  const { userId } = useSettings(); // ★アカウントID取得★
+
+  // ★アカウント(userId)対応の即時初期化 State★
+  const [links, setLinks] = useState<UrlLinkItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_url_links_${userId || "guest"}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_url_links");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return DEFAULT_URL_LINKS;
+  });
+
+  const [categories, setCategories] = useState<UrlCategoryOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const key = `gbh_url_categories_${userId || "guest"}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_url_categories");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return DEFAULT_CATEGORIES;
+  });
 
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
-  // カテゴリ管理モーダル State
   const [isManagingCategories, setIsManagingCategories] = useState(false);
   const [newCatInput, setNewCatInput] = useState("");
   const [editingCat, setEditingCat] = useState<UrlCategoryOption | null>(null);
 
-  // リンク作成・編集モーダル State
   const [isCreating, setIsCreating] = useState(false);
   const [editingLink, setEditingLink] = useState<UrlLinkItem | null>(null);
 
@@ -52,37 +72,16 @@ export default function UrlTab() {
   const [inputUrl, setInputUrl] = useState("https://");
   const [inputCategory, setInputCategory] = useState("Apex Suite");
 
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  // 1. 初回ロード: localStorage からリンク ＆ カテゴリデータを復元
+  // ★アカウント(userId)専用キーで自動保存★
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedLinks = localStorage.getItem("gbh_url_links");
-      if (savedLinks) {
-        try { setLinks(JSON.parse(savedLinks)); } catch (e) {}
-      }
-
-      const savedCats = localStorage.getItem("gbh_url_categories");
-      if (savedCats) {
-        try { setCategories(JSON.parse(savedCats)); } catch (e) {}
-      }
-
-      setIsLoaded(true);
-    }
-  }, []);
-
-  // 2. 変更時に localStorage へ自動保存
-  useEffect(() => {
-    if (typeof window !== "undefined" && isLoaded) {
+      localStorage.setItem(`gbh_url_links_${userId || "guest"}`, JSON.stringify(links));
       localStorage.setItem("gbh_url_links", JSON.stringify(links));
-    }
-  }, [links, isLoaded]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && isLoaded) {
+      localStorage.setItem(`gbh_url_categories_${userId || "guest"}`, JSON.stringify(categories));
       localStorage.setItem("gbh_url_categories", JSON.stringify(categories));
     }
-  }, [categories, isLoaded]);
+  }, [links, categories, userId]);
 
   // サイト開く (新しいタブで爆速アクセス)
   const handleOpenUrl = (url: string) => {
