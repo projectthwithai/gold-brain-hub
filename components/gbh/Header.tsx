@@ -27,7 +27,18 @@ export default function Header() {
 
   const handleLogin = async () => {
     try {
-      await signInWithGoogle();
+      if (supabase) {
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            queryParams: {
+              prompt: "select_account", // ★毎回Googleアカウント選択画面を強制表示★
+            },
+          },
+        });
+      } else {
+        await signInWithGoogle();
+      }
     } catch (e) {
       alert("Googleログインの起動に失敗しました。.env.localのSupabase設定を確認してください。");
     }
