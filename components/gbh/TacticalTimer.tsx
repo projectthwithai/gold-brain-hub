@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { useSettings } from "./SettingsContext";
 import { sendNotification } from "../../utils/notification";
 
 export type AlarmMode = "silent" | "once" | "loop";
@@ -39,6 +40,8 @@ interface TacticalTimerProps {
 }
 
 export default function TacticalTimer({ initialTask, initialMinutes }: TacticalTimerProps) {
+  const { userId } = useSettings(); // ★アカウントID取得★
+
   const [taskOptions, setTaskOptions] = useState<TaskOption[]>(INITIAL_TASK_OPTIONS);
   const [newTaskOptInput, setNewTaskOptInput] = useState("");
   const [editingTaskOpt, setEditingTaskOpt] = useState<TaskOption | null>(null);
@@ -69,43 +72,54 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
   const [timerMode, setTimerMode] = useState<"work" | "break">("work");
   const [isLoopAlarmRinging, setIsLoopAlarmRinging] = useState(false);
 
-  // 休憩温存機能 State
+  // 休憩時間の温存機能
   const [enableBreakCarryover, setEnableBreakCarryover] = useState<boolean>(true);
   const [savedBreakSeconds, setSavedBreakSeconds] = useState<number>(0);
 
-  // 研究データへの自動記録 ON/OFF State
+  // 研究データへの自動記録 ON/OFF
   const [recordToAnalytics, setRecordToAnalytics] = useState<boolean>(true);
 
   const loopAudioIntervalRef = useRef<any>(null);
 
-  // ★低い場所に配置: アプリ起動時にタイマーの選択肢・設定・温存時間を自動復元★
+  // ★アカウント(userId)切り替え検知 ➔ そのアカウント専用タイマーデータへ即時切替★
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedTaskOpts = localStorage.getItem("gbh_timer_task_options");
-      if (savedTaskOpts) {
-        try { setTaskOptions(JSON.parse(savedTaskOpts)); } catch (e) {}
+      const keyOpts = `gbh_timer_task_options_${userId}`;
+      const keyPresets = `gbh_timer_presets_${userId}`;
+      const keyBreak = `gbh_timer_saved_break_${userId}`;
+
+      const savedOpts = localStorage.getItem(keyOpts) || localStorage.getItem("gbh_timer_task_options");
+      if (savedOpts) {
+        try { setTaskOptions(JSON.parse(savedOpts)); } catch (e) { setTaskOptions(INITIAL_TASK_OPTIONS); }
+      } else {
+        setTaskOptions(INITIAL_TASK_OPTIONS);
       }
 
-      const savedPresets = localStorage.getItem("gbh_timer_presets");
+      const savedPresets = localStorage.getItem(keyPresets) || localStorage.getItem("gbh_timer_presets");
       if (savedPresets) {
-        try { setTimerPresets(JSON.parse(savedPresets)); } catch (e) {}
+        try { setTimerPresets(JSON.parse(savedPresets)); } catch (e) { setTimerPresets(INITIAL_TIMER_PRESETS); }
+      } else {
+        setTimerPresets(INITIAL_TIMER_PRESETS);
       }
 
-      const savedBreak = localStorage.getItem("gbh_timer_saved_break");
-      if (savedBreak) {
-        setSavedBreakSeconds(Number(savedBreak));
-      }
+      const savedBreak = localStorage.getItem(keyBreak) || localStorage.getItem("gbh_timer_saved_break");
+      setSavedBreakSeconds(savedBreak ? Number(savedBreak) : 0);
     }
-  }, []);
+  }, [userId]);
 
-  // ★タイマー設定や温存時間の変更時に自動保存★
+  // ★アカウント専用キーで自動保存★
   useEffect(() => {
     if (typeof window !== "undefined") {
+      localStorage.setItem(`gbh_timer_task_options_${userId}`, JSON.stringify(taskOptions));
       localStorage.setItem("gbh_timer_task_options", JSON.stringify(taskOptions));
+
+      localStorage.setItem(`gbh_timer_presets_${userId}`, JSON.stringify(timerPresets));
       localStorage.setItem("gbh_timer_presets", JSON.stringify(timerPresets));
+
+      localStorage.setItem(`gbh_timer_saved_break_${userId}`, savedBreakSeconds.toString());
       localStorage.setItem("gbh_timer_saved_break", savedBreakSeconds.toString());
     }
-  }, [taskOptions, timerPresets, savedBreakSeconds]);
+  }, [taskOptions, timerPresets, savedBreakSeconds, userId]);
 
   useEffect(() => {
     if (initialTask) setCurrentTaskCategory(initialTask);
@@ -153,7 +167,8 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     const todayStr = new Date().toISOString().split("T")[0];
 
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("gbh_timer_logs");
+      const keyLogs = `gbh_timer_logs_${userId}`;
+      const saved = localStorage.getItem(keyLogs) || localStorage.getItem("gbh_timer_logs");
       let logs: any[] = [];
       if (saved) {
         try { logs = JSON.parse(saved); } catch (e) {}
@@ -166,6 +181,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         minutes: workedMins,
       });
 
+      localStorage.setItem(keyLogs, JSON.stringify(logs));
       localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
     }
   };

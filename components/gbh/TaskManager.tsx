@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSettings } from "./SettingsContext"; // ★追加★
 
 export interface TaskCategoryOption {
   id: string;
@@ -14,7 +15,6 @@ export interface TaskItem {
   completedAt?: number;
   memo?: string;
 
-  // カレンダー青色表示トグル ＆ 複数日選択
   showOnCalendar?: boolean;
   calendarDates?: string[];
 }
@@ -29,7 +29,7 @@ const INITIAL_CATEGORIES: TaskCategoryOption[] = [
 
 const INITIAL_TASKS: TaskItem[] = [
   {
-    id: "1", text: "模試", category: "Vision", done: false, memo: "7割目標",
+    id: "1", text: "17歳の野望を開始せよ (筑波AC突破)", category: "Vision", done: false, memo: "情報メディア創成学類合格に向けた実績づくり",
     showOnCalendar: true, calendarDates: ["2026-08-01", "2026-08-15"]
   },
   { id: "2", text: "微分積分 演習問題 10問解く", category: "数学", done: false, memo: "教科書P.45〜P.50" },
@@ -39,6 +39,8 @@ const INITIAL_TASKS: TaskItem[] = [
 const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間
 
 export default function TaskManager() {
+  const { userId } = useSettings(); // ★アカウントID取得★
+
   const [categories, setCategories] = useState<TaskCategoryOption[]>(INITIAL_CATEGORIES);
   const [newCatInput, setNewCatInput] = useState("");
   const [editingCat, setEditingCat] = useState<TaskCategoryOption | null>(null);
@@ -54,34 +56,40 @@ export default function TaskManager() {
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [activeMemoTask, setActiveMemoTask] = useState<TaskItem | null>(null);
 
-  // カレンダー青色表示用 日付入力State
   const [taskDateInput, setTaskDateInput] = useState<string>("");
 
-  // ★低い場所に配置: アプリ起動時に localStorage からタスクとカテゴリを自動復元★
+  // ★アカウント(userId)切り替え検知 ➔ そのアカウント専用タスクデータへ即時切替★
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedTasks = localStorage.getItem("gbh_tasks");
+      const keyTasks = `gbh_tasks_${userId}`;
+      const keyCats = `gbh_task_categories_${userId}`;
+
+      const savedTasks = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
       if (savedTasks) {
-        try { setTaskList(JSON.parse(savedTasks)); } catch (e) {}
+        try { setTaskList(JSON.parse(savedTasks)); } catch (e) { setTaskList(INITIAL_TASKS); }
+      } else {
+        setTaskList(INITIAL_TASKS);
       }
-      const savedCats = localStorage.getItem("gbh_task_categories");
+
+      const savedCats = localStorage.getItem(keyCats) || localStorage.getItem("gbh_task_categories");
       if (savedCats) {
-        try { setCategories(JSON.parse(savedCats)); } catch (e) {}
+        try { setCategories(JSON.parse(savedCats)); } catch (e) { setCategories(INITIAL_CATEGORIES); }
+      } else {
+        setCategories(INITIAL_CATEGORIES);
       }
     }
-  }, []);
+  }, [userId]);
 
-  // ★タスクやカテゴリの更新時に自動保存★
+  // ★アカウント専用キーで自動保存 ＆ 24時間パージ★
   useEffect(() => {
     if (typeof window !== "undefined") {
+      localStorage.setItem(`gbh_tasks_${userId}`, JSON.stringify(taskList));
       localStorage.setItem("gbh_tasks", JSON.stringify(taskList));
+
+      localStorage.setItem(`gbh_task_categories_${userId}`, JSON.stringify(categories));
       localStorage.setItem("gbh_task_categories", JSON.stringify(categories));
     }
-  }, [taskList, categories]);
 
-  // 24時間パージ
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("gbh_tasks", JSON.stringify(taskList));
     const now = Date.now();
     const validTasks = taskList.filter((t) => {
       if (!t.done || !t.completedAt) return true;
@@ -91,7 +99,7 @@ export default function TaskManager() {
     if (validTasks.length !== taskList.length) {
       setTaskList(validTasks);
     }
-  }, [taskList]);
+  }, [taskList, categories, userId]);
 
   const handleAddTask = () => {
     if (!newText.trim()) return;
