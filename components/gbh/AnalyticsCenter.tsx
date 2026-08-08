@@ -66,7 +66,7 @@ const DEFAULT_GROWTH_LOGS: GrowthLog[] = [
 ];
 
 export default function AnalyticsCenter() {
-  const { t, themeStyles, userId } = useSettings(); // ★アカウントID(userId)の取得★
+  const { t, themeStyles, userId } = useSettings();
   const past7Days = getPast7Days();
 
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
@@ -83,7 +83,7 @@ export default function AnalyticsCenter() {
   const [selectedOverallModeId, setSelectedOverallModeId] = useState<string>("weekday");
   const [selectedRoutineId, setSelectedRoutineId] = useState<string>("");
 
-  // ★アカウント対応 成長記録機能 State★
+  // 成長記録機能 State
   const [growthItems, setGrowthItems] = useState<GrowthItem[]>(DEFAULT_GROWTH_ITEMS);
   const [growthLogs, setGrowthLogs] = useState<GrowthLog[]>(DEFAULT_GROWTH_LOGS);
   const [selectedGrowthItemId, setSelectedGrowthItemId] = useState<string>("gi1");
@@ -98,25 +98,31 @@ export default function AnalyticsCenter() {
   const [inputItemUnit, setInputItemUnit] = useState("kg");
   const [inputItemHigherIsBetter, setInputItemHigherIsBetter] = useState(true);
 
-  // ログタップ編集モーダル State
+  // 成長ログタップ編集モーダル State
   const [editingLog, setEditingLog] = useState<GrowthLog | null>(null);
   const [editLogValueInput, setEditLogValueInput] = useState<string>("");
 
+  // ★新規追加: 日別学習時間ログ編集モーダル State★
+  const [editingStudyDate, setEditingStudyDate] = useState<string | null>(null);
+  const [newStudyCatInput, setNewStudyCatInput] = useState<string>("数学 Deep Work");
+  const [newStudyMinsInput, setNewStudyMinsInput] = useState<number | "">(30);
+
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // ★1. アカウント(userId)切り替え検知 ➔ そのアカウント専用データをローカルから復元★
+  // 1. localStorage から本物の実データを復元ロード
   useEffect(() => {
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
 
-      // アカウント専用タイマーログ
       const keyTimer = `gbh_timer_logs_${uId}`;
       const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
       if (savedTimerLogs) {
-        try { setTimerLogs(JSON.parse(savedTimerLogs)); } catch (e) { setTimerLogs([]); }
+        try {
+          const parsed = JSON.parse(savedTimerLogs);
+          if (Array.isArray(parsed)) setTimerLogs(parsed);
+        } catch (e) { setTimerLogs([]); }
       } else { setTimerLogs([]); }
 
-      // アカウント専用ルーティン
       const keyRoutines = `gbh_routines_${uId}`;
       const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
       if (savedRoutines) {
@@ -129,7 +135,6 @@ export default function AnalyticsCenter() {
         } catch (e) {}
       }
 
-      // アカウント専用成長記録項目
       const keyGItems = `gbh_growth_items_${uId}`;
       const savedGItems = localStorage.getItem(keyGItems);
       if (savedGItems) {
@@ -138,30 +143,21 @@ export default function AnalyticsCenter() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             setGrowthItems(parsed);
             setSelectedGrowthItemId(parsed[0].id);
-          } else {
-            setGrowthItems(DEFAULT_GROWTH_ITEMS);
-            setSelectedGrowthItemId("gi1");
           }
-        } catch (e) { setGrowthItems(DEFAULT_GROWTH_ITEMS); }
-      } else {
-        setGrowthItems(DEFAULT_GROWTH_ITEMS);
-        setSelectedGrowthItemId("gi1");
+        } catch (e) {}
       }
 
-      // アカウント専用成長記録ログ
       const keyGLogs = `gbh_growth_logs_${uId}`;
       const savedGLogs = localStorage.getItem(keyGLogs);
       if (savedGLogs) {
-        try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) { setGrowthLogs(DEFAULT_GROWTH_LOGS); }
-      } else {
-        setGrowthLogs(DEFAULT_GROWTH_LOGS);
+        try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) {}
       }
 
       setIsLoaded(true);
     }
   }, [userId]);
 
-  // ★2. 成長記録データの保存 (アカウント専用キーへ書き込み)★
+  // 2. 成長記録データの保存
   useEffect(() => {
     if (typeof window !== "undefined" && isLoaded) {
       const uId = userId || "guest";
@@ -170,39 +166,42 @@ export default function AnalyticsCenter() {
     }
   }, [growthItems, growthLogs, userId, isLoaded]);
 
-  // リアルタイム同期タイマー（最新ログ・ルーティンの反映）
-  useEffect(() => {
-    const loadRealData = () => {
-      if (typeof window !== "undefined") {
-        // ★アカウント専用キー(gbh_timer_logs_uId)のみを参照★
-        const uId = userId || "guest";
-        const keyTimer = `gbh_timer_logs_${uId}`;
-        const savedTimerLogs = localStorage.getItem(keyTimer);
-        if (savedTimerLogs) {
-          try {
-            const parsed = JSON.parse(savedTimerLogs);
-            if (Array.isArray(parsed)) setTimerLogs(parsed);
-          } catch (e) { setTimerLogs([]); }
-        } else {
-          setTimerLogs([]);
-        }
+  // ★タイマーログ変更時に localStorage へ更新保存★
+  const updateTimerLogs = (newLogs: any[]) => {
+    setTimerLogs(newLogs);
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_timer_logs_${uId}`, JSON.stringify(newLogs));
+      localStorage.setItem("gbh_timer_logs", JSON.stringify(newLogs));
+    }
+  };
 
-        // アカウント専用ルーティン
-        const keyRoutines = `gbh_routines_${uId}`;
-        const savedRoutines = localStorage.getItem(keyRoutines);
-        if (savedRoutines) {
-          try {
-            const parsed = JSON.parse(savedRoutines);
-            if (Array.isArray(parsed) && parsed.length > 0) setRoutinesList(parsed);
-          } catch (e) {}
-        }
-      }
+  // タイマーログ編集保存
+  const handleSaveTimerLogMinutes = (logId: string, newMins: number) => {
+    if (isNaN(newMins) || newMins <= 0) return;
+    const updated = timerLogs.map((l) => (l.id === logId ? { ...l, minutes: newMins } : l));
+    updateTimerLogs(updated);
+  };
+
+  // タイマーログ削除
+  const handleDeleteTimerLog = (logId: string) => {
+    const updated = timerLogs.filter((l) => l.id !== logId);
+    updateTimerLogs(updated);
+  };
+
+  // 指定日に手動でタイマーログ追加
+  const handleAddTimerLogToDate = () => {
+    if (!editingStudyDate || !newStudyCatInput.trim() || !newStudyMinsInput || Number(newStudyMinsInput) <= 0) return;
+    const newLog = {
+      id: `tlog_${Date.now()}`,
+      date: editingStudyDate,
+      category: newStudyCatInput.trim(),
+      minutes: Number(newStudyMinsInput),
     };
+    updateTimerLogs([...timerLogs, newLog]);
+    setNewStudyMinsInput(30);
+  };
 
-    loadRealData();
-    const interval = setInterval(loadRealData, 500);
-    return () => clearInterval(interval);
-  }, [userId]);
   // 成長記録への新記録追加
   const handleAddGrowthLog = () => {
     const num = Number(newLogValueInput);
@@ -336,6 +335,9 @@ export default function AnalyticsCenter() {
     .filter((l) => l.itemId === currentGrowthItem?.id)
     .sort((a, b) => a.timestamp - b.timestamp)
     .slice(-10);
+
+  // 選択された編集日のタイマーログ一覧
+  const selectedDateLogs = editingStudyDate ? timerLogs.filter((l) => l.date === editingStudyDate) : [];
 
   return (
     <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, borderRadius: "8px", padding: "16px", color: themeStyles.textMain, fontFamily: "sans-serif", boxSizing: "border-box" }}>
@@ -576,16 +578,16 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 4. Studyplus風 直近7日間の作業時間（積層棒グラフ） ＆ 項目別割合（円グラフ） */}
+      {/* 4. Studyplus風 直近7日間の作業時間（積層棒グラフ - ★棒クリックで編集・削除★） ＆ 項目別割合（円グラフ） */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "25px" }}>
         
-        {/* A. 日別積層棒グラフ */}
+        {/* A. 日別積層棒グラフ (クリックでその日の学習ログ編集モーダル起動) */}
         <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
-              📈 {t("直近7日間の日別集中時間 (Studyplus風)", "7-Day Daily Focus Time")}
+              📈 {t("直近7日間の日別集中時間 (クリックで編集・削除)", "7-Day Daily Focus Time (Click to Edit)")}
             </span>
-            <span style={{ fontSize: "10px", color: themeStyles.textSub }}>単位: 分</span>
+            <span style={{ fontSize: "10px", color: themeStyles.textSub }}>単位: 分 (棒をクリック)</span>
           </div>
 
           <div style={{ height: "180px", display: "flex", alignItems: "flex-end", gap: "8px", paddingTop: "20px", paddingBottom: "5px", borderBottom: `1px solid ${themeStyles.border}`, position: "relative" }}>
@@ -597,13 +599,15 @@ export default function AnalyticsCenter() {
               return (
                 <div
                   key={day.dateStr}
+                  onClick={() => setEditingStudyDate(day.dateStr)} // ★棒または列クリックでその日の編集モーダル起動★
                   onMouseEnter={() => setHoveredBarIndex(idx)}
                   onMouseLeave={() => setHoveredBarIndex(null)}
                   style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", position: "relative", cursor: "pointer" }}
                 >
+                  {/* ポップアップ詳細ツールチップ */}
                   {hoveredBarIndex === idx && (
                     <div style={{ position: "absolute", bottom: `${heightPct + 10}%`, background: "#000", color: "#fff", border: `1px solid ${themeStyles.gold}`, borderRadius: "6px", padding: "6px 8px", fontSize: "10px", zIndex: 10, whiteSpace: "nowrap", boxShadow: "0 4px 10px rgba(0,0,0,0.5)" }}>
-                      <strong style={{ color: themeStyles.gold, display: "block", marginBottom: "2px" }}>{day.label} ({day.dayOfWeek}): {totalMins}分</strong>
+                      <strong style={{ color: themeStyles.gold, display: "block", marginBottom: "2px" }}>{day.label} ({day.dayOfWeek}): {totalMins}分 🔍 (クリックで編集)</strong>
                       {Object.keys(dayData).length === 0 ? (
                         <span style={{ color: "#666" }}>記録なし</span>
                       ) : (
@@ -621,7 +625,8 @@ export default function AnalyticsCenter() {
                     {totalMins > 0 ? `${totalMins}m` : ""}
                   </span>
 
-                  <div style={{ width: "100%", maxWidth: "28px", height: `${Math.max(4, heightPct)}%`, borderRadius: "4px 4px 0 0", overflow: "hidden", display: "flex", flexDirection: "column-reverse", background: "#222" }}>
+                  {/* 積層バー */}
+                  <div style={{ width: "100%", maxWidth: "28px", height: `${Math.max(6, heightPct)}%`, borderRadius: "4px 4px 0 0", overflow: "hidden", display: "flex", flexDirection: "column-reverse", background: "#222" }}>
                     {Object.entries(dayData).map(([cat, mins], cIdx) => {
                       const segmentPct = totalMins > 0 ? (mins / totalMins) * 100 : 0;
                       return (
@@ -633,7 +638,7 @@ export default function AnalyticsCenter() {
                             backgroundColor: CATEGORY_COLORS[cat] || PALETTE[cIdx % PALETTE.length],
                             transition: "height 0.3s ease"
                           }}
-                          title={`${cat}: ${mins}分`}
+                          title={`${cat}: ${mins}分 (クリックして修正・削除)`}
                         />
                       );
                     })}
@@ -645,7 +650,11 @@ export default function AnalyticsCenter() {
 
           <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", marginTop: "8px" }}>
             {past7Days.map((day) => (
-              <div key={day.dateStr} style={{ flex: 1, textAlign: "center", fontSize: "10px", color: day.isToday ? themeStyles.gold : themeStyles.textSub, fontWeight: day.isToday ? "bold" : "normal" }}>
+              <div
+                key={day.dateStr}
+                onClick={() => setEditingStudyDate(day.dateStr)}
+                style={{ flex: 1, textAlign: "center", fontSize: "10px", color: day.isToday ? themeStyles.gold : themeStyles.textSub, fontWeight: day.isToday ? "bold" : "normal", cursor: "pointer" }}
+              >
                 {day.label}<br />({day.dayOfWeek})
               </div>
             ))}
@@ -852,6 +861,89 @@ export default function AnalyticsCenter() {
           </svg>
         </div>
       </div>
+
+      {/* 🛠️ 棒グラフクリック時：日別学習時間ログ 修正・追加・削除 モーダル */}
+      {editingStudyDate && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1003 }}>
+          <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, padding: "20px", borderRadius: "8px", width: "380px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "14px", color: themeStyles.textMain, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ margin: 0, color: themeStyles.gold, fontSize: "16px" }}>
+                📝 【{editingStudyDate}】の学習時間記録の修正・削除
+              </h4>
+              <button onClick={() => setEditingStudyDate(null)} style={{ background: "none", border: "none", color: themeStyles.textSub, cursor: "pointer", fontSize: "16px", fontWeight: "bold" }}>✕</button>
+            </div>
+
+            {/* この日のログ一覧 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: themeStyles.textSub }}>登録済みの学習記録:</span>
+              {selectedDateLogs.length === 0 ? (
+                <span style={{ fontSize: "11px", color: themeStyles.textSub, fontStyle: "italic" }}>この日の学習記録はありません</span>
+              ) : (
+                selectedDateLogs.map((log) => (
+                  <div key={log.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: themeStyles.bgInner, padding: "8px 12px", borderRadius: "6px", border: `1px solid ${themeStyles.border}` }}>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <strong style={{ fontSize: "13px", color: CATEGORY_COLORS[log.category] || themeStyles.gold }}>{log.category}</strong>
+                      <span style={{ fontSize: "11px", color: themeStyles.textSub }}>{log.minutes} 分</span>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      <input
+                        type="number"
+                        min="1"
+                        defaultValue={log.minutes}
+                        onBlur={(e) => handleSaveTimerLogMinutes(log.id, Number(e.target.value))}
+                        style={{ width: "50px", padding: "4px", background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, color: themeStyles.textMain, borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
+                      />
+                      <span style={{ fontSize: "11px" }}>分</span>
+                      <button
+                        onClick={() => handleDeleteTimerLog(log.id)}
+                        style={{ padding: "4px 8px", background: "#e11d48", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}
+                      >
+                        🗑️ 削除
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* この日に新規学習時間を手動追加 */}
+            <div style={{ background: themeStyles.bgInner, padding: "10px", borderRadius: "6px", border: `1px solid ${themeStyles.border}`, display: "flex", flexDirection: "column", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: themeStyles.gold, fontWeight: "bold" }}>＋ この日付に学習記録を追加:</span>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <input
+                  type="text"
+                  placeholder="科目・作業名"
+                  value={newStudyCatInput}
+                  onChange={(e) => setNewStudyCatInput(e.target.value)}
+                  style={{ flex: 2, minWidth: "120px", padding: "6px", background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, color: themeStyles.textMain, borderRadius: "4px", fontSize: "12px" }}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="分数"
+                  value={newStudyMinsInput}
+                  onChange={(e) => setNewStudyMinsInput(e.target.value === "" ? "" : Number(e.target.value))}
+                  style={{ flex: 1, minWidth: "60px", padding: "6px", background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, color: themeStyles.gold, borderRadius: "4px", fontSize: "12px", fontWeight: "bold" }}
+                />
+                <button
+                  onClick={handleAddTimerLogToDate}
+                  style={{ padding: "6px 12px", background: themeStyles.gold, color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}
+                >
+                  ＋追加
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setEditingStudyDate(null)}
+              style={{ padding: "10px", background: themeStyles.gold, color: "#000", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+            >
+              完了・閉じる
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ⚙️ 成長項目 管理モーダル */}
       {isManagingGrowthItems && (
