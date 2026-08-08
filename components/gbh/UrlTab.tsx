@@ -12,12 +12,12 @@ export interface UrlLinkItem {
   name: string;    // サイト名 (例: "Math Lab")
   icon: string;    // アイコン絵文字 (例: "📐")
   url: string;     // 遷移先URL (例: "https://...")
-  category: string;// カテゴリ (例: "Apex Suite", "入試戦術", "AI/開発")
+  category: string;// カテゴリ (例: "Apex Suite", "学習", "AI/開発")
 }
 
 const DEFAULT_CATEGORIES: UrlCategoryOption[] = [
   { id: "uc1", label: "Apex Suite" },
-  { id: "uc2", label: "入試戦術" },
+  { id: "uc2", label: "学習" },
   { id: "uc3", label: "AI/開発" },
   { id: "uc4", label: "その他" },
 ];
@@ -26,7 +26,7 @@ const DEFAULT_URL_LINKS: UrlLinkItem[] = [
   { id: "u1", name: "Math Lab", icon: "📐", url: "https://math-lab-ruby.vercel.app", category: "Apex Suite" },
   { id: "u2", name: "English Lab", icon: "🔤", url: "https://english-lab-five.vercel.app", category: "Apex Suite" },
   { id: "u3", name: "Japanese Lab", icon: "📚", url: "https://japanese-lab-omega.vercel.app", category: "Apex Suite" },
-  { id: "u4", name: "筑波大学 AC入試 募集要項", icon: "🏛️", url: "https://www.tsukuba.ac.jp/admission/undergraduate/ac/", category: "入試戦術" },
+  { id: "u4", name: "Duolingo", icon: "🦉", url: "https://www.duolingo.com", category: "学習" },
   { id: "u5", name: "Google AI Studio", icon: "🧠", url: "https://aistudio.google.dev/", category: "AI/開発" },
   { id: "u6", name: "Supabase Console", icon: "⚡", url: "https://supabase.com/dashboard", category: "AI/開発" },
   { id: "u7", name: "Vercel Dashboard", icon: "▲", url: "https://vercel.com/dashboard", category: "AI/開発" },

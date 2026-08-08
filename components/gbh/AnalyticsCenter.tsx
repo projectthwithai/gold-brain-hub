@@ -578,7 +578,7 @@ export default function AnalyticsCenter() {
         </div>
       </div>
 
-      {/* 4. Studyplus風 直近7日間の作業時間（積層棒グラフ - ★棒クリックで編集・削除★） ＆ 項目別割合（円グラフ） */}
+      {/* 4. 直近7日間の作業時間（積層棒グラフ - ★棒クリックで編集・削除★） ＆ 項目別割合（円グラフ） */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "25px" }}>
         
         {/* A. 日別積層棒グラフ (クリックでその日の学習ログ編集モーダル起動) */}

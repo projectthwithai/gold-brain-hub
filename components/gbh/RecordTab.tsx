@@ -18,13 +18,13 @@ export interface SupplyTarget {
 }
 
 const INITIAL_TARGETS: SupplyTarget[] = [
-  { id: "st1", name: "Galaxy S26 Ultra", targetAmount: 180000, done: false },
-  { id: "st2", name: "パートナー用PC", targetAmount: 120000, done: false },
+  { id: "st1", name: "最新スマホ", targetAmount: 180000, done: false },
+  { id: "st2", name: "最新PC", targetAmount: 120000, done: false },
 ];
 
 const INITIAL_INCOME_LOGS: IncomeLog[] = [
-  { id: "i1", source: "クラウドワークス 動画編集代行案件 #1", amount: 25000, date: "2026-07-25" },
-  { id: "i2", source: "AI導入支援コンサル代行", amount: 30000, date: "2026-08-01" },
+  { id: "i1", source: "バイト", amount: 25000, date: "2026-07-25" },
+  { id: "i2", source: "SNS収益", amount: 30000, date: "2026-08-01" },
 ];
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
