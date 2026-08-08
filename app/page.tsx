@@ -304,9 +304,14 @@ export default function Page() {
           localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(p.routines));
           localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
         }
-        if (p.tasks && Array.isArray(p.tasks)) {
-          localStorage.setItem(`gbh_tasks_${userId}`, JSON.stringify(p.tasks));
-          localStorage.setItem("gbh_tasks", JSON.stringify(p.tasks));
+        // ★修正: 手元(localStorage)にすでにタスクがある場合は、クラウドの空データで絶対上書きさせない！★
+        if (p.tasks && Array.isArray(p.tasks) && p.tasks.length > 0) {
+          const keyTasks = `gbh_tasks_${userId}`;
+          const localTasks = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
+          if (!localTasks) {
+            localStorage.setItem(keyTasks, JSON.stringify(p.tasks));
+            localStorage.setItem("gbh_tasks", JSON.stringify(p.tasks));
+          }
         }
         if (p.modeOptions) setModeOptions(p.modeOptions);
         if (p.streakDays !== undefined) setStreakDays(p.streakDays);

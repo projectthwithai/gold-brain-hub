@@ -41,12 +41,35 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間
 export default function TaskManager() {
   const { userId } = useSettings(); // ★アカウントID取得★
 
-  const [categories, setCategories] = useState<TaskCategoryOption[]>(INITIAL_CATEGORIES);
+  // カテゴリ State
+  const [categories, setCategories] = useState<TaskCategoryOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const keyCats = `gbh_task_categories_${userId || "guest"}`;
+      const saved = localStorage.getItem(keyCats) || localStorage.getItem("gbh_task_categories");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_CATEGORIES;
+  });
+
+  // ★復元: 消えていたカテゴリ管理用 State★
   const [newCatInput, setNewCatInput] = useState("");
   const [editingCat, setEditingCat] = useState<TaskCategoryOption | null>(null);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
 
-  const [taskList, setTaskList] = useState<TaskItem[]>(INITIAL_TASKS);
+  // タスク State
+  const [taskList, setTaskList] = useState<TaskItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const keyTasks = `gbh_tasks_${userId || "guest"}`;
+      const saved = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_TASKS;
+  });
+
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
   const [newText, setNewText] = useState("");
