@@ -173,22 +173,28 @@ export default function Page() {
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-　// ★神修復: カレンダー用の最新ルーティン＆タスクを0.5秒ごとにリアルタイム自動同期★
+// ★神修復: カレンダー用の最新ルーティン＆タスクを0.5秒ごとにリアルタイム自動同期★
   const [calendarRoutines, setCalendarRoutines] = useState<any[]>([]);
   const [calendarTasks, setCalendarTasks] = useState<any[]>([]);
 
+  // ★修正: currentUser の宣言を useEffect より「上」に配置★
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   useEffect(() => {
     const syncCalendarData = () => {
-      // 1. ルーティンの最新ON/OFFデータをロード
-      const savedRoutinesStr = typeof window !== "undefined" && localStorage.getItem("gbh_routines");
+      if (typeof window === "undefined") return;
+      const userId = currentUser?.id || "guest";
+      const keyRoutines = `gbh_routines_${userId}`;
+      const keyTasks = `gbh_tasks_${userId}`;
+
+      const savedRoutinesStr = localStorage.getItem(keyRoutines);
       if (savedRoutinesStr) {
         try { setCalendarRoutines(JSON.parse(savedRoutinesStr)); } catch (e) {}
       } else {
         setCalendarRoutines(routines);
       }
 
-      // 2. タスクの最新ON/OFFデータをロード
-      const savedTasksStr = typeof window !== "undefined" && localStorage.getItem("gbh_tasks");
+      const savedTasksStr = localStorage.getItem(keyTasks);
       if (savedTasksStr) {
         try { setCalendarTasks(JSON.parse(savedTasksStr)); } catch (e) {}
       } else {
@@ -197,18 +203,16 @@ export default function Page() {
     };
 
     syncCalendarData();
-    const interval = setInterval(syncCalendarData, 500); // 0.5秒ごとに超高速チェック
+    const interval = setInterval(syncCalendarData, 300);
     window.addEventListener("focus", syncCalendarData);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", syncCalendarData);
     };
-  }, [routines, tasks, tab]);
+  }, [routines, tasks, tab, currentUser]);
 
-  // ★アカウント別完全分離 ＆ 自動切替データエンジン★
-  const [currentUser, setCurrentUser] = useState<any>(null);
-
+  // ★アカウント別完全分離 & 自動切替データエンジン★
   // 1. ログイン状態・アカウント切り替えをリアルタイム監視
   useEffect(() => {
     if (!supabase) return;
