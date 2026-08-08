@@ -239,34 +239,45 @@ export default function Page() {
     const keyStreakPct = `gbh_streak_pct_${userId}`;
     const keyStreakMode = `gbh_streak_mode_id_${userId}`;
     const keyCd = `gbh_countdowns_${userId}`;
+    const keyNotes = `gbh_date_notes_${userId}`; // ★アカウント専用 カレンダーメモキー★
 
-    // アカウント専用データがあれば復元、なければ初期値
-    const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+    // アカウント専用のルーティンデータ (無ければ初期データ)
+    const savedRoutines = localStorage.getItem(keyRoutines);
     if (savedRoutines) {
       try { setRoutines(JSON.parse(savedRoutines)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
     } else {
       setRoutines(INITIAL_ROUTINES);
     }
 
-    const savedModes = localStorage.getItem(keyModes) || localStorage.getItem("gbh_mode_options");
+    const savedModes = localStorage.getItem(keyModes);
     if (savedModes) {
       try { setModeOptions(JSON.parse(savedModes)); } catch (e) { setModeOptions(INITIAL_MODE_OPTIONS); }
     } else {
       setModeOptions(INITIAL_MODE_OPTIONS);
     }
 
-    const savedStreak = localStorage.getItem(keyStreakDays) || localStorage.getItem("gbh_streak_days");
+    const savedStreak = localStorage.getItem(keyStreakDays);
     setStreakDays(savedStreak ? Number(savedStreak) : 0);
 
-    const savedPct = localStorage.getItem(keyStreakPct) || localStorage.getItem("gbh_streak_pct");
+    const savedPct = localStorage.getItem(keyStreakPct);
     setStreakPct(savedPct ? Number(savedPct) : 50);
 
-    const savedMode = localStorage.getItem(keyStreakMode) || localStorage.getItem("gbh_streak_mode_id");
+    const savedMode = localStorage.getItem(keyStreakMode);
     setStreakModeId(savedMode || "weekday");
 
-    const savedCd = localStorage.getItem(keyCd) || localStorage.getItem("gbh_countdowns");
+    const savedCd = localStorage.getItem(keyCd);
     if (savedCd) {
       try { setCountdowns(JSON.parse(savedCd)); } catch (e) { setCountdowns([]); }
+    } else {
+      setCountdowns([]);
+    }
+
+    // ★アカウント専用のカレンダー予定メモ復元★
+    const savedNotes = localStorage.getItem(keyNotes);
+    if (savedNotes) {
+      try { setDateNotes(JSON.parse(savedNotes)); } catch (e) { setDateNotes({}); }
+    } else {
+      setDateNotes({});
     }
 
     setIsDataLoaded(true);
@@ -277,17 +288,14 @@ export default function Page() {
     if (typeof window !== "undefined" && isDataLoaded) {
       const userId = currentUser?.id || "guest";
       localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(routines));
-      localStorage.setItem("gbh_routines", JSON.stringify(routines));
-
       localStorage.setItem(`gbh_mode_options_${userId}`, JSON.stringify(modeOptions));
-      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
-
       localStorage.setItem(`gbh_streak_days_${userId}`, streakDays.toString());
       localStorage.setItem(`gbh_streak_pct_${userId}`, streakPct.toString());
       localStorage.setItem(`gbh_streak_mode_id_${userId}`, streakModeId);
       localStorage.setItem(`gbh_countdowns_${userId}`, JSON.stringify(countdowns));
+      localStorage.setItem(`gbh_date_notes_${userId}`, JSON.stringify(dateNotes)); // ★アカウント別予定メモ保存★
     }
-  }, [routines, modeOptions, streakDays, streakPct, streakModeId, countdowns, currentUser, isDataLoaded]);
+  }, [routines, modeOptions, streakDays, streakPct, streakModeId, countdowns, dateNotes, currentUser, isDataLoaded]);
 
   // 4. Supabase クラウドからのアカウント専用データ取得
   useEffect(() => {
@@ -303,19 +311,24 @@ export default function Page() {
 
       if (data?.payload && !error) {
         const p = data.payload;
-        // ★修正: 手元(localStorage)にデータがある場合は、クラウドの古いデータで復活・上書きさせない！★
-        if (p.routines && Array.isArray(p.routines)) {
+        // ★修正: 旧キーへの引き継ぎ(||)を撤廃し、アカウント専用キーのみチェック★
+        if (p.routines && Array.isArray(p.routines) && p.routines.length > 0) {
           const keyRoutines = `gbh_routines_${userId}`;
-          const localRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
-          
+          const localRoutines = localStorage.getItem(keyRoutines);
           if (!localRoutines) {
             setRoutines(p.routines);
             localStorage.setItem(keyRoutines, JSON.stringify(p.routines));
-            localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
-          } else {
-            try { setRoutines(JSON.parse(localRoutines)); } catch (e) {}
           }
         }
+
+        if (p.tasks && Array.isArray(p.tasks) && p.tasks.length > 0) {
+          const keyTasks = `gbh_tasks_${userId}`;
+          const localTasks = localStorage.getItem(keyTasks);
+          if (!localTasks) {
+            localStorage.setItem(keyTasks, JSON.stringify(p.tasks));
+          }
+        }
+
         if (p.modeOptions) setModeOptions(p.modeOptions);
         if (p.streakDays !== undefined) setStreakDays(p.streakDays);
         if (p.streakPct !== undefined) setStreakPct(p.streakPct);
