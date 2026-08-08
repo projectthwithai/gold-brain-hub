@@ -878,14 +878,18 @@ export default function Page() {
               ))}
 
               {(() => {
-                // リアルタイムで最新のルーティン＆タスクデータを localStorage からダイレクト取得
-                const currentRoutinesList = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
-                  ? JSON.parse(localStorage.getItem("gbh_routines")!)
-                  : (calendarRoutines || routines || []);
+              // ★解決: 現在ログイン中のアカウント(userId)専用のキーからルーティン＆タスクを取得★
+              const userId = currentUser?.id || "guest";
+              const keyRoutines = `gbh_routines_${userId}`;
+              const keyTasks = `gbh_tasks_${userId}`;
 
-                const currentTasksList = typeof window !== "undefined" && localStorage.getItem("gbh_tasks")
-                  ? JSON.parse(localStorage.getItem("gbh_tasks")!)
-                  : (calendarTasks || tasks || []);
+              const currentRoutinesList = typeof window !== "undefined" && (localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines"))
+                ? JSON.parse((localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines"))!)
+                : (calendarRoutines || routines || []);
+
+              const currentTasksList = typeof window !== "undefined" && (localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks"))
+                ? JSON.parse((localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks"))!)
+                : (calendarTasks || tasks || []);
 
                 return Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
                   const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
