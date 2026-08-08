@@ -69,70 +69,74 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("gbh_mode_options");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return INITIAL_MODE_OPTIONS;
-  });
+  // ★1. シンプルで安全な State 宣言群★
+  // ★1. シンプルで安全な State 宣言群★
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  // ★解決: 起動の1ミリ秒目に日付跨ぎを判定し、日付が変わっていれば即座に未チェック(done: false)にリセット！★
-  // ★日付が変わっていたら起動の瞬間に done: false に一括リセットしてロード★
-  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
-    if (typeof window !== "undefined") {
-      const todayStr = new Date().toLocaleDateString('sv-SE');
-      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+  const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-      const saved = localStorage.getItem("gbh_routines");
-      if (saved) {
-        try {
-          const parsed: RoutineItem[] = JSON.parse(saved);
+  const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
+  const [rotationInputText, setRotationInputText] = useState("");
+  const [stepInputText, setStepInputText] = useState("");
 
-          if (lastResetDate && lastResetDate !== todayStr) {
-            const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
-            localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
-            localStorage.setItem("gbh_last_reset_date", todayStr);
-            return resetRoutines;
-          }
-
-          return parsed;
-        } catch (e) {}
-      }
-      localStorage.setItem("gbh_last_reset_date", todayStr);
-    }
-    return INITIAL_ROUTINES;
+  const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
+    name: "", startTime: "07:00", endTime: "08:00", duration: 60,
+    modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
+    hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1, rotAdvanceType: "check",
+    hasSteps: false, stepMap: {}, showOnCalendar: true
   });
 
+  const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
+  const [playerSteps, setPlayerSteps] = useState<string[]>([]);
+  const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
+
+  // ★2. Vercelビルド対応: 起動時の復元 ＆ 日付跨ぎ未チェックリセット★
+  useEffect(() => {
     if (typeof window !== "undefined") {
-      const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD" 形式
+      const todayStr = new Date().toLocaleDateString("sv-SE");
       const lastResetDate = localStorage.getItem("gbh_last_reset_date");
 
-      const saved = localStorage.getItem("gbh_routines");
-      if (saved) {
+      const savedRoutines = localStorage.getItem("gbh_routines");
+      if (savedRoutines) {
         try {
-          const parsed: RoutineItem[] = JSON.parse(saved);
-
-          // ★日付が変わっていたら一括で未チェック(done: false)にリセット！★
+          const parsed: RoutineItem[] = JSON.parse(savedRoutines);
           if (lastResetDate && lastResetDate !== todayStr) {
             const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
+            setRoutines(resetRoutines);
             localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
             localStorage.setItem("gbh_last_reset_date", todayStr);
-            return resetRoutines;
+          } else {
+            setRoutines(parsed);
           }
-
-          return parsed;
         } catch (e) {}
+      } else {
+        localStorage.setItem("gbh_last_reset_date", todayStr);
       }
-      localStorage.setItem("gbh_last_reset_date", todayStr);
+
+      const savedModes = localStorage.getItem("gbh_mode_options");
+      if (savedModes) {
+        try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
+      }
     }
-    return INITIAL_ROUTINES;
-  });
+  }, []);
+
+  // 変更時の自動保存
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+    }
+  }, [routines]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
+    }
+  }, [modeOptions]);
 
   // アプリを開いたまま深夜0時（日付跨ぎ）を迎えた場合のリアルタイム監視
   useEffect(() => {
@@ -155,23 +159,6 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     const interval = setInterval(checkMidnight, 30000); // 30秒ごとに日跨ぎチェック
     return () => clearInterval(interval);
   }, []);
-  const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-
-  const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
-  const [rotationInputText, setRotationInputText] = useState("");
-  const [stepInputText, setStepInputText] = useState("");
-
-  const [newRoutine, setNewRoutine] = useState<Omit<RoutineItem, "id" | "done" | "currentRotationIndex" | "rotCurrentCount">>({
-    name: "", startTime: "07:00", endTime: "08:00", duration: 60,
-    modes: ["weekday", "holiday", "monk"], freqType: "daily", freqIntervalDays: 2, freqDaysOfWeek: [1, 3, 5],
-    hasRotation: false, rotationItems: ["上半身", "下半身"], rotTargetCount: 1, rotAdvanceType: "check",
-    hasSteps: false, stepMap: {}, showOnCalendar: true
-  });
-
-  const [activePlayerRoutine, setActivePlayerRoutine] = useState<RoutineItem | null>(null);
-  const [playerSteps, setPlayerSteps] = useState<string[]>([]);
-  const [playerCurrentStepIndex, setPlayerCurrentStepIndex] = useState(0);
 
   const [isLoaded, setIsLoaded] = useState(false);
 
