@@ -882,18 +882,20 @@ export default function Page() {
               ))}
 
               {(() => {
-              // ★解決: 現在ログイン中のアカウント(userId)専用のキーからルーティン＆タスクを取得★
+              // ★解決: アカウント(userId)専用のキーからのみ純粋にデータを読み込む★
               const userId = currentUser?.id || "guest";
               const keyRoutines = `gbh_routines_${userId}`;
               const keyTasks = `gbh_tasks_${userId}`;
 
-              const currentRoutinesList = typeof window !== "undefined" && (localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines"))
-                ? JSON.parse((localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines"))!)
-                : (calendarRoutines || routines || []);
+              const savedRoutinesStr = typeof window !== "undefined" ? localStorage.getItem(keyRoutines) : null;
+              const currentRoutinesList = savedRoutinesStr
+                ? JSON.parse(savedRoutinesStr)
+                : (calendarRoutines.length > 0 ? calendarRoutines : routines);
 
-              const currentTasksList = typeof window !== "undefined" && (localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks"))
-                ? JSON.parse((localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks"))!)
-                : (calendarTasks || tasks || []);
+              const savedTasksStr = typeof window !== "undefined" ? localStorage.getItem(keyTasks) : null;
+              const currentTasksList = savedTasksStr
+                ? JSON.parse(savedTasksStr)
+                : (calendarTasks.length > 0 ? calendarTasks : tasks);
 
                 return Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
                   const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
