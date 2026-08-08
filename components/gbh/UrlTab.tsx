@@ -35,11 +35,11 @@ const DEFAULT_URL_LINKS: UrlLinkItem[] = [
 export default function UrlTab() {
   const { userId } = useSettings(); // ★アカウントID取得★
 
-  // ★アカウント(userId)対応の即時初期化 State★
+  // ★修正: アカウント(userId)ごとの完全独立ロード★
   const [links, setLinks] = useState<UrlLinkItem[]>(() => {
     if (typeof window !== "undefined") {
       const key = `gbh_url_links_${userId || "guest"}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_url_links");
+      const saved = localStorage.getItem(key);
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -50,7 +50,7 @@ export default function UrlTab() {
   const [categories, setCategories] = useState<UrlCategoryOption[]>(() => {
     if (typeof window !== "undefined") {
       const key = `gbh_url_categories_${userId || "guest"}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_url_categories");
+      const saved = localStorage.getItem(key);
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -72,14 +72,33 @@ export default function UrlTab() {
   const [inputUrl, setInputUrl] = useState("https://");
   const [inputCategory, setInputCategory] = useState("Apex Suite");
 
-  // ★アカウント(userId)専用キーで自動保存★
+  // ★アカウント(userId)切り替え検知 ➔ データ読み替え★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const keyLinks = `gbh_url_links_${userId || "guest"}`;
+      const keyCats = `gbh_url_categories_${userId || "guest"}`;
+
+      const savedLinks = localStorage.getItem(keyLinks);
+      if (savedLinks) {
+        try { setLinks(JSON.parse(savedLinks)); } catch (e) { setLinks(DEFAULT_URL_LINKS); }
+      } else {
+        setLinks(DEFAULT_URL_LINKS);
+      }
+
+      const savedCats = localStorage.getItem(keyCats);
+      if (savedCats) {
+        try { setCategories(JSON.parse(savedCats)); } catch (e) { setCategories(DEFAULT_CATEGORIES); }
+      } else {
+        setCategories(DEFAULT_CATEGORIES);
+      }
+    }
+  }, [userId]);
+
+  // ★アカウント専用キーでのみ保存★
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(`gbh_url_links_${userId || "guest"}`, JSON.stringify(links));
-      localStorage.setItem("gbh_url_links", JSON.stringify(links));
-
       localStorage.setItem(`gbh_url_categories_${userId || "guest"}`, JSON.stringify(categories));
-      localStorage.setItem("gbh_url_categories", JSON.stringify(categories));
     }
   }, [links, categories, userId]);
 

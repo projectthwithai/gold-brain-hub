@@ -32,11 +32,11 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 export default function RecordTab() {
   const { userId } = useSettings(); // ★アカウントID取得★
 
-  // ★アカウント(userId)対応の即時初期化 State★
+  // ★修正: アカウント(userId)ごとの完全独立ロード★
   const [targets, setTargets] = useState<SupplyTarget[]>(() => {
     if (typeof window !== "undefined") {
       const key = `gbh_supply_targets_${userId || "guest"}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_supply_targets");
+      const saved = localStorage.getItem(key);
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -47,7 +47,7 @@ export default function RecordTab() {
   const [incomeLogs, setIncomeLogs] = useState<IncomeLog[]>(() => {
     if (typeof window !== "undefined") {
       const key = `gbh_income_logs_${userId || "guest"}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_income_logs");
+      const saved = localStorage.getItem(key);
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -58,7 +58,7 @@ export default function RecordTab() {
   const [spentAmount, setSpentAmount] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const key = `gbh_spent_amount_${userId || "guest"}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_spent_amount");
+      const saved = localStorage.getItem(key);
       if (saved) return Number(saved);
     }
     return 0;
@@ -72,17 +72,38 @@ export default function RecordTab() {
   const [newIncomeSource, setNewIncomeSource] = useState("");
   const [newIncomeAmount, setNewIncomeAmount] = useState<number>(10000);
 
-  // ★アカウント(userId)別の自動保存 ＆ 24時間パージ★
+  // ★アカウント(userId)切り替え検知 ➔ データ読み替え★
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const keyTargets = `gbh_supply_targets_${userId || "guest"}`;
+      const keyLogs = `gbh_income_logs_${userId || "guest"}`;
+      const keySpent = `gbh_spent_amount_${userId || "guest"}`;
+
+      const savedTargets = localStorage.getItem(keyTargets);
+      if (savedTargets) {
+        try { setTargets(JSON.parse(savedTargets)); } catch (e) { setTargets(INITIAL_TARGETS); }
+      } else {
+        setTargets(INITIAL_TARGETS);
+      }
+
+      const savedLogs = localStorage.getItem(keyLogs);
+      if (savedLogs) {
+        try { setIncomeLogs(JSON.parse(savedLogs)); } catch (e) { setIncomeLogs(INITIAL_INCOME_LOGS); }
+      } else {
+        setIncomeLogs(INITIAL_INCOME_LOGS);
+      }
+
+      const savedSpent = localStorage.getItem(keySpent);
+      setSpentAmount(savedSpent ? Number(savedSpent) : 0);
+    }
+  }, [userId]);
+
+  // ★アカウント専用キーでのみ保存＆24時間パージ★
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(`gbh_supply_targets_${userId || "guest"}`, JSON.stringify(targets));
-      localStorage.setItem("gbh_supply_targets", JSON.stringify(targets));
-
       localStorage.setItem(`gbh_income_logs_${userId || "guest"}`, JSON.stringify(incomeLogs));
-      localStorage.setItem("gbh_income_logs", JSON.stringify(incomeLogs));
-
       localStorage.setItem(`gbh_spent_amount_${userId || "guest"}`, spentAmount.toString());
-      localStorage.setItem("gbh_spent_amount", spentAmount.toString());
     }
 
     const now = Date.now();
