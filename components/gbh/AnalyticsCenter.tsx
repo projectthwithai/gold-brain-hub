@@ -36,6 +36,7 @@ const getPast7Days = () => {
   return days;
 };
 
+// 代表的な科目のデフォルトカラー定義
 const CATEGORY_COLORS: Record<string, string> = {
   "数学 Deep Work": "#3b82f6",
   "英語 SVOC 精読": "#22c55e",
@@ -65,7 +66,7 @@ const DEFAULT_GROWTH_LOGS: GrowthLog[] = [
 ];
 
 export default function AnalyticsCenter() {
-  const { t, themeStyles } = useSettings();
+  const { t, themeStyles, userId } = useSettings(); // ★アカウントID(userId)の取得★
   const past7Days = getPast7Days();
 
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
@@ -82,7 +83,7 @@ export default function AnalyticsCenter() {
   const [selectedOverallModeId, setSelectedOverallModeId] = useState<string>("weekday");
   const [selectedRoutineId, setSelectedRoutineId] = useState<string>("");
 
-  // ★成長記録機能 State★
+  // ★アカウント対応 成長記録機能 State★
   const [growthItems, setGrowthItems] = useState<GrowthItem[]>(DEFAULT_GROWTH_ITEMS);
   const [growthLogs, setGrowthLogs] = useState<GrowthLog[]>(DEFAULT_GROWTH_LOGS);
   const [selectedGrowthItemId, setSelectedGrowthItemId] = useState<string>("gi1");
@@ -103,61 +104,83 @@ export default function AnalyticsCenter() {
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 1. 初回データ復元ロード
+  // ★1. アカウント(userId)切り替え検知 ➔ そのアカウント専用データをローカルから復元★
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedTimerLogs = localStorage.getItem("gbh_timer_logs");
-      if (savedTimerLogs) { try { setTimerLogs(JSON.parse(savedTimerLogs)); } catch (e) {} }
+      const uId = userId || "guest";
 
-      const savedModes = localStorage.getItem("gbh_mode_options");
-      if (savedModes) { try { setModeOptions(JSON.parse(savedModes)); } catch (e) {} }
+      // アカウント専用タイマーログ
+      const keyTimer = `gbh_timer_logs_${uId}`;
+      const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
+      if (savedTimerLogs) {
+        try { setTimerLogs(JSON.parse(savedTimerLogs)); } catch (e) { setTimerLogs([]); }
+      } else { setTimerLogs([]); }
 
-      const savedRoutines = localStorage.getItem("gbh_routines");
+      // アカウント専用ルーティン
+      const keyRoutines = `gbh_routines_${uId}`;
+      const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
       if (savedRoutines) {
         try {
           const parsed = JSON.parse(savedRoutines);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setRoutinesList(parsed);
-            if (!selectedRoutineId) setSelectedRoutineId(parsed[0].id);
+            setSelectedRoutineId(parsed[0].id);
           }
         } catch (e) {}
       }
 
-      // 成長記録のロード
-      const savedGItems = localStorage.getItem("gbh_growth_items");
+      // アカウント専用成長記録項目
+      const keyGItems = `gbh_growth_items_${uId}`;
+      const savedGItems = localStorage.getItem(keyGItems);
       if (savedGItems) {
         try {
           const parsed = JSON.parse(savedGItems);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setGrowthItems(parsed);
             setSelectedGrowthItemId(parsed[0].id);
+          } else {
+            setGrowthItems(DEFAULT_GROWTH_ITEMS);
+            setSelectedGrowthItemId("gi1");
           }
-        } catch (e) {}
+        } catch (e) { setGrowthItems(DEFAULT_GROWTH_ITEMS); }
+      } else {
+        setGrowthItems(DEFAULT_GROWTH_ITEMS);
+        setSelectedGrowthItemId("gi1");
       }
 
-      const savedGLogs = localStorage.getItem("gbh_growth_logs");
-      if (savedGLogs) { try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) {} }
+      // アカウント専用成長記録ログ
+      const keyGLogs = `gbh_growth_logs_${uId}`;
+      const savedGLogs = localStorage.getItem(keyGLogs);
+      if (savedGLogs) {
+        try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) { setGrowthLogs(DEFAULT_GROWTH_LOGS); }
+      } else {
+        setGrowthLogs(DEFAULT_GROWTH_LOGS);
+      }
 
       setIsLoaded(true);
     }
-  }, []);
+  }, [userId]);
 
-  // 2. 成長記録データの保存
+  // ★2. 成長記録データの保存 (アカウント専用キーへ書き込み)★
   useEffect(() => {
     if (typeof window !== "undefined" && isLoaded) {
-      localStorage.setItem("gbh_growth_items", JSON.stringify(growthItems));
-      localStorage.setItem("gbh_growth_logs", JSON.stringify(growthLogs));
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_growth_items_${uId}`, JSON.stringify(growthItems));
+      localStorage.setItem(`gbh_growth_logs_${uId}`, JSON.stringify(growthLogs));
     }
-  }, [growthItems, growthLogs, isLoaded]);
+  }, [growthItems, growthLogs, userId, isLoaded]);
 
-  // リアルタイム同期タイマー
+  // リアルタイム同期タイマー (最新ログ・ルーティンの反映)
   useEffect(() => {
     const loadRealData = () => {
       if (typeof window !== "undefined") {
-        const savedTimerLogs = localStorage.getItem("gbh_timer_logs");
+        const uId = userId || "guest";
+        const keyTimer = `gbh_timer_logs_${uId}`;
+        const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
         if (savedTimerLogs) { try { setTimerLogs(JSON.parse(savedTimerLogs)); } catch (e) {} }
 
-        const savedRoutines = localStorage.getItem("gbh_routines");
+        const keyRoutines = `gbh_routines_${uId}`;
+        const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
         if (savedRoutines) {
           try {
             const parsed = JSON.parse(savedRoutines);
@@ -169,9 +192,9 @@ export default function AnalyticsCenter() {
 
     const interval = setInterval(loadRealData, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
-  // ★成長記録への新しい記録追加★
+  // 成長記録への新記録追加
   const handleAddGrowthLog = () => {
     const num = Number(newLogValueInput);
     if (isNaN(num) || newLogValueInput.trim() === "") return;
@@ -299,12 +322,11 @@ export default function AnalyticsCenter() {
   const isSelectedDone = selectedRoutine ? Boolean(selectedRoutine.done) : false;
   const individualRoutineHistory = [100, 0, 100, 100, 0, 100, isSelectedDone ? 100 : 0];
 
-  // 選択中成長項目の過去10回ログ抽出
   const currentGrowthItem = growthItems.find((i) => i.id === selectedGrowthItemId) || growthItems[0];
   const currentGrowthItemLogs = growthLogs
     .filter((l) => l.itemId === currentGrowthItem?.id)
     .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-10); // 過去10回分
+    .slice(-10);
 
   return (
     <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, borderRadius: "8px", padding: "16px", color: themeStyles.textMain, fontFamily: "sans-serif", boxSizing: "border-box" }}>
@@ -336,10 +358,17 @@ export default function AnalyticsCenter() {
               {Math.floor(past7DaysTotalMinutes / 60)}時間 {past7DaysTotalMinutes % 60}分
             </strong>
           </div>
+
+          <div style={{ background: themeStyles.bgInner, padding: "8px 14px", borderRadius: "6px", border: `1px solid ${themeStyles.border}`, textAlign: "right" }}>
+            <span style={{ fontSize: "10px", color: themeStyles.textSub, display: "block" }}>{t("本日全体達成率", "Today Overall")}</span>
+            <strong style={{ fontSize: "16px", color: "#22c55e" }}>
+              {todayModeOverallPct}%
+            </strong>
+          </div>
         </div>
       </div>
 
-      {/* 🌟 2. 新機能: 📈 成長記録（項目追加・編集・削除 ＆ 過去10回分折れ線グラフ ＆ 点タップ編集） */}
+      {/* 2. 📈 成長記録（アカウント別連動トラッカー） */}
       <div style={{ background: themeStyles.bgInner, border: `2px solid ${themeStyles.gold}`, borderRadius: "8px", padding: "16px", marginBottom: "25px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -354,7 +383,6 @@ export default function AnalyticsCenter() {
             </button>
           </div>
 
-          {/* 成長項目切替タブ */}
           <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
             {growthItems.map((item) => (
               <button
@@ -377,7 +405,6 @@ export default function AnalyticsCenter() {
           </div>
         </div>
 
-        {/* 記録追加入力フォーム */}
         {currentGrowthItem && (
           <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, borderRadius: "6px", padding: "10px 14px", marginBottom: "15px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -409,7 +436,6 @@ export default function AnalyticsCenter() {
           </div>
         )}
 
-        {/* 過去10回分 折れ線グラフ SVG */}
         <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.border}`, borderRadius: "6px", padding: "16px 12px 25px 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: themeStyles.textSub, marginBottom: "8px" }}>
             <span>※グラフ上の「点 (プロット円)」をクリックすると数値の編集・削除ができます</span>
@@ -433,14 +459,12 @@ export default function AnalyticsCenter() {
                   }
                   const range = maxVal - minVal || 1;
 
-                  // 過去最大10回のプロット計算
                   const points = currentGrowthItemLogs.map((log, idx) => {
                     const x = currentGrowthItemLogs.length === 1 ? 350 : (idx / (currentGrowthItemLogs.length - 1)) * 620 + 40;
                     
-                    // higherIsBetter(大きい方が上) vs lowerIsBetter(小さい方が上)
                     let norm = (log.value - minVal) / range;
                     if (!currentGrowthItem.higherIsBetter) {
-                      norm = 1 - norm; // 反転
+                      norm = 1 - norm;
                     }
                     const y = 100 - norm * 80 + 10;
 
@@ -451,18 +475,15 @@ export default function AnalyticsCenter() {
 
                   return (
                     <>
-                      {/* 背景横ガイド線 */}
                       {[0, 0.5, 1].map((ratio, i) => {
                         const y = 10 + ratio * 80;
                         return <line key={i} x1="30" y1={y} x2="670" y2={y} stroke={themeStyles.border} strokeDasharray="3 3" strokeWidth="1" />;
                       })}
 
-                      {/* 折れ線 */}
                       {points.length > 1 && (
                         <polyline fill="none" stroke={themeStyles.gold} strokeWidth="3" points={polylinePoints} />
                       )}
 
-                      {/* タップ可能な点(プロット円) ＆ ラベル */}
                       {points.map((p) => (
                         <g
                           key={p.id}
@@ -553,7 +574,7 @@ export default function AnalyticsCenter() {
         <div style={{ background: themeStyles.bgInner, border: `1px solid ${themeStyles.border}`, borderRadius: "8px", padding: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <span style={{ fontSize: "13px", color: themeStyles.gold, fontWeight: "bold" }}>
-              📈 {t("直近7日間の日別集中時間", "7-Day Daily Focus Time")}
+              📈 {t("直近7日間の日別集中時間 (Studyplus風)", "7-Day Daily Focus Time")}
             </span>
             <span style={{ fontSize: "10px", color: themeStyles.textSub }}>単位: 分</span>
           </div>
@@ -836,7 +857,6 @@ export default function AnalyticsCenter() {
               ＋ 新しい成長測定項目を追加
             </button>
 
-            {/* 項目一覧 */}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
               <span style={{ fontSize: "12px", color: themeStyles.textSub }}>現在の登録項目一覧:</span>
               {growthItems.map((item) => (
@@ -937,7 +957,7 @@ export default function AnalyticsCenter() {
         </div>
       )}
 
-      {/* 🎯 グラフ上の点(プロット円) タップ時の数値修正・削除モーダル */}
+      {/* 🎯 記録修正・削除モーダル */}
       {editingLog && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1002 }}>
           <div style={{ background: themeStyles.bgCard, border: `1px solid ${themeStyles.gold}`, padding: "20px", borderRadius: "8px", width: "320px", maxWidth: "90vw", display: "flex", flexDirection: "column", gap: "12px", color: themeStyles.textMain }}>
