@@ -206,84 +206,153 @@ export default function Page() {
     };
   }, [routines, tasks, tab]);
 
-  // ★全自動クラウド同期エンジン (Auto Cloud Sync)★
+  // ★アカウント別完全分離 ＆ 自動切替データエンジン★
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // 1. ログイン状態・アカウント切り替えをリアルタイム監視
   useEffect(() => {
     if (!supabase) return;
 
-    const loadCloudData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data, error } = await supabase
-          .from("user_data")
-          .select("payload")
-          .eq("user_id", session.user.id)
-          .single();
-
-        if (data?.payload && !error) {
-          const p = data.payload;
-
-          // ★手元(localStorage)に最新データがあればそれを優先復元。無ければクラウドから復元★
-          const localRoutines = localStorage.getItem("gbh_routines");
-          if (!localRoutines && p.routines) {
-            setRoutines(p.routines);
-            localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
-          } else if (localRoutines) {
-            try { setRoutines(JSON.parse(localRoutines)); } catch (e) {}
-          }
-
-          if (p.modeOptions) setModeOptions(p.modeOptions);
-          if (p.streakDays !== undefined) setStreakDays(p.streakDays);
-          if (p.streakPct !== undefined) setStreakPct(p.streakPct);
-          if (p.dateNotes) setDateNotes(p.dateNotes);
-        }
-      }
-    };
-
-    loadCloudData();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user ?? null);
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) loadCloudData();
+      setCurrentUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // ★手元(localStorage)でのルーティン・タスク変更を検知して Supabase クラウドに即時バックアップ★
+  // 2. アカウント(currentUser)変更時に、そのアカウント専用データをローカルから即時ロード＆切替
   useEffect(() => {
-    if (!supabase) return;
+    if (typeof window === "undefined") return;
+
+    const userId = currentUser?.id || "guest";
+    const keyRoutines = `gbh_routines_${userId}`;
+    const keyModes = `gbh_mode_options_${userId}`;
+    const keyStreakDays = `gbh_streak_days_${userId}`;
+    const keyStreakPct = `gbh_streak_pct_${userId}`;
+    const keyStreakMode = `gbh_streak_mode_id_${userId}`;
+    const keyCd = `gbh_countdowns_${userId}`;
+
+    // アカウント専用データがあれば復元、なければ初期値
+    const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+    if (savedRoutines) {
+      try { setRoutines(JSON.parse(savedRoutines)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
+    } else {
+      setRoutines(INITIAL_ROUTINES);
+    }
+
+    const savedModes = localStorage.getItem(keyModes) || localStorage.getItem("gbh_mode_options");
+    if (savedModes) {
+      try { setModeOptions(JSON.parse(savedModes)); } catch (e) { setModeOptions(INITIAL_MODE_OPTIONS); }
+    } else {
+      setModeOptions(INITIAL_MODE_OPTIONS);
+    }
+
+    const savedStreak = localStorage.getItem(keyStreakDays) || localStorage.getItem("gbh_streak_days");
+    setStreakDays(savedStreak ? Number(savedStreak) : 0);
+
+    const savedPct = localStorage.getItem(keyStreakPct) || localStorage.getItem("gbh_streak_pct");
+    setStreakPct(savedPct ? Number(savedPct) : 50);
+
+    const savedMode = localStorage.getItem(keyStreakMode) || localStorage.getItem("gbh_streak_mode_id");
+    setStreakModeId(savedMode || "weekday");
+
+    const savedCd = localStorage.getItem(keyCd) || localStorage.getItem("gbh_countdowns");
+    if (savedCd) {
+      try { setCountdowns(JSON.parse(savedCd)); } catch (e) { setCountdowns([]); }
+    }
+
+    setIsDataLoaded(true);
+  }, [currentUser]);
+
+  // 3. データの変更をそのアカウント専用キー(gbh_..._userId)に安全保存
+  useEffect(() => {
+    if (typeof window !== "undefined" && isDataLoaded) {
+      const userId = currentUser?.id || "guest";
+      localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(routines));
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+
+      localStorage.setItem(`gbh_mode_options_${userId}`, JSON.stringify(modeOptions));
+      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
+
+      localStorage.setItem(`gbh_streak_days_${userId}`, streakDays.toString());
+      localStorage.setItem(`gbh_streak_pct_${userId}`, streakPct.toString());
+      localStorage.setItem(`gbh_streak_mode_id_${userId}`, streakModeId);
+      localStorage.setItem(`gbh_countdowns_${userId}`, JSON.stringify(countdowns));
+    }
+  }, [routines, modeOptions, streakDays, streakPct, streakModeId, countdowns, currentUser, isDataLoaded]);
+
+  // 4. Supabase クラウドからのアカウント専用データ取得
+  useEffect(() => {
+    if (!supabase || !currentUser) return;
+
+    const loadCloudData = async () => {
+      const userId = currentUser.id;
+      const { data, error } = await supabase
+        .from("user_data")
+        .select("payload")
+        .eq("user_id", userId)
+        .single();
+
+      if (data?.payload && !error) {
+        const p = data.payload;
+        if (p.routines && Array.isArray(p.routines) && p.routines.length > 0) {
+          setRoutines(p.routines);
+          localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(p.routines));
+          localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
+        }
+        if (p.tasks && Array.isArray(p.tasks)) {
+          localStorage.setItem(`gbh_tasks_${userId}`, JSON.stringify(p.tasks));
+          localStorage.setItem("gbh_tasks", JSON.stringify(p.tasks));
+        }
+        if (p.modeOptions) setModeOptions(p.modeOptions);
+        if (p.streakDays !== undefined) setStreakDays(p.streakDays);
+        if (p.streakPct !== undefined) setStreakPct(p.streakPct);
+        if (p.dateNotes) setDateNotes(p.dateNotes);
+        if (p.countdowns) setCountdowns(p.countdowns);
+      }
+    };
+
+    loadCloudData();
+  }, [currentUser]);
+
+  // 5. アカウント専用の Supabase クラウド自動バックアップ
+  useEffect(() => {
+    if (!supabase || !currentUser || !isDataLoaded) return;
 
     const timer = setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        // ★手元(localStorage)の最新ルーティンとタスクを抽出してクラウド保存★
-        const latestRoutines = typeof window !== "undefined" && localStorage.getItem("gbh_routines")
-          ? JSON.parse(localStorage.getItem("gbh_routines")!)
-          : routines;
+      const userId = currentUser.id;
+      const latestRoutines = localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines")
+        ? JSON.parse((localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines"))!)
+        : routines;
 
-        const latestTasks = typeof window !== "undefined" && localStorage.getItem("gbh_tasks")
-          ? JSON.parse(localStorage.getItem("gbh_tasks")!)
-          : tasks;
+      const latestTasks = localStorage.getItem(`gbh_tasks_${userId}`) || localStorage.getItem("gbh_tasks")
+        ? JSON.parse((localStorage.getItem(`gbh_tasks_${userId}`) || localStorage.getItem("gbh_tasks"))!)
+        : tasks;
 
-        const payload = {
-          routines: latestRoutines,
-          tasks: latestTasks,
-          modeOptions,
-          streakDays,
-          streakPct,
-          dateNotes,
-          updatedAt: new Date().toISOString()
-        };
+      const payload = {
+        routines: latestRoutines,
+        tasks: latestTasks,
+        modeOptions,
+        streakDays,
+        streakPct,
+        dateNotes,
+        countdowns,
+        updatedAt: new Date().toISOString()
+      };
 
-        await supabase.from("user_data").upsert({
-          user_id: session.user.id,
-          payload,
-          updated_at: new Date().toISOString()
-        });
-      }
-    }, 1500);
+      await supabase.from("user_data").upsert({
+        user_id: userId,
+        payload,
+        updated_at: new Date().toISOString()
+      });
+    }, 1200);
 
     return () => clearTimeout(timer);
-  }, [routines, tasks, modeOptions, streakDays, streakPct, dateNotes]);
+  }, [routines, tasks, modeOptions, streakDays, streakPct, dateNotes, countdowns, currentUser, isDataLoaded]);
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");
