@@ -70,40 +70,84 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  const { userId } = useSettings(); // ★ログインアカウントIDを取得★
+  const { userId } = useSettings(); // ★追加: アカウントIDの取得★
 
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
+  // ★1. 起動の0秒目から localStorage の記憶を直接読み込んで初期化 (初期データ上書き事故防止)★
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      const keyModes = `gbh_mode_options_${uId}`;
+      const saved = localStorage.getItem(keyModes) || localStorage.getItem("gbh_mode_options");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return INITIAL_MODE_OPTIONS;
+  });
+
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
-
-  // ★アカウント(userId)切り替え検知 ➔ そのアカウント専用データにパッと切り替え★
-  useEffect(() => {
+  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
     if (typeof window !== "undefined") {
-      const key = `gbh_routines_${userId}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
+      const uId = userId || "guest";
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+      const keyRoutines = `gbh_routines_${uId}`;
+
+      const saved = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          setRoutines(parsed);
-        } catch (e) {
-          setRoutines(INITIAL_ROUTINES);
-        }
+          const parsed: RoutineItem[] = JSON.parse(saved);
+
+          // 日付が変わっていた場合は未チェック(done: false)にリセットして復元
+          if (lastResetDate && lastResetDate !== todayStr) {
+            const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
+            localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines));
+            localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
+            localStorage.setItem("gbh_last_reset_date", todayStr);
+            return resetRoutines;
+          }
+
+          return parsed;
+        } catch (e) {}
+      }
+      localStorage.setItem("gbh_last_reset_date", todayStr);
+    }
+    return INITIAL_ROUTINES;
+  });
+
+  // アカウント(userId)切り替え時の再読み込み連動
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      const key = `gbh_routines_${uId}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { setRoutines(JSON.parse(saved)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
       } else {
         setRoutines(INITIAL_ROUTINES);
       }
     }
   }, [userId]);
 
-  // ★変更時にアカウント専用キー(gbh_routines_ユーザーID)へ保存★
+  // アカウント専用キーへの自動保存
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(routines));
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
     }
   }, [routines, userId]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_mode_options_${uId}`, JSON.stringify(modeOptions));
+      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
+    }
+  }, [modeOptions, userId]);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
