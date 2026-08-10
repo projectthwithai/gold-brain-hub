@@ -910,7 +910,7 @@ export default function Page() {
               ))}
 
               {(() => {
-              // ★解決: アカウント(userId)専用のキーからのみ純粋にデータを読み込む★
+              // アカウント(userId)専用のキーからルーティン＆タスクを取得
               const userId = currentUser?.id || "guest";
               const keyRoutines = `gbh_routines_${userId}`;
               const keyTasks = `gbh_tasks_${userId}`;
@@ -925,7 +925,17 @@ export default function Page() {
                 ? JSON.parse(savedTasksStr)
                 : (calendarTasks.length > 0 ? calendarTasks : tasks);
 
-                return Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+              // ★修正: 2026年8月1日(土曜日)の開始曜日オフセット(空白マス 6個)を自動配置★
+              const firstDayDow = new Date(2026, 7, 1).getDay(); // 2026年8月1日 = 土曜日(=6)
+
+              return [
+                // 8月1日より前の空白パディングセル (日〜金曜日の6セル)
+                ...Array.from({ length: firstDayDow }, (_, i) => (
+                  <div key={`empty_${i}`} style={{ minHeight: "95px", background: "transparent" }} />
+                )),
+
+                // 1日〜31日までの日付マス
+                ...Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
                   const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
                   const todayNum = new Date().getDate(); 
                   const isToday = day === todayNum;
@@ -935,7 +945,6 @@ export default function Page() {
                   if (isToday) {
                     resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
                   } else if (isPast) {
-                    // ★修正: 実際に保存されている過去の本物勝敗記録から判定★
                     const pastWinStatus = typeof window !== "undefined" ? localStorage.getItem(`gbh_daily_win_${dateStr}`) : null;
                     if (pastWinStatus === "true") {
                       resultStatus = "WIN";
@@ -946,7 +955,6 @@ export default function Page() {
                     }
                   }
 
-                  // 🔵 青色表示対象のタスク（カレンダー表示ON ＆ 該当日のタスク）
                   const blueTasks = (currentTasksList || []).filter((t: any) =>
                     Boolean(t?.showOnCalendar) && Boolean(t?.calendarDates?.includes(dateStr))
                   );
@@ -981,7 +989,7 @@ export default function Page() {
                         </div>
                       )}
 
-                      {/* 🔴 赤色表示ルーティン（テキスト自動切り詰め） */}
+                      {/* 🔴 赤色表示ルーティン */}
                       {currentRoutinesList
                         .filter((r: any) => Boolean(r?.showOnCalendar))
                         .map((r: any) => {
@@ -1002,9 +1010,7 @@ export default function Page() {
                             return true;
                           };
 
-                          if (!isDayActive(day)) {
-                            return null;
-                          }
+                          if (!isDayActive(day)) return null;
 
                           let subName = "";
 
@@ -1053,7 +1059,7 @@ export default function Page() {
                           );
                         })}
 
-                      {/* 🔵 青色表示タスク（テキスト自動切り詰め） */}
+                      {/* 🔵 青色表示タスク */}
                       {blueTasks.map((t: any) => (
                         <div key={t.id} style={{ fontSize: "9px", background: "#0c4a6e", color: "#7dd3fc", padding: "2px 4px", borderRadius: "2px", borderLeft: "2px solid #38bdf8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           🔵 {t.text}
@@ -1061,8 +1067,9 @@ export default function Page() {
                       ))}
                     </div>
                   );
-                });
-              })()}
+                })
+              ];
+            })()}
             </div>
           </div>
         </div>
