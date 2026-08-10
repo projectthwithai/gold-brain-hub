@@ -156,7 +156,7 @@ export default function RecordTab() {
     setNewTargetName("");
   };
 
-  // ★追加: 物資目標達成 (購入・調達完了) 処理 ★
+  // ★物資目標達成 (購入・調達完了) 処理 ★
   const handleAchieveTarget = (id: string) => {
     const tgt = targets.find((t) => t.id === id);
     if (!tgt) return;
@@ -168,6 +168,22 @@ export default function RecordTab() {
     setTargets(
       targets.map((t) =>
         t.id === id ? { ...t, done: true, completedAt: Date.now() } : t
+      )
+    );
+  };
+
+  // ★物資目標の達成取り消し (未完了に戻す ＆ 資金返金)★
+  const handleUndoAchieveTarget = (id: string) => {
+    const tgt = targets.find((t) => t.id === id);
+    if (!tgt) return;
+
+    // 現在の所持金へ資金を全額返金 (累計消費額から減額)
+    setSpentAmount((prev) => Math.max(0, prev - tgt.targetAmount));
+
+    // 未完了(done: false)に戻し、完了日時をクリア
+    setTargets(
+      targets.map((t) =>
+        t.id === id ? { ...t, done: false, completedAt: undefined } : t
       )
     );
   };
@@ -282,7 +298,7 @@ export default function RecordTab() {
         </div>
       </div>
 
-      {/* 2. 本日完了 調達目標リスト (24時間パージ) */}
+      {/* 2. 本日完了 調達目標リスト (24時間パージ & 誤操作取り消し対応) */}
       {completedTargets.length > 0 && (
         <div style={{ borderTop: "1px dashed #333", paddingTop: "15px", marginBottom: "25px" }}>
           <span style={{ fontSize: "12px", color: "#666", fontWeight: "bold", display: "block", marginBottom: "8px" }}>
@@ -290,12 +306,31 @@ export default function RecordTab() {
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {completedTargets.map((tgt) => (
-              <div key={tgt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", borderRadius: "6px", opacity: 0.5, flexWrap: "wrap", gap: "8px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div key={tgt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", borderRadius: "6px", opacity: 0.7, flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "12px", color: "#22c55e", fontWeight: "bold" }}>✔ 調達完了</span>
                   <span style={{ textDecoration: "line-through", color: "#888", fontSize: "14px", fontWeight: "bold" }}>📱 {tgt.name}</span>
+                  <span style={{ textDecoration: "line-through", color: "#666", fontSize: "12px" }}>-¥{tgt.targetAmount.toLocaleString()} 円</span>
                 </div>
-                <span style={{ textDecoration: "line-through", color: "#666", fontSize: "12px" }}>-¥{tgt.targetAmount.toLocaleString()} 円</span>
+
+                {/* ↩️ 未完了に戻す (調達取り消し ＆ 資金返金) ボタン */}
+                <button
+                  onClick={() => handleUndoAchieveTarget(tgt.id)}
+                  style={{
+                    padding: "4px 10px",
+                    background: "#1a1a1a",
+                    color: "#f59e0b",
+                    border: "1px solid #78350f",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    whiteSpace: "nowrap"
+                  }}
+                  title="誤操作の取り消し: 未完了に戻して資金を返金します"
+                >
+                  ↩️ 未完了に戻す
+                </button>
               </div>
             ))}
           </div>
