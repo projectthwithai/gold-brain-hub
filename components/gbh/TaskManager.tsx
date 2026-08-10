@@ -41,35 +41,12 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24時間
 export default function TaskManager() {
   const { userId } = useSettings(); // ★アカウントID取得★
 
-  // カテゴリ State
-  const [categories, setCategories] = useState<TaskCategoryOption[]>(() => {
-    if (typeof window !== "undefined") {
-      const keyCats = `gbh_task_categories_${userId || "guest"}`;
-      const saved = localStorage.getItem(keyCats) || localStorage.getItem("gbh_task_categories");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return INITIAL_CATEGORIES;
-  });
-
-  // ★復元: 消えていたカテゴリ管理用 State★
+  const [categories, setCategories] = useState<TaskCategoryOption[]>(INITIAL_CATEGORIES);
   const [newCatInput, setNewCatInput] = useState("");
   const [editingCat, setEditingCat] = useState<TaskCategoryOption | null>(null);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
 
-  // タスク State
-  const [taskList, setTaskList] = useState<TaskItem[]>(() => {
-    if (typeof window !== "undefined") {
-      const keyTasks = `gbh_tasks_${userId || "guest"}`;
-      const saved = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return INITIAL_TASKS;
-  });
-
+  const [taskList, setTaskList] = useState<TaskItem[]>(INITIAL_TASKS);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
   const [newText, setNewText] = useState("");
@@ -81,11 +58,15 @@ export default function TaskManager() {
 
   const [taskDateInput, setTaskDateInput] = useState<string>("");
 
-  // ★アカウント(userId)切り替え検知 ➔ そのアカウント専用タスクデータへ即時切替★
+  // ★ロード完了アカウントIDを追跡する保護ガードState★
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+
+  // 1. userId が確定・変更されたらアカウント専用データを正しくロード
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const keyTasks = `gbh_tasks_${userId}`;
-      const keyCats = `gbh_task_categories_${userId}`;
+      const uId = userId || "guest";
+      const keyTasks = `gbh_tasks_${uId}`;
+      const keyCats = `gbh_task_categories_${uId}`;
 
       const savedTasks = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
       if (savedTasks) {
@@ -100,16 +81,19 @@ export default function TaskManager() {
       } else {
         setCategories(INITIAL_CATEGORIES);
       }
+
+      setLoadedUserId(uId);
     }
   }, [userId]);
 
-  // ★アカウント専用キーで自動保存 ＆ 24時間パージ★
+  // 2. ロード済みアカウント(loadedUserId)と一致した時のみ安全保存 ＆ 24時間パージ
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`gbh_tasks_${userId}`, JSON.stringify(taskList));
+    const currentUId = userId || "guest";
+    if (typeof window !== "undefined" && loadedUserId === currentUId) {
+      localStorage.setItem(`gbh_tasks_${currentUId}`, JSON.stringify(taskList));
       localStorage.setItem("gbh_tasks", JSON.stringify(taskList));
 
-      localStorage.setItem(`gbh_task_categories_${userId}`, JSON.stringify(categories));
+      localStorage.setItem(`gbh_task_categories_${currentUId}`, JSON.stringify(categories));
       localStorage.setItem("gbh_task_categories", JSON.stringify(categories));
     }
 
@@ -122,7 +106,7 @@ export default function TaskManager() {
     if (validTasks.length !== taskList.length) {
       setTaskList(validTasks);
     }
-  }, [taskList, categories, userId]);
+  }, [taskList, categories, userId, loadedUserId]);
 
   const handleAddTask = () => {
     if (!newText.trim()) return;

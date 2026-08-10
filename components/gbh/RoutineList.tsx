@@ -72,24 +72,18 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
   const { userId } = useSettings(); // ★アカウントID取得★
 
-  // ★1. 起動した0秒目から localStorage を直接読み込んで初期化 (初期化事故を100%防止)★
-  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      const keyModes = `gbh_mode_options_${uId}`;
-      const saved = localStorage.getItem(keyModes) || localStorage.getItem("gbh_mode_options");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return INITIAL_MODE_OPTIONS;
-  });
-
+  const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(INITIAL_MODE_OPTIONS);
   const [currentModeId, setCurrentModeId] = useState<string>("weekday");
   const [isManagingModes, setIsManagingModes] = useState(false);
   const [newModeLabelInput, setNewModeLabelInput] = useState("");
 
-  const [routines, setRoutines] = useState<RoutineItem[]>(() => {
+  const [routines, setRoutines] = useState<RoutineItem[]>(INITIAL_ROUTINES);
+  
+  // ★ロード完了アカウントIDを追跡する保護ガードState★
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+
+  // 1. userId が確定・変更されたら、そのアカウント専用データを正確にロード
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
       const todayStr = new Date().toLocaleDateString('sv-SE');
@@ -104,53 +98,53 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
           // 日付が変わっていた場合は未チェック(done: false)にリセット
           if (lastResetDate && lastResetDate !== todayStr) {
             const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
+            setRoutines(resetRoutines);
             localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines));
             localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
             localStorage.setItem("gbh_last_reset_date", todayStr);
-            return resetRoutines;
+          } else {
+            setRoutines(parsed);
           }
-
-          return parsed;
-        } catch (e) {}
-      }
-      localStorage.setItem("gbh_last_reset_date", todayStr);
-    }
-    return INITIAL_ROUTINES;
-  });
-
-  // アカウント(userId)切り替え時のデータ再読み込み
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      const key = `gbh_routines_${uId}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
-      if (saved) {
-        try { setRoutines(JSON.parse(saved)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
+        } catch (e) {
+          setRoutines(INITIAL_ROUTINES);
+        }
       } else {
         setRoutines(INITIAL_ROUTINES);
+        localStorage.setItem("gbh_last_reset_date", todayStr);
       }
+
+      const keyModes = `gbh_mode_options_${uId}`;
+      const savedModes = localStorage.getItem(keyModes) || localStorage.getItem("gbh_mode_options");
+      if (savedModes) {
+        try { setModeOptions(JSON.parse(savedModes)); } catch (e) { setModeOptions(INITIAL_MODE_OPTIONS); }
+      } else {
+        setModeOptions(INITIAL_MODE_OPTIONS);
+      }
+
+      // このアカウントIDでのデータ読み込みが完了！
+      setLoadedUserId(uId);
     }
   }, [userId]);
 
-  // アカウント専用キーへの自動保存 ＆ 更新通知
+  // 2. ロード済みアカウント(loadedUserId)と現在のアカウント(userId)が完全一致した時のみ安全に保存
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
+    const currentUId = userId || "guest";
+    if (typeof window !== "undefined" && loadedUserId === currentUId) {
+      localStorage.setItem(`gbh_routines_${currentUId}`, JSON.stringify(routines));
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
 
-      // クラウド保存側へ更新を通知
+      // 親画面(page.tsx)へのリアルタイム更新通知
       window.dispatchEvent(new Event("gbh_data_updated"));
     }
-  }, [routines, userId]);
+  }, [routines, userId, loadedUserId]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      localStorage.setItem(`gbh_mode_options_${uId}`, JSON.stringify(modeOptions));
+    const currentUId = userId || "guest";
+    if (typeof window !== "undefined" && loadedUserId === currentUId) {
+      localStorage.setItem(`gbh_mode_options_${currentUId}`, JSON.stringify(modeOptions));
       localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
     }
-  }, [modeOptions, userId]);
+  }, [modeOptions, userId, loadedUserId]);
   const [editingRoutine, setEditingRoutine] = useState<RoutineItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
