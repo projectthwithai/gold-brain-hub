@@ -283,19 +283,18 @@ export default function Page() {
     setIsDataLoaded(true);
   }, [currentUser]);
 
-  // 3. データの変更をそのアカウント専用キー(gbh_..._userId)に安全保存
+  // 3. page.tsx 側で管理している設定(Streakやカウントダウン)のみをアカウント専用キーに保存
+  // ※routines や modeOptions は RoutineList.tsx 側が正しく保存するため、ここでの上書き保存を停止して破壊を防止
   useEffect(() => {
     if (typeof window !== "undefined" && isDataLoaded) {
       const userId = currentUser?.id || "guest";
-      localStorage.setItem(`gbh_routines_${userId}`, JSON.stringify(routines));
-      localStorage.setItem(`gbh_mode_options_${userId}`, JSON.stringify(modeOptions));
+
       localStorage.setItem(`gbh_streak_days_${userId}`, streakDays.toString());
       localStorage.setItem(`gbh_streak_pct_${userId}`, streakPct.toString());
       localStorage.setItem(`gbh_streak_mode_id_${userId}`, streakModeId);
       localStorage.setItem(`gbh_countdowns_${userId}`, JSON.stringify(countdowns));
-      localStorage.setItem(`gbh_date_notes_${userId}`, JSON.stringify(dateNotes)); // ★アカウント別予定メモ保存★
     }
-  }, [routines, modeOptions, streakDays, streakPct, streakModeId, countdowns, dateNotes, currentUser, isDataLoaded]);
+  }, [streakDays, streakPct, streakModeId, countdowns, currentUser, isDataLoaded]);
 
   // 4. Supabase クラウドからのアカウント専用データ取得
   useEffect(() => {
