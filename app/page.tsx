@@ -311,21 +311,26 @@ export default function Page() {
 
       if (data?.payload && !error) {
         const p = data.payload;
-        // ★修正: 旧キーへの引き継ぎ(||)を撤廃し、アカウント専用キーのみチェック★
-        if (p.routines && Array.isArray(p.routines) && p.routines.length > 0) {
+        // ★修正: 手元(localStorage)に最新データがあればそれを最優先保護！クラウドの古いデータで絶対上書き破壊させない！★
+        if (p.routines && Array.isArray(p.routines)) {
           const keyRoutines = `gbh_routines_${userId}`;
-          const localRoutines = localStorage.getItem(keyRoutines);
+          const localRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+          
           if (!localRoutines) {
             setRoutines(p.routines);
             localStorage.setItem(keyRoutines, JSON.stringify(p.routines));
+            localStorage.setItem("gbh_routines", JSON.stringify(p.routines));
+          } else {
+            try { setRoutines(JSON.parse(localRoutines)); } catch (e) {}
           }
         }
 
-        if (p.tasks && Array.isArray(p.tasks) && p.tasks.length > 0) {
+        if (p.tasks && Array.isArray(p.tasks)) {
           const keyTasks = `gbh_tasks_${userId}`;
-          const localTasks = localStorage.getItem(keyTasks);
+          const localTasks = localStorage.getItem(keyTasks) || localStorage.getItem("gbh_tasks");
           if (!localTasks) {
             localStorage.setItem(keyTasks, JSON.stringify(p.tasks));
+            localStorage.setItem("gbh_tasks", JSON.stringify(p.tasks));
           }
         }
 

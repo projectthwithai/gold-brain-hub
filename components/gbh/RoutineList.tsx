@@ -118,19 +118,25 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     return INITIAL_ROUTINES;
   });
 
-  // アカウント(userId)切り替え時の再読み込み連動
+  // ★手元データ変更時に即座に保存 ＆ クラウドへ更新シグナルを送信★
   useEffect(() => {
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
-      const key = `gbh_routines_${uId}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
-      if (saved) {
-        try { setRoutines(JSON.parse(saved)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
-      } else {
-        setRoutines(INITIAL_ROUTINES);
-      }
+      localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
+      localStorage.setItem("gbh_routines", JSON.stringify(routines));
+      
+      // クラウド保存側へ更新を通知
+      window.dispatchEvent(new Event("gbh_data_updated"));
     }
-  }, [userId]);
+  }, [routines, userId]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_mode_options_${uId}`, JSON.stringify(modeOptions));
+      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
+    }
+  }, [modeOptions, userId]);
 
   // アカウント専用キーへの自動保存
   useEffect(() => {
