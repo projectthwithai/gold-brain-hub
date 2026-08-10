@@ -345,10 +345,11 @@ export default function Page() {
   }, [currentUser]);
 
   // 5. アカウント専用の Supabase クラウド自動バックアップ
+  // ★手元のルーティン・タスク変更イベントを感知して Supabase クラウドへ即時同期★
   useEffect(() => {
-    if (!supabase || !currentUser || !isDataLoaded) return;
+    if (!supabase || !currentUser) return;
 
-    const timer = setTimeout(async () => {
+    const syncToCloudOnUpdate = async () => {
       const userId = currentUser.id;
       const latestRoutines = localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines")
         ? JSON.parse((localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines"))!)
@@ -365,7 +366,6 @@ export default function Page() {
         streakDays,
         streakPct,
         dateNotes,
-        countdowns,
         updatedAt: new Date().toISOString()
       };
 
@@ -374,10 +374,18 @@ export default function Page() {
         payload,
         updated_at: new Date().toISOString()
       });
-    }, 1200);
+    };
 
-    return () => clearTimeout(timer);
-  }, [routines, tasks, modeOptions, streakDays, streakPct, dateNotes, countdowns, currentUser, isDataLoaded]);
+    window.addEventListener("gbh_data_updated", syncToCloudOnUpdate);
+
+    const timer = setTimeout(syncToCloudOnUpdate, 1200);
+
+    return () => {
+      window.removeEventListener("gbh_data_updated", syncToCloudOnUpdate);
+      clearTimeout(timer);
+    };
+  }, [currentUser, routines, tasks, modeOptions, streakDays, streakPct, dateNotes]);
+
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");
   const [stepInputText, setStepInputText] = useState("");

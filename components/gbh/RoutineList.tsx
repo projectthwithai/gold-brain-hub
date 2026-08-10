@@ -70,9 +70,9 @@ const INITIAL_ROUTINES: RoutineItem[] = [
 ];
 
 export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: string, mins: number) => void }) {
-  const { userId } = useSettings(); // ★追加: アカウントIDの取得★
+  const { userId } = useSettings(); // ★アカウントID取得★
 
-  // ★1. 起動の0秒目から localStorage の記憶を直接読み込んで初期化 (初期データ上書き事故防止)★
+  // ★1. 起動した0秒目から localStorage を直接読み込んで初期化 (初期化事故を100%防止)★
   const [modeOptions, setModeOptions] = useState<RoutineModeOption[]>(() => {
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
@@ -101,7 +101,7 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
         try {
           const parsed: RoutineItem[] = JSON.parse(saved);
 
-          // 日付が変わっていた場合は未チェック(done: false)にリセットして復元
+          // 日付が変わっていた場合は未チェック(done: false)にリセット
           if (lastResetDate && lastResetDate !== todayStr) {
             const resetRoutines = parsed.map((r) => ({ ...r, done: false }));
             localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines));
@@ -118,32 +118,29 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     return INITIAL_ROUTINES;
   });
 
-  // ★手元データ変更時に即座に保存 ＆ クラウドへ更新シグナルを送信★
+  // アカウント(userId)切り替え時のデータ再読み込み
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const uId = userId || "guest";
+      const key = `gbh_routines_${uId}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { setRoutines(JSON.parse(saved)); } catch (e) { setRoutines(INITIAL_ROUTINES); }
+      } else {
+        setRoutines(INITIAL_ROUTINES);
+      }
+    }
+  }, [userId]);
+
+  // アカウント専用キーへの自動保存 ＆ 更新通知
   useEffect(() => {
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
       localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
-      
+
       // クラウド保存側へ更新を通知
       window.dispatchEvent(new Event("gbh_data_updated"));
-    }
-  }, [routines, userId]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      localStorage.setItem(`gbh_mode_options_${uId}`, JSON.stringify(modeOptions));
-      localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
-    }
-  }, [modeOptions, userId]);
-
-  // アカウント専用キーへの自動保存
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-      localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
-      localStorage.setItem("gbh_routines", JSON.stringify(routines));
     }
   }, [routines, userId]);
 
