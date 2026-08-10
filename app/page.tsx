@@ -426,33 +426,37 @@ export default function Page() {
     if (typeof window === "undefined" || !isDataLoaded) return;
 
     const checkDateChangeAndFinalizeStreak = () => {
-      const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
+      const todayStr = new Date().toLocaleDateString('sv-SE');
       const lastResetDate = localStorage.getItem("gbh_last_reset_date");
+      const userId = currentUser?.id || "guest";
 
-      // 昨日から今日へ日付が変わった場合
       if (lastResetDate && lastResetDate !== todayStr) {
-        // ① 昨日のWIN判定結果を取得 (昨日の 23:59 時点の実績)
+        // ① 昨日のWIN判定結果を取得
         const yesterdayWinStatus = localStorage.getItem(`gbh_daily_win_${lastResetDate}`);
-        const currentStreak = Number(localStorage.getItem("gbh_streak_days")) || 0;
+        const currentStreak = Number(localStorage.getItem(`gbh_streak_days_${userId}`) || localStorage.getItem("gbh_streak_days")) || 0;
 
         if (yesterdayWinStatus === "true") {
-          // 昨日WIN達成 ➔ 連続記録を +1 加算確定！
+          // 昨日WIN達成 ➔ +1 加算確定
           const newStreak = currentStreak + 1;
           setStreakDays(newStreak);
+          localStorage.setItem(`gbh_streak_days_${userId}`, newStreak.toString());
           localStorage.setItem("gbh_streak_days", newStreak.toString());
         } else {
-          // 昨日未達成 ➔ 連続記録を 0日 にリセット
+          // 昨日未達成 ➔ 0日にリセット
           setStreakDays(0);
+          localStorage.setItem(`gbh_streak_days_${userId}`, "0");
           localStorage.setItem("gbh_streak_days", "0");
         }
 
-        // ② Streak(連続記録)の確定完了後に、本日のためにルーティンチェックを未チェック(done: false)にリセット
-        const savedRoutines = localStorage.getItem("gbh_routines");
+        // ② 本日のルーティンチェック(done)をリセット
+        const keyRoutines = `gbh_routines_${userId}`;
+        const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
         if (savedRoutines) {
           try {
             const routinesArr = JSON.parse(savedRoutines);
             const resetRoutines = routinesArr.map((r: any) => ({ ...r, done: false }));
             setRoutines(resetRoutines);
+            localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines));
             localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
           } catch (e) {}
         }
@@ -464,10 +468,10 @@ export default function Page() {
     };
 
     checkDateChangeAndFinalizeStreak();
-    const interval = setInterval(checkDateChangeAndFinalizeStreak, 30000); // 30秒ごとに日付跨ぎを監視
+    const interval = setInterval(checkDateChangeAndFinalizeStreak, 30000);
 
     return () => clearInterval(interval);
-  }, [isDataLoaded]);
+  }, [isDataLoaded, currentUser]);
 
   const todayDow = new Date().getDay();
 
@@ -919,7 +923,15 @@ export default function Page() {
                   if (isToday) {
                     resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
                   } else if (isPast) {
-                    resultStatus = (day % 2 === 0) ? "WIN" : "LOSE";
+                    // ★修正: 実際に保存されている過去の本物勝敗記録から判定★
+                    const pastWinStatus = typeof window !== "undefined" ? localStorage.getItem(`gbh_daily_win_${dateStr}`) : null;
+                    if (pastWinStatus === "true") {
+                      resultStatus = "WIN";
+                    } else if (pastWinStatus === "false") {
+                      resultStatus = "LOSE";
+                    } else {
+                      resultStatus = null;
+                    }
                   }
 
                   // 🔵 青色表示対象のタスク（カレンダー表示ON ＆ 該当日のタスク）

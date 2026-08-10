@@ -231,33 +231,37 @@ export default function RoutineList({ onQuickTimer }: { onQuickTimer?: (name: st
     return () => clearInterval(interval);
   }, []);
 
+  // ★フライング保存による巻き戻りを防ぐ isLoaded ガード付き保存★
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedRoutines = localStorage.getItem("gbh_routines");
-      if (savedRoutines) {
-        try { setRoutines(JSON.parse(savedRoutines)); } catch (e) {}
+      const uId = userId || "guest";
+      const key = `gbh_routines_${uId}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem("gbh_routines");
+      if (saved) {
+        try { setRoutines(JSON.parse(saved)); } catch (e) {}
       }
-      const savedModes = localStorage.getItem("gbh_mode_options");
-      if (savedModes) {
-        try { setModeOptions(JSON.parse(savedModes)); } catch (e) {}
-      }
-      setIsLoaded(true);
+      setIsLoaded(true); // ★ロード完了★
     }
-  }, []);
+  }, [userId]);
 
+  // ロード完了後(isLoaded === true)にのみ保存を実行する
   useEffect(() => {
     if (typeof window !== "undefined" && isLoaded) {
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_routines_${uId}`, JSON.stringify(routines));
       localStorage.setItem("gbh_routines", JSON.stringify(routines));
     }
-  }, [routines, isLoaded]);
+  }, [routines, userId, isLoaded]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && isLoaded) {
+      const uId = userId || "guest";
+      localStorage.setItem(`gbh_mode_options_${uId}`, JSON.stringify(modeOptions));
       localStorage.setItem("gbh_mode_options", JSON.stringify(modeOptions));
     }
-  }, [modeOptions, isLoaded]);
+  }, [modeOptions, userId, isLoaded]);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDow = new Date().getDay();
