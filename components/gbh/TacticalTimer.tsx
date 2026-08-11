@@ -161,16 +161,18 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     } catch (e) {}
   };
 
-  // ★修正: アカウント専用キー(gbh_timer_logs_userId)にのみ記録を保存★
+  // ★修正: 日本時間(YYYY-MM-DD)で正確に日付を判定し研究所データへ即時送信★
   const saveAnalyticsLog = (category: string, workedSecs: number) => {
-    if (!recordToAnalytics || workedSecs < 10) return;
+    if (!recordToAnalytics || workedSecs < 5) return; // 5秒以上の作業を記録
     const workedMins = Math.max(1, Math.floor(workedSecs / 60));
-    const todayStr = new Date().toISOString().split("T")[0];
+
+    // 日本時間での YYYY-MM-DD 日付取得
+    const todayStr = new Date().toLocaleDateString('sv-SE');
 
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
       const keyLogs = `gbh_timer_logs_${uId}`;
-      const saved = localStorage.getItem(keyLogs);
+      const saved = localStorage.getItem(keyLogs) || localStorage.getItem("gbh_timer_logs");
       let logs: any[] = [];
       if (saved) {
         try { logs = JSON.parse(saved); } catch (e) {}
@@ -184,6 +186,10 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
       });
 
       localStorage.setItem(keyLogs, JSON.stringify(logs));
+      localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
+
+      // 研究所データ(AnalyticsCenter)へリアルタイム連動通知
+      window.dispatchEvent(new Event("gbh_data_updated"));
     }
   };
 
