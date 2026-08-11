@@ -109,13 +109,15 @@ export default function AnalyticsCenter() {
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 1. localStorage から本物の実データを復元ロード
+  // 1. localStorage から実データをロード ＆ Vercelリアルタイム更新受信対応
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // ★一元化修正: 現在のアカウント専用キー(gbh_timer_logs_uId)のみを素直に一元リード★
+    const loadRealData = () => {
+      if (typeof window !== "undefined") {
         const uId = userId || "guest";
+
+        // アカウント専用タイマーログ
         const keyTimer = `gbh_timer_logs_${uId}`;
-        const savedTimerLogs = localStorage.getItem(keyTimer);
+        const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs_guest") || localStorage.getItem("gbh_timer_logs");
         if (savedTimerLogs) {
           try {
             const parsed = JSON.parse(savedTimerLogs);
@@ -125,26 +127,52 @@ export default function AnalyticsCenter() {
           setTimerLogs([]);
         }
 
-      const keyGItems = `gbh_growth_items_${uId}`;
-      const savedGItems = localStorage.getItem(keyGItems);
-      if (savedGItems) {
-        try {
-          const parsed = JSON.parse(savedGItems);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setGrowthItems(parsed);
-            setSelectedGrowthItemId(parsed[0].id);
-          }
-        } catch (e) {}
-      }
+        // アカウント専用ルーティン
+        const keyRoutines = `gbh_routines_${uId}`;
+        const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
+        if (savedRoutines) {
+          try {
+            const parsed = JSON.parse(savedRoutines);
+            if (Array.isArray(parsed) && parsed.length > 0) setRoutinesList(parsed);
+          } catch (e) {}
+        }
 
-      const keyGLogs = `gbh_growth_logs_${uId}`;
-      const savedGLogs = localStorage.getItem(keyGLogs);
-      if (savedGLogs) {
-        try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) {}
-      }
+        // アカウント専用成長記録項目
+        const keyGItems = `gbh_growth_items_${uId}`;
+        const savedGItems = localStorage.getItem(keyGItems);
+        if (savedGItems) {
+          try {
+            const parsed = JSON.parse(savedGItems);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setGrowthItems(parsed);
+              if (!selectedGrowthItemId) setSelectedGrowthItemId(parsed[0].id);
+            }
+          } catch (e) {}
+        }
 
-      setIsLoaded(true);
-    }
+        // アカウント専用成長記録ログ
+        const keyGLogs = `gbh_growth_logs_${uId}`;
+        const savedGLogs = localStorage.getItem(keyGLogs);
+        if (savedGLogs) {
+          try { setGrowthLogs(JSON.parse(savedGLogs)); } catch (e) {}
+        }
+
+        setIsLoaded(true);
+      }
+    };
+
+    loadRealData();
+    const interval = setInterval(loadRealData, 500);
+
+    // ★Vercel本番環境対応: タイマー更新イベント(gbh_data_updated)を直接受信して即座にグラフ・累計時間を再描画！★
+    window.addEventListener("gbh_data_updated", loadRealData);
+    window.addEventListener("focus", loadRealData);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("gbh_data_updated", loadRealData);
+      window.removeEventListener("focus", loadRealData);
+    };
   }, [userId]);
 
   // 2. 成長記録データの保存
