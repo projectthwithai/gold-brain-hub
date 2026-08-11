@@ -512,8 +512,8 @@ export default function Page() {
     localStorage.setItem(`gbh_daily_win_${todayStr}`, isWin ? "true" : "false");
   }, [progressPct, streakPct, isDataLoaded]);
 
-  // 本日のWIN判定 ＆ 動的ストリークカウント(+1)計算
-  const currentDisplayStreak = streakDays + (progressPct >= streakPct ? 1 : 0);
+  // ★修正: 基準達成で +1 カウントアップ、基準未満(未達成)で 0 日にリアルタイム連動★
+  const currentDisplayStreak = progressPct >= streakPct ? streakDays + 1 : 0;
 
   const upcomingRoutines = routines.filter((r) => {
     if (!r.modes.includes(currentModeId)) return false;
@@ -936,8 +936,13 @@ export default function Page() {
 
                 // 1日〜31日までの日付マス
                 ...Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-                  const dateStr = `2026-08-${day.toString().padStart(2, "0")}`;
-                  const todayNum = new Date().getDate(); 
+                  // 年月日を現在の日付から動的取得
+                  const nowObj = new Date();
+                  const yearStr = nowObj.getFullYear();
+                  const monthStr = (nowObj.getMonth() + 1).toString().padStart(2, "0");
+                  const dateStr = `${yearStr}-${monthStr}-${day.toString().padStart(2, "0")}`;
+
+                  const todayNum = nowObj.getDate(); 
                   const isToday = day === todayNum;
                   const isPast = day < todayNum;
 
@@ -945,6 +950,7 @@ export default function Page() {
                   if (isToday) {
                     resultStatus = progressPct >= streakPct ? "WIN" : "LOSE";
                   } else if (isPast) {
+                    // ★修正: 偶数奇数のダミーを撤廃し、保存されている本物の日別勝敗記録から判定★
                     const pastWinStatus = typeof window !== "undefined" ? localStorage.getItem(`gbh_daily_win_${dateStr}`) : null;
                     if (pastWinStatus === "true") {
                       resultStatus = "WIN";
