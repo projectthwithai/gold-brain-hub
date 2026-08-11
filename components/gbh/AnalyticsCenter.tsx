@@ -112,28 +112,16 @@ export default function AnalyticsCenter() {
   // 1. localStorage から本物の実データを復元ロード
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const uId = userId || "guest";
-
-      const keyTimer = `gbh_timer_logs_${uId}`;
-      const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
-      if (savedTimerLogs) {
-        try {
-          const parsed = JSON.parse(savedTimerLogs);
-          if (Array.isArray(parsed)) setTimerLogs(parsed);
-        } catch (e) { setTimerLogs([]); }
-      } else { setTimerLogs([]); }
-
-      const keyRoutines = `gbh_routines_${uId}`;
-      const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
-      if (savedRoutines) {
-        try {
-          const parsed = JSON.parse(savedRoutines);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRoutinesList(parsed);
-            setSelectedRoutineId(parsed[0].id);
-          }
-        } catch (e) {}
-      }
+      // ★修正: アカウント専用キーおよび安全フォールバックで確実に記録ログを拾い上げて合算★
+        const uId = userId || "guest";
+        const keyTimer = `gbh_timer_logs_${uId}`;
+        const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
+        if (savedTimerLogs) {
+          try {
+            const parsed = JSON.parse(savedTimerLogs);
+            if (Array.isArray(parsed)) setTimerLogs(parsed);
+          } catch (e) {}
+        }
 
       const keyGItems = `gbh_growth_items_${uId}`;
       const savedGItems = localStorage.getItem(keyGItems);

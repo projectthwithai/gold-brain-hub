@@ -161,12 +161,10 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     } catch (e) {}
   };
 
-  // ★修正: 日本時間(YYYY-MM-DD)で正確に日付を判定し研究所データへ即時送信★
+  // ★修正: 1秒以上の作業なら最小1分保証で即座に研究所データへ確実記録★
   const saveAnalyticsLog = (category: string, workedSecs: number) => {
-    if (!recordToAnalytics || workedSecs < 5) return; // 5秒以上の作業を記録
-    const workedMins = Math.max(1, Math.floor(workedSecs / 60));
-
-    // 日本時間での YYYY-MM-DD 日付取得
+    if (!recordToAnalytics || workedSecs < 1) return; // 1秒以上の作業をすべて記録
+    const workedMins = Math.max(1, Math.floor(workedSecs / 60) || 1); // 1分未満も1分として最小保証
     const todayStr = new Date().toLocaleDateString('sv-SE');
 
     if (typeof window !== "undefined") {
@@ -185,6 +183,7 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         minutes: workedMins,
       });
 
+      // アカウント専用キーと従来キーの両方に安全書き込み
       localStorage.setItem(keyLogs, JSON.stringify(logs));
       localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
 
