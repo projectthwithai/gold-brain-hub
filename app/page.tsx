@@ -441,7 +441,8 @@ export default function Page() {
     setTab("timer");
   };
 
-  // ★2. 23:59 / 日付跨ぎ時に【先に昨日のStreakを確定】➔ その後に本日のルーティンをリセット★
+  // ★3. 【連続記録更新の核】日付が変わった瞬間にStreakを確定させてリセットするロジック★
+  // RoutineList.tsx のロジックと連携させるため、ここでもリセットを確実に同期
   useEffect(() => {
     if (typeof window === "undefined" || !isDataLoaded) return;
 
@@ -468,16 +469,19 @@ export default function Page() {
           localStorage.setItem("gbh_streak_days", "0");
         }
 
-        // ② 本日のルーティンチェック(done)をリセット
+        // ② 【重要】RoutineList.tsx と共通のキーでルーティンリセットを実行
         const keyRoutines = `gbh_routines_${userId}`;
         const savedRoutines = localStorage.getItem(keyRoutines) || localStorage.getItem("gbh_routines");
         if (savedRoutines) {
           try {
             const routinesArr = JSON.parse(savedRoutines);
             const resetRoutines = routinesArr.map((r: any) => ({ ...r, done: false }));
-            setRoutines(resetRoutines);
-            localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines));
+            setRoutines(resetRoutines); // 画面のStateを更新
+            localStorage.setItem(keyRoutines, JSON.stringify(resetRoutines)); // ローカルストレージを直接更新
             localStorage.setItem("gbh_routines", JSON.stringify(resetRoutines));
+            
+            // RoutineList コンポーネントへ更新を通知（もしコンポーネント間で共有されている場合）
+            window.dispatchEvent(new Event("gbh_data_updated"));
           } catch (e) {}
         }
 
@@ -488,7 +492,7 @@ export default function Page() {
     };
 
     checkDateChangeAndFinalizeStreak();
-    const interval = setInterval(checkDateChangeAndFinalizeStreak, 30000);
+    const interval = setInterval(checkDateChangeAndFinalizeStreak, 10000); // 10秒おきにチェック
 
     return () => clearInterval(interval);
   }, [isDataLoaded, currentUser]);
