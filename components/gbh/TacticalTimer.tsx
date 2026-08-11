@@ -161,16 +161,22 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
     } catch (e) {}
   };
 
-  // ★修正: 1秒以上の作業なら最小1分保証で即座に研究所データへ確実記録★
+  // ★一元化修正: 現在のアカウント(userId)専用キー(gbh_timer_logs_userId)に100%確実に保存★
   const saveAnalyticsLog = (category: string, workedSecs: number) => {
-    if (!recordToAnalytics || workedSecs < 1) return; // 1秒以上の作業をすべて記録
-    const workedMins = Math.max(1, Math.floor(workedSecs / 60) || 1); // 1分未満も1分として最小保証
-    const todayStr = new Date().toLocaleDateString('sv-SE');
+    if (!recordToAnalytics || workedSecs < 1) return;
+    const workedMins = Math.max(1, Math.floor(workedSecs / 60) || 1); // 1分未満も1分として記録
+
+    // 日本時間での YYYY-MM-DD
+    const nowObj = new Date();
+    const yearStr = nowObj.getFullYear();
+    const monthStr = (nowObj.getMonth() + 1).toString().padStart(2, "0");
+    const dayStr = nowObj.getDate().toString().padStart(2, "0");
+    const todayStr = `${yearStr}-${monthStr}-${dayStr}`;
 
     if (typeof window !== "undefined") {
       const uId = userId || "guest";
       const keyLogs = `gbh_timer_logs_${uId}`;
-      const saved = localStorage.getItem(keyLogs) || localStorage.getItem("gbh_timer_logs");
+      const saved = localStorage.getItem(keyLogs);
       let logs: any[] = [];
       if (saved) {
         try { logs = JSON.parse(saved); } catch (e) {}
@@ -183,11 +189,10 @@ export default function TacticalTimer({ initialTask, initialMinutes }: TacticalT
         minutes: workedMins,
       });
 
-      // アカウント専用キーと従来キーの両方に安全書き込み
+      // アカウント専用キーにのみ一元保存
       localStorage.setItem(keyLogs, JSON.stringify(logs));
-      localStorage.setItem("gbh_timer_logs", JSON.stringify(logs));
 
-      // 研究所データ(AnalyticsCenter)へリアルタイム連動通知
+      // アナリティクスへリアルタイム更新通知
       window.dispatchEvent(new Event("gbh_data_updated"));
     }
   };

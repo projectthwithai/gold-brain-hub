@@ -338,19 +338,29 @@ export default function Page() {
         if (p.streakPct !== undefined) setStreakPct(p.streakPct);
         if (p.dateNotes) setDateNotes(p.dateNotes);
         if (p.countdowns) setCountdowns(p.countdowns);
+
+        // ★クラウドから取得したタイマーログをアカウント専用キーに復元★
+        if (p.timerLogs && Array.isArray(p.timerLogs)) {
+          const keyTimer = `gbh_timer_logs_${userId}`;
+          const localLogs = localStorage.getItem(keyTimer);
+          if (!localLogs || JSON.parse(localLogs).length === 0) {
+            localStorage.setItem(keyTimer, JSON.stringify(p.timerLogs));
+          }
+        }
       }
-    };
+    }; // ★修正: loadCloudData 関数の閉じカッコを復元★
 
     loadCloudData();
   }, [currentUser]);
 
-  // 5. アカウント専用の Supabase クラウド自動バックアップ
-  // ★手元のルーティン・タスク変更イベントを感知して Supabase クラウドへ即時同期★
+  // ★クラウド同期に timerLogs (タイマー作業記録) も正式追加保存★
   useEffect(() => {
-    if (!supabase || !currentUser) return;
+    if (!supabase || !currentUser || !isDataLoaded) return;
 
-    const syncToCloudOnUpdate = async () => {
+    const timer = setTimeout(async () => {
       const userId = currentUser.id;
+      const keyTimer = `gbh_timer_logs_${userId}`;
+
       const latestRoutines = localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines")
         ? JSON.parse((localStorage.getItem(`gbh_routines_${userId}`) || localStorage.getItem("gbh_routines"))!)
         : routines;
@@ -359,9 +369,14 @@ export default function Page() {
         ? JSON.parse((localStorage.getItem(`gbh_tasks_${userId}`) || localStorage.getItem("gbh_tasks"))!)
         : tasks;
 
+      const latestTimerLogs = localStorage.getItem(keyTimer)
+        ? JSON.parse(localStorage.getItem(keyTimer)!)
+        : [];
+
       const payload = {
         routines: latestRoutines,
         tasks: latestTasks,
+        timerLogs: latestTimerLogs, // ★タイマー記録もクラウド同期に含める★
         modeOptions,
         streakDays,
         streakPct,
@@ -374,17 +389,10 @@ export default function Page() {
         payload,
         updated_at: new Date().toISOString()
       });
-    };
+    }, 1200);
 
-    window.addEventListener("gbh_data_updated", syncToCloudOnUpdate);
-
-    const timer = setTimeout(syncToCloudOnUpdate, 1200);
-
-    return () => {
-      window.removeEventListener("gbh_data_updated", syncToCloudOnUpdate);
-      clearTimeout(timer);
-    };
-  }, [currentUser, routines, tasks, modeOptions, streakDays, streakPct, dateNotes]);
+    return () => clearTimeout(timer);
+  }, [routines, tasks, modeOptions, streakDays, streakPct, dateNotes, countdowns, currentUser, isDataLoaded]);
 
   const [editingSubTab, setEditingSubTab] = useState<string>("上半身");
   const [rotationInputText, setRotationInputText] = useState("");

@@ -112,15 +112,17 @@ export default function AnalyticsCenter() {
   // 1. localStorage から本物の実データを復元ロード
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // ★修正: アカウント専用キーおよび安全フォールバックで確実に記録ログを拾い上げて合算★
+      // ★一元化修正: 現在のアカウント専用キー(gbh_timer_logs_uId)のみを素直に一元リード★
         const uId = userId || "guest";
         const keyTimer = `gbh_timer_logs_${uId}`;
-        const savedTimerLogs = localStorage.getItem(keyTimer) || localStorage.getItem("gbh_timer_logs");
+        const savedTimerLogs = localStorage.getItem(keyTimer);
         if (savedTimerLogs) {
           try {
             const parsed = JSON.parse(savedTimerLogs);
             if (Array.isArray(parsed)) setTimerLogs(parsed);
-          } catch (e) {}
+          } catch (e) { setTimerLogs([]); }
+        } else {
+          setTimerLogs([]);
         }
 
       const keyGItems = `gbh_growth_items_${uId}`;
