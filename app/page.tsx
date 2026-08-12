@@ -456,6 +456,10 @@ export default function Page() {
         const yesterdayWinStatus = localStorage.getItem(`gbh_daily_win_${lastResetDate}`);
         const currentStreak = Number(localStorage.getItem(`gbh_streak_days_${userId}`) || localStorage.getItem("gbh_streak_days")) || 0;
 
+        // 【修正】streak更新ロジックの改善
+        // 日付が変わった時にチェックするのではなく、昨日の勝敗結果（gbh_daily_win_YYYY-MM-DD）が "true" か "false" かで決定する。
+        // すでに gbh_daily_win_YYYY-MM-DD は、達成率が streakPct を超えているかで記録されている。
+
         if (yesterdayWinStatus === "true") {
           // 昨日WIN達成 ➔ +1 加算確定
           const newStreak = currentStreak + 1;
